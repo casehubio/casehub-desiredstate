@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.casehub</groupId>
+        <artifactId>casehub-parent</artifactId>
+        <version>0.2-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>casehub-desiredstate-parent</artifactId>
+    <version>0.2-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>CaseHub Desired State :: Parent</name>
+    <description>Generic desired-state management runtime — planner, reconciliation loop, fault policy, core SPIs.
+        Domain-agnostic: GoalCompiler, ActualStateAdapter, NodeProvisioner, FaultPolicy, EventSource SPIs.
+        Workflow delegation to casehub-engine-flow. Human nodes via casehub-work WorkItems.</description>
+    <url>https://github.com/casehubio/casehub-desiredstate</url>
+
+    <modules>
+        <module>api</module>
+        <module>runtime</module>
+        <module>testing</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <version.quarkus.platform>3.32.2</version.quarkus.platform>
+        <version.io.casehub>0.2-SNAPSHOT</version.io.casehub>
+        <jandex-maven-plugin.version>3.3.1</jandex-maven-plugin.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${version.quarkus.platform}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- casehub-desiredstate inter-module -->
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-testing</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Platform — Path, Preferences, CurrentPrincipal -->
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-platform-api</artifactId>
+                <version>${version.io.casehub}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-platform</artifactId>
+                <version>${version.io.casehub}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-platform-testing</artifactId>
+                <version>${version.io.casehub}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Engine Flow — workflow execution delegation -->
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-engine-flow</artifactId>
+                <version>${version.io.casehub}</version>
+            </dependency>
+
+            <!-- Work — WorkItem generation for human nodes -->
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-work-api</artifactId>
+                <version>${version.io.casehub}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.smallrye.reactive</groupId>
+                <artifactId>mutiny</artifactId>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>3.27.7</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>github</id>
+            <name>casehubio GitHub Packages</name>
+            <url>https://maven.pkg.github.com/casehubio/*</url>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+    </repositories>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>casehubio GitHub Packages</name>
+            <url>https://maven.pkg.github.com/casehubio/casehub-desiredstate</url>
+        </repository>
+        <snapshotRepository>
+            <id>github</id>
+            <name>casehubio GitHub Packages</name>
+            <url>https://maven.pkg.github.com/casehubio/casehub-desiredstate</url>
+            <uniqueVersion>false</uniqueVersion>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <scm>
+        <connection>scm:git:https://github.com/casehubio/casehub-desiredstate.git</connection>
+        <developerConnection>scm:git:https://github.com/casehubio/casehub-desiredstate.git</developerConnection>
+        <url>https://github.com/casehubio/casehub-desiredstate</url>
+    </scm>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <configuration><parameters>true</parameters></configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                    <configuration><rerunFailingTestsCount>2</rerunFailingTestsCount></configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+</project>
