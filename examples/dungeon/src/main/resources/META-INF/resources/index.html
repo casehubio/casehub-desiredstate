@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nefarious Dungeons</title>
+<style>
+  body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { color: #c0392b; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(6, 80px); gap: 4px; margin: 20px auto; width: fit-content; }
+  .tile { width: 80px; height: 80px; display: flex; flex-direction: column; align-items: center;
+          justify-content: center; border: 1px solid #333; font-size: 11px; text-align: center; border-radius: 4px; }
+  .empty { background: #2c2c3e; color: #555; }
+  .room-built { background: #2d5016; border-color: #4a8c28; }
+  .room-destroyed { background: #5c1a1a; border-color: #8b2500; animation: flash 0.5s; }
+  .creature-present { background: #1a3a5c; border-color: #2980b9; }
+  .creature-fled { background: #3d3d00; border-color: #666; opacity: 0.5; }
+  .trap-armed { background: #5c1a3a; border-color: #c0392b; }
+  .icon { font-size: 24px; }
+  .status { font-size: 9px; margin-top: 2px; }
+  #log { max-height: 200px; overflow-y: auto; background: #0d0d1a; padding: 10px; margin-top: 20px;
+         border: 1px solid #333; font-size: 11px; }
+  @keyframes flash { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+<h1>Nefarious Dungeons</h1>
+<div id="grid" class="grid"></div>
+<div id="log"></div>
+<script>
+const ICONS = { room: '\u{1F3F0}', creature: '\u{1F479}', trap: '\u{2694}\u{FE0F}' };
+const grid = document.getElementById('grid');
+const log = document.getElementById('log');
+
+function render(snapshot) {
+  grid.innerHTML = '';
+  const allItems = [];
+  for (const [id, state] of Object.entries(snapshot.rooms || {})) {
+    allItems.push({ id, type: 'room', state });
+  }
+  for (const [id, state] of Object.entries(snapshot.creatures || {})) {
+    allItems.push({ id, type: 'creature', state });
+  }
+  for (const [id, state] of Object.entries(snapshot.traps || {})) {
+    allItems.push({ id, type: 'trap', state });
+  }
+  while (allItems.length < 12) allItems.push(null);
+  for (const item of allItems) {
+    const tile = document.createElement('div');
+    if (!item) { tile.className = 'tile empty'; tile.textContent = '·'; }
+    else {
+      const cls = item.type === 'room' ? (item.state === 'BUILT' ? 'room-built' : 'room-destroyed')
+                : item.type === 'creature' ? (item.state === 'PRESENT' ? 'creature-present' : 'creature-fled')
+                : 'trap-armed';
+      tile.className = 'tile ' + cls;
+      tile.innerHTML = '<span class="icon">' + (ICONS[item.type]||'?') + '</span>'
+                     + '<span>' + item.id + '</span>'
+                     + '<span class="status">' + item.state + '</span>';
+    }
+    grid.appendChild(tile);
+  }
+}
+
+const es = new EventSource('/dungeon/stream');
+es.onmessage = e => render(JSON.parse(e.data));
+es.onerror = () => log.innerHTML += '<div style="color:#c0392b">SSE connection lost</div>';
+</script>
+</body>
+</html>
