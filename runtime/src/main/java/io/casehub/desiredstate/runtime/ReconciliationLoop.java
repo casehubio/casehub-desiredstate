@@ -7,8 +7,10 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -246,11 +248,20 @@ public class ReconciliationLoop {
                 TransitionResult result = executor.execute(plan).await().indefinitely();
 
                 // 5. Fault feedback — accumulate all mutations, single CAS
+                // Build removal node set for fault type determination
+                Set<NodeId> removalNodeIds = new HashSet<>();
+                for (OrderedStep step : plan.removals()) {
+                    removalNodeIds.add(step.node().id());
+                }
+
                 mutated = desired;
                 for (Map.Entry<NodeId, StepOutcome> entry : result.outcomes().entrySet()) {
                     if (entry.getValue() instanceof StepOutcome.Failed failed) {
+                        FaultType faultType = removalNodeIds.contains(entry.getKey())
+                            ? FaultType.DEPROVISION_FAILED
+                            : FaultType.PROVISION_FAILED;
                         FaultEvent faultEvent = new FaultEvent(
-                            entry.getKey(), FaultType.PROVISION_FAILED, failed.reason());
+                            entry.getKey(), faultType, failed.reason());
                         List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
                         for (GraphMutation mutation : mutations) {
                             mutated = mutated.withMutation(mutation);

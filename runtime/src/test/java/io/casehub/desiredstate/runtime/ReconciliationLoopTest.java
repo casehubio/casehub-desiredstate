@@ -281,6 +281,45 @@ class ReconciliationLoopTest {
                     step.node().id().equals(NodeId.of("a-fix")))));
     }
 
+    @Test
+    void deprovisionFailure_producesDeprovisionFailedFaultType() {
+        // Desired: only node "a". Actual: both "a" (PRESENT) and "b" (PRESENT).
+        // Node "b" is orphaned — not in desired — so planner will schedule it for removal.
+        DesiredNode nodeA = node("a");
+        DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
+        actualAdapter.setStatuses(Map.of(
+            NodeId.of("a"), NodeStatus.PRESENT,
+            NodeId.of("b"), NodeStatus.PRESENT));
+
+        // Configure executor to fail deprovision of node "b"
+        testExecutor.failDeprovisionNodes.add(NodeId.of("b"));
+
+        // Capturing fault policy that records all FaultEvents
+        List<FaultEvent> capturedEvents = new CopyOnWriteArrayList<>();
+        FaultPolicy capturingPolicy = (event, current) -> {
+            capturedEvents.add(event);
+            return List.of();
+        };
+        faultEngine = new FaultPolicyEngine(List.of(capturingPolicy));
+
+        loop = new ReconciliationLoop(
+            planner, testExecutor, actualAdapter, faultEngine, testEventSource,
+            TEST_DEBOUNCE, TEST_RESYNC);
+
+        loop.start("test-tenant", desired);
+
+        // Wait for the fault event to be captured
+        await().atMost(Duration.ofSeconds(2)).until(() -> !capturedEvents.isEmpty());
+
+        // Should have exactly one fault event for the failed deprovision of "b"
+        assertEquals(1, capturedEvents.size(), "Expected one fault event for failed deprovision");
+        FaultEvent event = capturedEvents.get(0);
+        assertEquals(NodeId.of("b"), event.node());
+        assertEquals(FaultType.DEPROVISION_FAILED, event.type(),
+            "Deprovision failure should produce DEPROVISION_FAILED, not PROVISION_FAILED");
+        assertEquals("test deprovision failure", event.detail());
+    }
+
     // --- Test helpers ---
 
     private DesiredNode node(String id) {
@@ -312,6 +351,7 @@ class ReconciliationLoopTest {
     static class TestTransitionExecutor implements TransitionExecutor {
         final CopyOnWriteArrayList<TransitionPlan> executedPlans = new CopyOnWriteArrayList<>();
         final Set<NodeId> failNodes = ConcurrentHashMap.newKeySet();
+        final Set<NodeId> failDeprovisionNodes = ConcurrentHashMap.newKeySet();
 
         @Override
         public Uni<TransitionResult> execute(TransitionPlan plan) {
@@ -320,7 +360,11 @@ class ReconciliationLoopTest {
 
                 Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
                 for (OrderedStep step : plan.removals()) {
-                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
+                    if (failDeprovisionNodes.contains(step.node().id())) {
+                        outcomes.put(step.node().id(), new StepOutcome.Failed("test deprovision failure"));
+                    } else {
+                        outcomes.put(step.node().id(), new StepOutcome.Succeeded());
+                    }
                 }
                 for (OrderedStep step : plan.additions()) {
                     if (failNodes.contains(step.node().id())) {
