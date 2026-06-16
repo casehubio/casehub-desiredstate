@@ -64,7 +64,7 @@ Declared in `PipelineBlueprint`, compiled into the graph by `PipelineGoalCompile
 | `INGESTION` | Bronze | `IngestionSpec(sourceRef, batchSize, format)` | Extract from source |
 | `CLEANSER` | Silver | `CleanserSpec(rules, deduplication, nullHandling)` | Dedup, normalize, fix formats |
 | `ENRICHER` | Silver | `EnricherSpec(lookupSource, joinKeys, enrichFields)` | Augment with external reference data |
-| `VALIDATOR` | Silver | `ValidatorSpec(schemaRef, qualityThresholds, anomalyDetection)` | Quality gate against schema |
+| `VALIDATOR` | Silver | `ValidatorSpec(schemaRef, qualityThreshold, anomalyDetection)` | Quality gate against schema |
 | `TRANSFORMER` | Gold | `TransformerSpec(aggregations, reshapeRules, outputFormat)` | Reshape and aggregate for consumption |
 | `SINK` | Gold | `SinkSpec(destination, format, partitionKeys)` | Final delivery |
 
@@ -444,5 +444,6 @@ The `TransitionExecutor` SPI already supports the managed/throughput split by de
 | `ProvisionEscalationFaultPolicy.java` | PROVISION_FAILED: retry count → AI review → human escalation |
 | `QuarantineFaultPolicy.java` | NODE_DEGRADED + VALIDATOR: quarantine → human review |
 | `SchemaDriftFaultPolicy.java` | NODE_DEGRADED + SCHEMA: drift → human approval |
+| `MedallionLayerConstraint.java` | Validates graph respects medallion layer ordering |
 | `PipelineVisualizer.java` | SSE endpoint for pipeline state |
-| `PipelineTest.java` | 12-test suite |
+| `PipelineTest.java` | 20-test suite |

@@ -96,21 +96,21 @@ class PipelineTest {
 
         // --- medallion layer assignments ---
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("clickstream")).type()))
-            .isEqualTo(PipelineLayer.BRONZE);
+            .hasValue(PipelineLayer.BRONZE);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("click-schema")).type()))
-            .isEqualTo(PipelineLayer.BRONZE);
+            .hasValue(PipelineLayer.BRONZE);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("click-ingest")).type()))
-            .isEqualTo(PipelineLayer.BRONZE);
+            .hasValue(PipelineLayer.BRONZE);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("click-clean")).type()))
-            .isEqualTo(PipelineLayer.SILVER);
+            .hasValue(PipelineLayer.SILVER);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("geo-enrich")).type()))
-            .isEqualTo(PipelineLayer.SILVER);
+            .hasValue(PipelineLayer.SILVER);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("quality-gate")).type()))
-            .isEqualTo(PipelineLayer.SILVER);
+            .hasValue(PipelineLayer.SILVER);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("session-agg")).type()))
-            .isEqualTo(PipelineLayer.GOLD);
+            .hasValue(PipelineLayer.GOLD);
         assertThat(PipelineNodeTypes.layerOf(graph.nodes().get(NodeId.of("warehouse")).type()))
-            .isEqualTo(PipelineLayer.GOLD);
+            .hasValue(PipelineLayer.GOLD);
     }
 
     @Test
@@ -127,7 +127,7 @@ class PipelineTest {
 
         // Extract layer sequence from the planned additions
         List<PipelineLayer> layerOrder = plan.additions().stream()
-            .map(step -> PipelineNodeTypes.layerOf(step.node().type()))
+            .map(step -> PipelineNodeTypes.layerOf(step.node().type()).orElseThrow())
             .collect(Collectors.toList());
 
         // All Bronze nodes must appear before any Silver node
@@ -446,6 +446,119 @@ class PipelineTest {
                 .as("GoalCompiler should never emit HUMAN_REVIEW nodes")
                 .isNotEqualTo(PipelineNodeTypes.HUMAN_REVIEW);
         }
+    }
+
+    // --- #35: layerOf() returns Optional ---
+
+    @Test
+    void layerOf_returnsPresentForAllPipelineStageTypes() {
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.DATA_SOURCE)).hasValue(PipelineLayer.BRONZE);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.SCHEMA)).hasValue(PipelineLayer.BRONZE);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.INGESTION)).hasValue(PipelineLayer.BRONZE);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.CLEANSER)).hasValue(PipelineLayer.SILVER);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.ENRICHER)).hasValue(PipelineLayer.SILVER);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.VALIDATOR)).hasValue(PipelineLayer.SILVER);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.TRANSFORMER)).hasValue(PipelineLayer.GOLD);
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.SINK)).hasValue(PipelineLayer.GOLD);
+    }
+
+    @Test
+    void layerOf_returnsEmptyForFaultNodes() {
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.AI_REVIEW)).isEmpty();
+        assertThat(PipelineNodeTypes.layerOf(PipelineNodeTypes.HUMAN_REVIEW)).isEmpty();
+    }
+
+    @Test
+    void layerOf_returnsEmptyForUnknownType() {
+        assertThat(PipelineNodeTypes.layerOf(new NodeType("custom-widget"))).isEmpty();
+    }
+
+    // --- #31: Medallion layer enforcement ---
+
+    @Test
+    void layerConstraint_acceptsValidPipeline() {
+        PipelineBlueprint blueprint = standardBlueprint();
+        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+
+        MedallionLayerConstraint.validate(graph);
+    }
+
+    @Test
+    void layerConstraint_rejectsBackwardDependency() {
+        // Bronze node depending on a Gold node — backward
+        DesiredNode source = new DesiredNode(NodeId.of("raw-source"),
+            PipelineNodeTypes.DATA_SOURCE,
+            new DataSourceSpec("raw", "json", "kafka://raw"), false);
+        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
+            PipelineNodeTypes.TRANSFORMER,
+            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), false);
+
+        // source depends on transformer — backward (Bronze depends on Gold)
+        DesiredStateGraph graph = factory.of(
+            List.of(source, transformer),
+            List.of(new Dependency(NodeId.of("raw-source"), NodeId.of("session-agg"))));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> MedallionLayerConstraint.validate(graph))
+            .isInstanceOf(MedallionLayerConstraint.LayerViolationException.class)
+            .hasMessageContaining("raw-source")
+            .hasMessageContaining("BRONZE")
+            .hasMessageContaining("GOLD");
+    }
+
+    @Test
+    void layerConstraint_rejectsLayerSkip() {
+        // Gold node depending directly on Bronze (skipping Silver)
+        DesiredNode source = new DesiredNode(NodeId.of("clickstream"),
+            PipelineNodeTypes.DATA_SOURCE,
+            new DataSourceSpec("clickstream", "json", "kafka://clicks"), false);
+        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
+            PipelineNodeTypes.TRANSFORMER,
+            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), false);
+
+        // transformer depends on source — Gold depends on Bronze (skips Silver)
+        DesiredStateGraph graph = factory.of(
+            List.of(source, transformer),
+            List.of(new Dependency(NodeId.of("session-agg"), NodeId.of("clickstream"))));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> MedallionLayerConstraint.validate(graph))
+            .isInstanceOf(MedallionLayerConstraint.LayerViolationException.class)
+            .hasMessageContaining("session-agg")
+            .hasMessageContaining("GOLD")
+            .hasMessageContaining("BRONZE");
+    }
+
+    @Test
+    void layerConstraint_allowsSameLayerDependencies() {
+        DesiredNode source1 = new DesiredNode(NodeId.of("source-a"),
+            PipelineNodeTypes.DATA_SOURCE,
+            new DataSourceSpec("a", "json", "kafka://a"), false);
+        DesiredNode source2 = new DesiredNode(NodeId.of("source-b"),
+            PipelineNodeTypes.DATA_SOURCE,
+            new DataSourceSpec("b", "json", "kafka://b"), false);
+
+        // source-b depends on source-a — same layer (Bronze → Bronze)
+        DesiredStateGraph graph = factory.of(
+            List.of(source1, source2),
+            List.of(new Dependency(NodeId.of("source-b"), NodeId.of("source-a"))));
+
+        MedallionLayerConstraint.validate(graph);
+    }
+
+    @Test
+    void layerConstraint_ignoresFaultNodes() {
+        // AI_REVIEW node depending on a Gold node — no layer, should be ignored
+        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
+            PipelineNodeTypes.TRANSFORMER,
+            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), false);
+        DesiredNode aiReview = new DesiredNode(NodeId.of("ai-review-session-agg"),
+            PipelineNodeTypes.AI_REVIEW,
+            new AiReviewSpec(NodeId.of("session-agg"), "provision failure"), false);
+
+        DesiredStateGraph graph = factory.of(
+            List.of(transformer, aiReview),
+            List.of(new Dependency(NodeId.of("ai-review-session-agg"), NodeId.of("session-agg"))));
+
+        MedallionLayerConstraint.validate(graph);
     }
 
     @Test

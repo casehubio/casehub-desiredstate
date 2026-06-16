@@ -129,6 +129,8 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
             }
         }
 
-        return factory.of(nodes, dependencies);
+        DesiredStateGraph graph = factory.of(nodes, dependencies);
+        MedallionLayerConstraint.validate(graph);
+        return graph;
     }
 }

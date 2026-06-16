@@ -40,14 +40,13 @@ public class PipelineVisualizer {
             PipelineWorld.StageEntry stage = entry.getValue();
             StageView view = new StageView(stage.state(), stage.processed(), stage.failed(), stage.quarantined());
             String id = entry.getKey().value();
-            PipelineLayer layer = PipelineNodeTypes.layerOf(stage.nodeType());
-            if (layer != null) {
+            PipelineNodeTypes.layerOf(stage.nodeType()).ifPresent(layer -> {
                 switch (layer) {
                     case BRONZE -> bronze.put(id, view);
                     case SILVER -> silver.put(id, view);
                     case GOLD -> gold.put(id, view);
                 }
-            }
+            });
         }
 
         for (Map.Entry<NodeId, PipelineWorld.ReviewEntry> entry : world.allReviews().entrySet()) {
