@@ -1,6 +1,12 @@
 package io.casehub.desiredstate.runtime;
 
 import io.casehub.desiredstate.api.*;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.annotation.PreDestroy;
@@ -210,70 +216,146 @@ public class ReconciliationLoop {
             desiredRef.set(newDesired);
         }
 
-        /**
-         * Single reconciliation cycle. Never throws — catches and logs all exceptions.
-         */
+        private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
+
         private void reconcile() {
-            try {
+            Tracer tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME);
+            Span reconcileSpan = tracer.spanBuilder("reconcile")
+                    .setAttribute(AttributeKey.stringKey("desiredstate.tenant.id"), tenancyId)
+                    .startSpan();
+            try (Scope ignored = reconcileSpan.makeCurrent()) {
                 DesiredStateGraph desired = desiredRef.get();
 
-                // 1. Read actual state
-                ActualState actual = actualStateAdapter.readActual(desired);
+                ActualState actual = readActual(desired);
 
-                // 2. Detect DRIFTED nodes → NODE_DEGRADED fault events
+                desired = detectDrift(desired, actual);
+
+                TransitionPlan plan = plan(desired, actual);
+                if (plan.isEmpty()) {
+                    return;
+                }
+
+                TransitionResult result = execute(plan);
+
+                faultFeedback(desired, plan, result);
+            } catch (Exception e) {
+                reconcileSpan.setStatus(StatusCode.ERROR, e.getMessage());
+                reconcileSpan.recordException(e);
+                LOG.log(Level.WARNING,
+                        "Reconciliation cycle failed for tenant " + tenancyId, e);
+            } finally {
+                reconcileSpan.end();
+            }
+        }
+
+        private ActualState readActual(DesiredStateGraph desired) {
+            Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("readActual").startSpan();
+            try (Scope ignored = span.makeCurrent()) {
+                ActualState actual = actualStateAdapter.readActual(desired);
+                span.setAttribute(AttributeKey.longKey("desiredstate.node.count"),
+                        actual.statuses().size());
+                return actual;
+            } finally {
+                span.end();
+            }
+        }
+
+        private DesiredStateGraph detectDrift(DesiredStateGraph desired, ActualState actual) {
+            boolean hasDrift = desired.nodes().entrySet().stream()
+                    .anyMatch(e -> actual.statuses().getOrDefault(e.getKey(), NodeStatus.UNKNOWN) == NodeStatus.DRIFTED);
+            if (!hasDrift) {
+                return desired;
+            }
+
+            Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("detectDrift").startSpan();
+            try (Scope ignored = span.makeCurrent()) {
+                int driftCount = 0;
                 DesiredStateGraph mutated = desired;
                 for (Map.Entry<NodeId, DesiredNode> entry : desired.nodes().entrySet()) {
                     NodeStatus status = actual.statuses().getOrDefault(entry.getKey(), NodeStatus.UNKNOWN);
                     if (status == NodeStatus.DRIFTED) {
+                        driftCount++;
                         FaultEvent faultEvent = new FaultEvent(
-                            entry.getKey(), FaultType.NODE_DEGRADED, "Node drifted from desired spec");
+                                entry.getKey(), FaultType.NODE_DEGRADED, "Node drifted from desired spec");
                         List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
                         for (GraphMutation mutation : mutations) {
                             mutated = mutated.withMutation(mutation);
                         }
                     }
                 }
+                span.setAttribute(AttributeKey.longKey("desiredstate.drift.count"), driftCount);
                 if (mutated != desired) {
                     desiredRef.compareAndSet(desired, mutated);
-                    desired = mutated;
                 }
+                return mutated;
+            } finally {
+                span.end();
+            }
+        }
 
-                // 3. Plan transition
+        private TransitionPlan plan(DesiredStateGraph desired, ActualState actual) {
+            Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("plan").startSpan();
+            try (Scope ignored = span.makeCurrent()) {
                 TransitionPlan plan = planner.plan(desired, actual);
-                if (plan.isEmpty()) {
-                    return;
-                }
+                span.setAttribute(AttributeKey.longKey("desiredstate.additions"),
+                        plan.additions().size());
+                span.setAttribute(AttributeKey.longKey("desiredstate.removals"),
+                        plan.removals().size());
+                return plan;
+            } finally {
+                span.end();
+            }
+        }
 
-                // 4. Execute transition
-                TransitionResult result = executor.execute(plan).await().indefinitely();
+        private TransitionResult execute(TransitionPlan plan) {
+            Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("execute").startSpan();
+            try (Scope ignored = span.makeCurrent()) {
+                return executor.execute(plan).await().indefinitely();
+            } finally {
+                span.end();
+            }
+        }
 
-                // 5. Fault feedback — accumulate all mutations, single CAS
-                // Build removal node set for fault type determination
+        private void faultFeedback(DesiredStateGraph desired, TransitionPlan plan,
+                                   TransitionResult result) {
+            boolean hasFailures = result.outcomes().values().stream()
+                    .anyMatch(o -> o instanceof StepOutcome.Failed);
+            if (!hasFailures) {
+                return;
+            }
+
+            Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("faultFeedback").startSpan();
+            try (Scope ignored = span.makeCurrent()) {
                 Set<NodeId> removalNodeIds = new HashSet<>();
                 for (OrderedStep step : plan.removals()) {
                     removalNodeIds.add(step.node().id());
                 }
 
-                mutated = desired;
+                int faultCount = 0;
+                int mutationCount = 0;
+                DesiredStateGraph mutated = desired;
                 for (Map.Entry<NodeId, StepOutcome> entry : result.outcomes().entrySet()) {
                     if (entry.getValue() instanceof StepOutcome.Failed failed) {
+                        faultCount++;
                         FaultType faultType = removalNodeIds.contains(entry.getKey())
-                            ? FaultType.DEPROVISION_FAILED
-                            : FaultType.PROVISION_FAILED;
+                                ? FaultType.DEPROVISION_FAILED
+                                : FaultType.PROVISION_FAILED;
                         FaultEvent faultEvent = new FaultEvent(
-                            entry.getKey(), faultType, failed.reason());
+                                entry.getKey(), faultType, failed.reason());
                         List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        mutationCount += mutations.size();
                         for (GraphMutation mutation : mutations) {
                             mutated = mutated.withMutation(mutation);
                         }
                     }
                 }
+                span.setAttribute(AttributeKey.longKey("desiredstate.fault.count"), faultCount);
+                span.setAttribute(AttributeKey.longKey("desiredstate.mutation.count"), mutationCount);
                 if (mutated != desired) {
                     desiredRef.compareAndSet(desired, mutated);
                 }
-            } catch (Exception e) {
-                LOG.log(Level.WARNING,
-                    "Reconciliation cycle failed for tenant " + tenancyId, e);
+            } finally {
+                span.end();
             }
         }
     }

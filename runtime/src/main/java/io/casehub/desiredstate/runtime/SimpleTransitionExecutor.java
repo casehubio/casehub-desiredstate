@@ -1,6 +1,11 @@
 package io.casehub.desiredstate.runtime;
 
 import io.casehub.desiredstate.api.*;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Scope;
 import io.quarkus.arc.DefaultBean;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,6 +23,7 @@ import java.util.Map;
 public class SimpleTransitionExecutor implements TransitionExecutor {
 
     private static final String DEFAULT_TENANCY = "default";
+    private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
     private final NodeProvisioner provisioner;
 
@@ -47,28 +53,49 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
     }
 
     private StepOutcome executeProvision(DesiredNode node, DesiredStateGraph graph) {
-        if (node.requiresHuman()) {
-            return new StepOutcome.Skipped("requires human");
+        Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("provision")
+                .setAttribute(AttributeKey.stringKey("desiredstate.node.id"), node.id().value())
+                .setAttribute(AttributeKey.stringKey("desiredstate.node.type"), node.type().value())
+                .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman())
+                .startSpan();
+        try (Scope scope = span.makeCurrent()) {
+            if (node.requiresHuman()) {
+                return new StepOutcome.Skipped("requires human");
+            }
+
+            ProvisionContext context = new ProvisionContext(DEFAULT_TENANCY, graph);
+            ProvisionResult result = provisioner.provision(node, context);
+
+            return switch (result) {
+                case ProvisionResult.Success ignored -> new StepOutcome.Succeeded();
+                case ProvisionResult.Failed f -> {
+                    span.setStatus(StatusCode.ERROR, f.reason());
+                    yield new StepOutcome.Failed(f.reason());
+                }
+            };
+        } finally {
+            span.end();
         }
-
-        ProvisionContext context = new ProvisionContext(DEFAULT_TENANCY, graph);
-
-        ProvisionResult result = provisioner.provision(node, context);
-
-        return switch (result) {
-            case ProvisionResult.Success ignored -> new StepOutcome.Succeeded();
-            case ProvisionResult.Failed f -> new StepOutcome.Failed(f.reason());
-        };
     }
 
     private StepOutcome executeDeprovision(DesiredNode node, DesiredStateGraph graph) {
-        DeprovisionContext context = new DeprovisionContext(DEFAULT_TENANCY, graph);
+        Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("deprovision")
+                .setAttribute(AttributeKey.stringKey("desiredstate.node.id"), node.id().value())
+                .setAttribute(AttributeKey.stringKey("desiredstate.node.type"), node.type().value())
+                .startSpan();
+        try (Scope scope = span.makeCurrent()) {
+            DeprovisionContext context = new DeprovisionContext(DEFAULT_TENANCY, graph);
+            DeprovisionResult result = provisioner.deprovision(node, context);
 
-        DeprovisionResult result = provisioner.deprovision(node, context);
-
-        return switch (result) {
-            case DeprovisionResult.Success ignored -> new StepOutcome.Succeeded();
-            case DeprovisionResult.Failed f -> new StepOutcome.Failed(f.reason());
-        };
+            return switch (result) {
+                case DeprovisionResult.Success ignored -> new StepOutcome.Succeeded();
+                case DeprovisionResult.Failed f -> {
+                    span.setStatus(StatusCode.ERROR, f.reason());
+                    yield new StepOutcome.Failed(f.reason());
+                }
+            };
+        } finally {
+            span.end();
+        }
     }
 }
