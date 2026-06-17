@@ -1,7 +1,12 @@
 package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.*;
+import io.casehub.platform.agent.AgentEvent;
+import io.casehub.platform.agent.AgentProvider;
+import io.casehub.platform.agent.AgentSessionConfig;
 
+import java.time.Duration;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -11,9 +16,11 @@ import java.util.Set;
 public class PipelineProvisioner implements NodeProvisioner {
 
     private final PipelineWorld world;
+    private final AgentProvider agentProvider;
 
-    public PipelineProvisioner(PipelineWorld world) {
+    public PipelineProvisioner(PipelineWorld world, AgentProvider agentProvider) {
         this.world = world;
+        this.agentProvider = agentProvider;
     }
 
     @Override
@@ -96,18 +103,34 @@ public class PipelineProvisioner implements NodeProvisioner {
             AiReviewSpec spec = (AiReviewSpec) node.spec();
             NodeId target = spec.targetNodeId();
 
-            // Check if a pre-set outcome exists for this review
             PipelineWorld.ReviewEntry existing = world.review(node.id());
             if (existing != null) {
                 if (existing.state() == PipelineWorld.ReviewState.RESOLVED) {
                     world.clearStageError(target);
                 }
-                // Both RESOLVED and UNRESOLVED: review already handled
                 return new ProvisionResult.Success();
             }
 
-            // No pre-set outcome — register as PENDING
+            String diagnosis = agentProvider.invoke(AgentSessionConfig.of(
+                    "You are a data pipeline fault diagnostic agent. Analyze the error and determine if you can resolve it. Respond with RESOLVED if the issue can be fixed automatically, or UNRESOLVED if human intervention is needed.",
+                    "Node " + target.value() + " failed with: " + spec.errorDetail(),
+                    Duration.ofSeconds(30)
+            )).filter(AgentEvent.TextDelta.class::isInstance)
+                    .map(AgentEvent.TextDelta.class::cast)
+                    .map(AgentEvent.TextDelta::text)
+                    .collect().asList()
+                    .onItem().transform(texts -> String.join("", texts))
+                    .await().atMost(Duration.ofSeconds(30));
+
+            if (diagnosis.isEmpty()) {
+                world.addReview(node.id(), target);
+                return new ProvisionResult.Success();
+            }
+
+            String upper = diagnosis.toUpperCase(Locale.ROOT);
+            boolean resolved = upper.contains("RESOLVED") && !upper.contains("UNRESOLVED");
             world.addReview(node.id(), target);
+            world.setAiReviewOutcome(target, resolved);
             return new ProvisionResult.Success();
         }
 

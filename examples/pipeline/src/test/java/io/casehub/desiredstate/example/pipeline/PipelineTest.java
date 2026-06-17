@@ -4,6 +4,8 @@ import io.casehub.desiredstate.api.*;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.SimpleTransitionExecutor;
 import io.casehub.desiredstate.runtime.TransitionPlanner;
+import io.casehub.platform.agent.*;
+import io.smallrye.mutiny.Multi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +37,7 @@ class PipelineTest {
         compiler = new PipelineGoalCompiler();
         planner = new TransitionPlanner();
         world = new PipelineWorld();
-        provisioner = new PipelineProvisioner(world);
+        provisioner = new PipelineProvisioner(world, new NoOpAgentProvider());
         adapter = new PipelineActualStateAdapter(world);
     }
 
@@ -583,5 +585,92 @@ class PipelineTest {
 
         // Assert schema version updated
         assertThat(world.schema("click-schema").version()).isEqualTo(2);
+    }
+
+    // --- AgentProvider integration tests ---
+
+    @Test
+    void aiReview_invokesAgentProvider_resolved() {
+        AgentProvider resolvingAgent = new AgentProvider() {
+            @Override
+            public Multi<AgentEvent> invoke(AgentSessionConfig config) {
+                return Multi.createFrom().item(
+                        new AgentEvent.TextDelta(
+                                "Analysis complete. The issue is a transient connectivity error. RESOLVED."));
+            }
+
+            @Override
+            public AgentSession openSession(AgentSessionInit init) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        PipelineProvisioner agentProvisioner = new PipelineProvisioner(world, resolvingAgent);
+
+        // Create an AI_REVIEW node without pre-setting the outcome
+        NodeId targetNode = NodeId.of("ingest");
+        NodeId reviewNode = NodeId.of("ai-review-ingest");
+        DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
+                new AiReviewSpec(targetNode, "source unavailable"), false);
+        DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
+
+        // Provision the AI_REVIEW node
+        ProvisionResult result = agentProvisioner.provision(aiReview, new ProvisionContext("default", graph));
+        assertThat(result).isInstanceOf(ProvisionResult.Success.class);
+
+        // The agent resolved it — review should be RESOLVED
+        PipelineWorld.ReviewEntry review = world.review(reviewNode);
+        assertThat(review).isNotNull();
+        assertThat(review.state()).isEqualTo(PipelineWorld.ReviewState.RESOLVED);
+    }
+
+    @Test
+    void aiReview_invokesAgentProvider_unresolved() {
+        AgentProvider unresolvedAgent = new AgentProvider() {
+            @Override
+            public Multi<AgentEvent> invoke(AgentSessionConfig config) {
+                return Multi.createFrom().item(
+                        new AgentEvent.TextDelta(
+                                "This requires manual intervention. Cannot determine root cause."));
+            }
+
+            @Override
+            public AgentSession openSession(AgentSessionInit init) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        PipelineProvisioner agentProvisioner = new PipelineProvisioner(world, unresolvedAgent);
+
+        NodeId targetNode = NodeId.of("ingest");
+        NodeId reviewNode = NodeId.of("ai-review-ingest");
+        DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
+                new AiReviewSpec(targetNode, "source unavailable"), false);
+        DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
+
+        ProvisionResult result = agentProvisioner.provision(aiReview, new ProvisionContext("default", graph));
+        assertThat(result).isInstanceOf(ProvisionResult.Success.class);
+
+        PipelineWorld.ReviewEntry review = world.review(reviewNode);
+        assertThat(review).isNotNull();
+        assertThat(review.state()).isEqualTo(PipelineWorld.ReviewState.UNRESOLVED);
+    }
+
+    @Test
+    void aiReview_noOpAgent_registersPending() {
+        PipelineProvisioner noOpProvisioner = new PipelineProvisioner(world, new NoOpAgentProvider());
+
+        NodeId targetNode = NodeId.of("ingest");
+        NodeId reviewNode = NodeId.of("ai-review-ingest");
+        DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
+                new AiReviewSpec(targetNode, "source unavailable"), false);
+        DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
+
+        ProvisionResult result = noOpProvisioner.provision(aiReview, new ProvisionContext("default", graph));
+        assertThat(result).isInstanceOf(ProvisionResult.Success.class);
+
+        PipelineWorld.ReviewEntry review = world.review(reviewNode);
+        assertThat(review).isNotNull();
+        assertThat(review.state()).isEqualTo(PipelineWorld.ReviewState.PENDING);
     }
 }
