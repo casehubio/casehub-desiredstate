@@ -18,6 +18,7 @@ FaultPolicy, EventSource. Execution delegates to TransitionExecutor SPI — Simp
 for lightweight deployments; CaseTransitionExecutor (engine-adapter, classpath-activated) for case-backed
 execution with Worker(Workflow) phases via casehub-engine-flow.
 
+**Architecture:** `ARC42STORIES.MD` — Arc42Stories format, CaseHub Foundation-tier profile
 **Research doc:** `docs/superpowers/research/2026-06-07-desired-state-management-research.md`
 **Design spec:** `docs/superpowers/specs/2026-06-12-generic-runtime-design.md`
 
