@@ -137,17 +137,21 @@ public enum FaultType {
 
 ### StepOutcome
 
-Add optional `FaultType` to `Failed` for explicit fault classification:
+Add `Rejected` variant for explicit approval rejection — semantically distinct from technical failure:
 
 ```java
 public sealed interface StepOutcome {
     record Succeeded() implements StepOutcome {}
-    record Failed(String reason, FaultType faultType) implements StepOutcome {
-        public Failed(String reason) { this(reason, null); }
-    }
+    record Failed(String reason) implements StepOutcome {}
     record Skipped(String reason) implements StepOutcome {}
+    record Rejected(String reason) implements StepOutcome {}
 }
 ```
+
+Rejection is a human decision, not a system error. Keeping it separate from `Failed` means:
+- The sealed interface has a distinct case — exhaustive `switch` forces explicit handling
+- `faultFeedback()` pattern-matches `Rejected` → `APPROVAL_REJECTED` without FaultType leaking into the executor SPI
+- `Failed` stays unchanged — no nullable field pollution
 
 ## Runtime Changes
 
@@ -168,7 +172,7 @@ public class NoOpPendingApprovalHandler implements PendingApprovalHandler {
     @Override
     public StepOutcome recordPending(DesiredNode node, StepAction action,
                                       String tenancyId, String planReference) {
-        return new StepOutcome.Skipped(
+        return new StepOutcome.Failed(
             "pending approval: " + planReference + " — no PendingApprovalHandler configured");
     }
 }
@@ -184,14 +188,18 @@ Modified `executeProvision()` flow:
    - `None` → create `ProvisionContext(tenancyId, graph)`, call provisioner
    - `Pending` → return `Skipped("pending approval: " + planRef)`
    - `Approved` → create `ProvisionContext(tenancyId, graph, approval)`, call provisioner
-   - `Rejected` → return `Failed("approval rejected: " + reason, APPROVAL_REJECTED)`
+   - `Rejected` → return `Rejected("approval rejected: " + reason)`
 4. If provisioner returns `PendingApproval` → call `handler.recordPending()`
 
-`executeDeprovision()` follows the same pattern with `StepAction.DEPROVISION` and `DeprovisionContext`.
+`executeDeprovision()` follows the same pattern with `StepAction.DEPROVISION` and `DeprovisionContext`. Note: the deprovision path intentionally has no `requiresHuman` check — deprovision is always automated (see `2026-06-26-workitem-human-node-handler-design.md` constraints). The `PendingApprovalHandler` check IS added to deprovision because approval-gated deprovision is a distinct concern: a provisioner may require approval before decommissioning a production resource, regardless of whether the node required human action to provision.
 
 ### ReconciliationLoop.faultFeedback()
 
-Uses `StepOutcome.Failed.faultType()` when non-null. Falls back to the existing classification (PROVISION_FAILED / DEPROVISION_FAILED based on removal-set membership) when null.
+Pattern-matches two outcome types:
+- `StepOutcome.Rejected` → creates `FaultEvent` with `FaultType.APPROVAL_REJECTED`
+- `StepOutcome.Failed` → uses existing classification (PROVISION_FAILED / DEPROVISION_FAILED based on removal-set membership)
+
+`Failed` is unchanged — no FaultType field. The classification logic stays entirely within `faultFeedback()` where it belongs.
 
 ## Work-Adapter Changes
 
@@ -203,26 +211,33 @@ Uses `StepOutcome.Failed.faultType()` when non-null. Falls back to the existing 
 
 **check() logic:**
 1. `findActiveByCallerRef(callerRef)` → if active WorkItem exists → return `Pending`
-2. `findByCallerRef(callerRef)` → if terminal WorkItem exists:
-   - COMPLETED with "approved" outcome → return `Approved(PlanApproval)`
-   - REJECTED → return `Rejected`
-   - EXPIRED / CANCELLED → return `None` (fresh start — provisioner may request approval again)
+2. `findByCallerRef(callerRef)` → if terminal WorkItem exists, exhaustive switch on status:
+   - `COMPLETED` with "approved" outcome → return `Approved(PlanApproval)`
+   - `REJECTED` → return `Rejected`
+   - `EXPIRED`, `CANCELLED`, `OBSOLETE` → return `None` (fresh start — provisioner may request approval again)
+   - `FAULTED` → return `None` (system error during WorkItem processing — allow retry with new WorkItem)
+   - `ESCALATED` → return `None` (terminal in the status enum — the escalation target manages the approval outside this WorkItem lifecycle; a new WorkItem is created if the provisioner requests approval again)
 3. No WorkItem found → return `None`
+
+ASSUMPTION: `findByCallerRef()` returns the most recently created WorkItem with the given callerRef. If a callerRef has multiple terminal WorkItems (e.g., first expired, second completed), the most recent must be returned. **Tracked as casehubio/work#280** — either document this as an API guarantee or add `findLatestByCallerRef()`.
 
 **recordPending() logic:**
 1. Idempotent check: `findActiveByCallerRef()` — if active, return Skipped with existing ID
 2. Create WorkItem via `WorkItemCreator.create()`:
    - Title: `"Approve: <action> <nodeId>"`
+   - Description: `"Approval required for <action> of node <nodeId> (type: <nodeType>) in tenancy <tenancyId>"`
    - Category: `desiredstate-approval`
    - CallerRef: `desiredstate-approval:<tenancyId>:<nodeId>:<action>`
    - Priority: HIGH
+   - CreatedBy: `"desiredstate"`
+   - TenancyId: `tenancyId` (multi-tenant routing)
    - PermittedOutcomes: Approve, Reject
    - Payload: planReference (for round-trip)
 3. Return `Skipped("pending approval: WorkItem " + created.id())`
 
 **PlanApproval population:**
 - `planReference` — extracted from WorkItem payload (round-tripped from provisioner)
-- `approvedBy` — `WorkItemRef.assigneeId()` (the person who completed the WorkItem)
+- `approvedBy` — `Objects.requireNonNullElse(WorkItemRef.assigneeId(), "system")`. Normally the person who completed the WorkItem; falls back to `"system"` for system completions or bulk operations where no assignee is recorded. `PlanApproval.approvedBy` remains non-null for audit trail integrity.
 - `approvedAt` — `Instant.now()` (observation time — WorkItemRef carries no completion timestamp)
 
 ## Testing Module
@@ -238,7 +253,13 @@ Programmable mock in `testing/`:
 
 ## CaseTransitionExecutor
 
-No changes. CaseTransitionExecutor delegates to casehub-engine which has its own HITL infrastructure (HumanTaskTarget bindings, WorkItemLifecycleAdapter). PendingApproval within case workflows is an engine concern. The SPI is in api/ and available to any executor, but CaseTransitionExecutor has no reason to use it.
+No changes in this spec. `CaseTransitionExecutor` delegates provisioning to `DesiredStateWorkerFunction`, which calls `NodeProvisioner.provision()` with a plain `ProvisionContext` (no `PlanApproval`). If a provisioner returns `PendingApproval` under CTE:
+
+1. `DesiredStateWorkerFunction` maps it to `Map.of("status", "PENDING_APPROVAL", ...)` — the engine has no mechanism to intercept this and create an approval gate.
+2. `buildOptimisticResult()` reports all automated additions as `Succeeded`.
+3. Next reconciliation cycle: `ActualStateAdapter` reports ABSENT → planner creates a new PROVISION step → provisioner called again without approval context.
+
+This is a known gap — **tracked as #47**. The `PendingApprovalHandler` SPI is designed for polling (check each cycle), which fits `SimpleTransitionExecutor`. CTE's case-based execution model requires a different integration — potentially translating `PendingApproval` into the engine's HITL infrastructure (`HumanTaskTarget` bindings) or a case signal. Until resolved, provisioners under `CaseTransitionExecutor` must not return `PendingApproval`.
 
 ## Reconciliation Cycle Walkthrough
 
@@ -252,7 +273,7 @@ ActualStateAdapter reports ABSENT → planner creates PROVISION step → handler
 handler.check() returns Approved → context enriched with PlanApproval → provisioner called with approval context → provisioner proceeds → Success. Next cycle: PRESENT, converged.
 
 **Alternative — Rejected:**
-handler.check() returns Rejected → Failed with APPROVAL_REJECTED → faultFeedback creates FaultEvent → FaultPolicyEngine evaluates → domain policy decides response.
+handler.check() returns Rejected → Rejected("approval rejected: ...") → faultFeedback pattern-matches Rejected, creates FaultEvent with APPROVAL_REJECTED → FaultPolicyEngine evaluates → domain policy decides response.
 
 **Alternative — Expired/Cancelled:**
 handler.check() returns None (terminal non-decision) → provisioner called fresh → may return PendingApproval again → new WorkItem cycle.
@@ -265,15 +286,34 @@ handler.check() returns None (terminal non-decision) → provisioner called fres
 
 3. **FaultType.APPROVAL_REJECTED** — rejection is semantically different from technical failure. Domain fault policies should distinguish "provisioner couldn't" from "human said no."
 
-4. **StepOutcome.Failed gains optional FaultType** — explicit fault classification rather than convention-based reason-string parsing.
+4. **StepOutcome.Rejected instead of Failed+FaultType** — rejection is a human decision, not a system error. A new sealed variant keeps layer concerns separate: the executor reports *what happened* (Rejected), the reconciliation loop classifies *how to handle it* (APPROVAL_REJECTED FaultType). No FaultType leaks into the executor SPI, and exhaustive `switch` on StepOutcome forces callers to handle the new case at compile time.
 
 5. **Handler takes (DesiredNode, StepAction, tenancyId)** — minimal parameter set. Handler doesn't need the full graph or context, just identity info for lookup/creation.
 
 6. **Observation time for approvedAt** — WorkItemRef has no completedAt field. Using Instant.now() is pragmatically correct: the reconciliation loop observed the approval at this instant. Exact human-click time is audit data (in casehub-work's own records), not reconciliation data.
+
+7. **NoOpPendingApprovalHandler.recordPending() returns Failed, not Skipped** — a provisioner returning PendingApproval without a configured handler is a misconfiguration. `Failed` creates a fault event surfaced through the fault pipeline. `Skipped` would silently eat the problem, causing infinite re-invocation with no diagnostic.
+
+8. **Plan staleness is the provisioner's responsibility** — when a provisioner receives `PlanApproval("plan-v1")` but the underlying desired spec has evolved, only the provisioner can judge plan freshness. If stale, it returns a new `PendingApproval("plan-v2")`. The handler/runtime cannot assess plan validity. There is no mechanism to proactively cancel stale WorkItems when desired state changes — a new WorkItem is created when the provisioner requests approval again after the stale WorkItem's approval is consumed.
+
+9. **Deprovision path: no requiresHuman, yes PendingApprovalHandler** — deprovision is always automated for human nodes (see `2026-06-26-workitem-human-node-handler-design.md`). PendingApproval for deprovision is a distinct concern: approval before decommissioning a production resource, regardless of whether the node required human action for provisioning.
+
+## NodeProvisioner SPI Documentation
+
+The `NodeProvisioner` interface Javadoc must document the re-entry protocol introduced by this spec:
+
+- `provision()` may return `PendingApproval(nodeId, planReference)` to request human approval before proceeding
+- If approval is granted, `provision()` will be called again with `context.approval()` non-null, carrying the `PlanApproval` (planReference, approvedBy, approvedAt)
+- Provisioners should check `context.hasApproval()` and behave accordingly: proceed with the approved plan, or return a new `PendingApproval` if the plan is stale
+- The `planReference` returned in `PendingApproval` is opaque to the runtime — it is round-tripped back to the provisioner unchanged
+
+Same protocol applies to `deprovision()` via `DeprovisionContext.approval()`.
 
 ## Out-of-Scope
 
 - **PLATFORM.md update** — tracked as #45
 - **Pipeline example enhancement** — tracked as #46
 - **WorkItemRef timestamp enrichment** — casehub-work concern, not desiredstate
-- **CaseTransitionExecutor real outcome tracking** — separate follow-up (noted in CaseTransitionExecutor code)
+- **CaseTransitionExecutor PendingApproval integration** — tracked as #47
+- **ARC42STORIES.MD placement** — tracked as #48
+- **findByCallerRef ordering semantics** — tracked as casehubio/work#280
