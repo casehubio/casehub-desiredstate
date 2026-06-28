@@ -31,24 +31,11 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.release>${java.version}</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <version.quarkus.platform>3.32.2</version.quarkus.platform>
-        <version.io.casehub>0.2-SNAPSHOT</version.io.casehub>
         <jandex-maven-plugin.version>3.3.1</jandex-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>io.quarkus.platform</groupId>
-                <artifactId>quarkus-bom</artifactId>
-                <version>${version.quarkus.platform}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
             <!-- casehub-desiredstate inter-module -->
             <dependency>
                 <groupId>io.casehub</groupId>
@@ -75,63 +62,6 @@
                 <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-work</artifactId>
                 <version>${project.version}</version>
-            </dependency>
-
-            <!-- Platform — Path, Preferences, CurrentPrincipal -->
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-platform-api</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-platform</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-platform-testing</artifactId>
-                <version>${version.io.casehub}</version>
-                <scope>test</scope>
-            </dependency>
-
-            <!-- Agent — LLM invocation via AgentProvider SPI -->
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-platform-agent-api</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-
-            <!-- Engine — workflow execution delegation -->
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-engine-api</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-engine-common</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-engine-flow</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-
-            <!-- Work — WorkItem generation for human nodes -->
-            <dependency>
-                <groupId>io.casehub</groupId>
-                <artifactId>casehub-work-api</artifactId>
-                <version>${version.io.casehub}</version>
-            </dependency>
-
-            <!-- mutiny version managed by quarkus-bom; scope=provided declared in child modules -->
-            <dependency>
-                <groupId>org.assertj</groupId>
-                <artifactId>assertj-core</artifactId>
-                <version>3.27.7</version>
-                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -164,24 +94,5 @@
         <developerConnection>scm:git:https://github.com/casehubio/casehub-desiredstate.git</developerConnection>
         <url>https://github.com/casehubio/casehub-desiredstate</url>
     </scm>
-
-    <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.13.0</version>
-                    <configuration><parameters>true</parameters></configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.2.5</version>
-                    <configuration><rerunFailingTestsCount>2</rerunFailingTestsCount></configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
-    </build>
 
 </project>
