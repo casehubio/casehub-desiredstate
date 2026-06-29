@@ -205,7 +205,19 @@ Modified `executeProvision()` flow:
 
 ### ReconciliationLoop.faultFeedback()
 
-Pattern-matches two outcome types:
+**Early-exit guard update:** the existing guard checks only for `Failed` — must be extended to include `Rejected`:
+
+```java
+boolean hasFaultyOutcomes = result.outcomes().values().stream()
+        .anyMatch(o -> o instanceof StepOutcome.Failed || o instanceof StepOutcome.Rejected);
+if (!hasFaultyOutcomes) {
+    return;
+}
+```
+
+Without this, a cycle with only `Rejected` outcomes (no `Failed`) silently skips the fault pipeline — the rejection is acknowledged but the `APPROVAL_REJECTED` fault event is never created.
+
+Pattern-matches two outcome types inside the loop:
 - `StepOutcome.Rejected` → creates `FaultEvent` with `FaultType.APPROVAL_REJECTED`
 - `StepOutcome.Failed` → uses existing classification (PROVISION_FAILED / DEPROVISION_FAILED based on removal-set membership)
 
