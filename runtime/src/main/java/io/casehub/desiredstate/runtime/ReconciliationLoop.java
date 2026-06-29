@@ -318,9 +318,9 @@ public class ReconciliationLoop {
 
         private void faultFeedback(DesiredStateGraph desired, TransitionPlan plan,
                                    TransitionResult result) {
-            boolean hasFailures = result.outcomes().values().stream()
-                    .anyMatch(o -> o instanceof StepOutcome.Failed);
-            if (!hasFailures) {
+            boolean hasFaultyOutcomes = result.outcomes().values().stream()
+                    .anyMatch(o -> o instanceof StepOutcome.Failed || o instanceof StepOutcome.Rejected);
+            if (!hasFaultyOutcomes) {
                 return;
             }
 
@@ -342,6 +342,15 @@ public class ReconciliationLoop {
                                 : FaultType.PROVISION_FAILED;
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), faultType, failed.reason());
+                        List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        mutationCount += mutations.size();
+                        for (GraphMutation mutation : mutations) {
+                            mutated = mutated.withMutation(mutation);
+                        }
+                    } else if (entry.getValue() instanceof StepOutcome.Rejected rejected) {
+                        faultCount++;
+                        FaultEvent faultEvent = new FaultEvent(
+                                entry.getKey(), FaultType.APPROVAL_REJECTED, rejected.reason());
                         List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
                         mutationCount += mutations.size();
                         for (GraphMutation mutation : mutations) {

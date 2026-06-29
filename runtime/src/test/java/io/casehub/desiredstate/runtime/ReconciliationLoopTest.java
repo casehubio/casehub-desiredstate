@@ -284,6 +284,36 @@ class ReconciliationLoopTest {
     }
 
     @Test
+    void rejectedOutcome_producesApprovalRejectedFaultType() {
+        DesiredNode nodeA = node("a");
+        DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
+        actualAdapter.setStatuses(Map.of(NodeId.of("a"), NodeStatus.ABSENT));
+
+        // Configure executor to return Rejected for node "a"
+        testExecutor.rejectNodes.add(NodeId.of("a"));
+
+        List<FaultEvent> capturedEvents = new CopyOnWriteArrayList<>();
+        FaultPolicy capturingPolicy = (event, current) -> {
+            capturedEvents.add(event);
+            return List.of();
+        };
+        faultEngine = new FaultPolicyEngine(List.of(capturingPolicy));
+
+        loop = new ReconciliationLoop(
+            planner, testExecutor, actualAdapter, faultEngine, testEventSource,
+            TEST_DEBOUNCE, TEST_RESYNC);
+
+        loop.start("test-tenant", desired);
+
+        await().atMost(Duration.ofSeconds(2)).until(() -> !capturedEvents.isEmpty());
+
+        assertEquals(1, capturedEvents.size());
+        FaultEvent event = capturedEvents.get(0);
+        assertEquals(NodeId.of("a"), event.node());
+        assertEquals(FaultType.APPROVAL_REJECTED, event.type());
+    }
+
+    @Test
     void deprovisionFailure_producesDeprovisionFailedFaultType() {
         // Desired: only node "a". Actual: both "a" (PRESENT) and "b" (PRESENT).
         // Node "b" is orphaned — not in desired — so planner will schedule it for removal.
@@ -354,6 +384,7 @@ class ReconciliationLoopTest {
         final CopyOnWriteArrayList<TransitionPlan> executedPlans = new CopyOnWriteArrayList<>();
         final Set<NodeId> failNodes = ConcurrentHashMap.newKeySet();
         final Set<NodeId> failDeprovisionNodes = ConcurrentHashMap.newKeySet();
+        final Set<NodeId> rejectNodes = ConcurrentHashMap.newKeySet();
 
         @Override
         public Uni<TransitionResult> execute(TransitionPlan plan, String tenancyId) {
@@ -369,7 +400,9 @@ class ReconciliationLoopTest {
                     }
                 }
                 for (OrderedStep step : plan.additions()) {
-                    if (failNodes.contains(step.node().id())) {
+                    if (rejectNodes.contains(step.node().id())) {
+                        outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
+                    } else if (failNodes.contains(step.node().id())) {
                         outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
                     } else {
                         outcomes.put(step.node().id(), new StepOutcome.Succeeded());

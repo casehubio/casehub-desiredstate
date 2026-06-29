@@ -37,7 +37,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, ImmutableDesiredStateGraph, SimpleTransitionExecutor. Quarkus library. |
 | `testing/` | `casehub-desiredstate-testing` | `io.casehub.desiredstate.testing` | Mock SPIs and test fixtures. **Test scope only.** |
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | CaseTransitionExecutor — orchestration-tier bridge. Generates cases with Worker(Workflow) phases. |
-| `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | WorkItem-backed HumanNodeHandler — creates WorkItems for requiresHuman nodes via WorkItemCreator SPI. |
+| `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | WorkItem-backed HumanNodeHandler + PendingApprovalHandler — creates WorkItems for requiresHuman nodes and approval-gated nodes via WorkItemCreator SPI. |
 | `examples/dungeon/` | `casehub-desiredstate-example-dungeon` | `io.casehub.desiredstate.example.dungeon` | Nefarious Dungeons — teaching example implementing all SPIs with 2D tile visualizer. |
 | `examples/pipeline/` | `casehub-desiredstate-example-pipeline` | `io.casehub.desiredstate.example.pipeline` | Data Pipeline — teaching example with medallion architecture (Bronze/Silver/Gold), schema validation, three-tier fault escalation (retry → AI → human), pluggable `ExecutionBackend` strategy per processing stage. |
 
@@ -54,6 +54,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `EventSource` | `stream() → Multi<StateEvent>` | Stream actual-state events into reconciliation loop |
 | `TransitionExecutor` | `execute(TransitionPlan, String tenancyId) → Uni<TransitionResult>` | Execute a transition plan (SPI'd — simple or case-backed) |
 | `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle requiresHuman nodes during provision |
+| `PendingApprovalHandler` | `check(DesiredNode, StepAction, String tenancyId) → ApprovalCheckResult` | Track approval lifecycle for provisioner-initiated PendingApproval requests |
 | `DesiredStateGraph` | query + mutation methods | SPI interface — graph backing store is pluggable |
 | `DesiredStateGraphFactory` | `empty()`, `of(nodes, deps)` | Creates graph instances |
 
@@ -70,9 +71,12 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `ReconciliationResult` | `resolved`, `drifted`, `faulted` node sets + `mutations` |
 | `FaultEvent` | Node + `FaultType` + detail |
 | `GraphMutation` | Sealed interface — AddNode, RemoveNode, UpdateNode, AddDependency, RemoveDependency |
-| `ProvisionContext` | `tenancyId` + `DesiredStateGraph` |
+| `ProvisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
+| `DeprovisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
+| `PlanApproval` | `planReference`, `approvedBy`, `approvedAt` — carried in context on re-entry |
+| `ApprovalCheckResult` | Sealed — None / Pending(planReference) / Approved(PlanApproval) / Rejected(planReference, reason) |
 | `ProvisionResult`, `DeprovisionResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
-| `StepOutcome` | Sealed — Succeeded / Failed(reason) / Skipped(reason) |
+| `StepOutcome` | Sealed — Succeeded / Failed(reason) / Skipped(reason) / Rejected(reason) |
 
 ## Ordering Rule — Pruning Before Growing
 
@@ -91,6 +95,13 @@ classpath-activated) creates a WorkItem via `WorkItemCreator` SPI for human prov
 `CaseTransitionExecutor` (engine-adapter) generates a `humanTask` binding in the case definition —
 the engine's HITL infrastructure handles WorkItem creation and completion. The reconciliation loop
 detects human node completion on the next cycle via ActualStateAdapter.
+
+**Approval-gated nodes:** `NodeProvisioner.provision()` may return `PendingApproval(nodeId, planReference)` →
+`SimpleTransitionExecutor` delegates to `PendingApprovalHandler` SPI. `NoOpPendingApprovalHandler` (`@DefaultBean`)
+returns Failed (misconfiguration signal). `WorkItemPendingApprovalHandler` (work-adapter, classpath-activated,
+BLOCKED on work#281/282) creates a WorkItem and polls each cycle; on approval, re-calls the provisioner with
+`PlanApproval` in `ProvisionContext`. On rejection, fires `FaultType.APPROVAL_REJECTED` via `StepOutcome.Rejected`.
+Same pattern applies to deprovision via `DeprovisionContext`.
 
 ## Cross-Repo Conventions
 

@@ -17,6 +17,7 @@ import java.util.Map;
  * Simple sequential transition executor.
  * Executes removals first, then additions, calling the NodeProvisioner for each step.
  * Delegates requiresHuman nodes to the HumanNodeHandler.
+ * Wraps provisioner calls with PendingApprovalHandler for approval lifecycle management.
  */
 @DefaultBean
 @ApplicationScoped
@@ -26,10 +27,14 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
 
     private final NodeProvisioner provisioner;
     private final HumanNodeHandler humanNodeHandler;
+    private final PendingApprovalHandler pendingApprovalHandler;
 
-    public SimpleTransitionExecutor(NodeProvisioner provisioner, HumanNodeHandler humanNodeHandler) {
+    public SimpleTransitionExecutor(NodeProvisioner provisioner,
+                                     HumanNodeHandler humanNodeHandler,
+                                     PendingApprovalHandler pendingApprovalHandler) {
         this.provisioner = provisioner;
         this.humanNodeHandler = humanNodeHandler;
+        this.pendingApprovalHandler = pendingApprovalHandler;
     }
 
     @Override
@@ -61,8 +66,25 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                 .startSpan();
         try (Scope scope = span.makeCurrent()) {
             ProvisionContext context = new ProvisionContext(tenancyId, graph);
+
+            // requiresHuman takes precedence — delegates entirely to HumanNodeHandler
             if (node.requiresHuman()) {
                 return humanNodeHandler.onProvision(node, context);
+            }
+
+            // Check for prior approval state before calling provisioner
+            ApprovalCheckResult approvalCheck = pendingApprovalHandler.check(node, StepAction.PROVISION, tenancyId);
+            switch (approvalCheck) {
+                case ApprovalCheckResult.Pending p ->
+                    { return new StepOutcome.Skipped("pending approval: " + p.planReference()); }
+                case ApprovalCheckResult.Rejected r -> {
+                    pendingApprovalHandler.acknowledgeRejection(node, StepAction.PROVISION, tenancyId);
+                    span.setStatus(StatusCode.ERROR, "approval rejected: " + r.reason());
+                    return new StepOutcome.Rejected("approval rejected: " + r.reason());
+                }
+                case ApprovalCheckResult.Approved a ->
+                    context = context.withApproval(a.approval());
+                case ApprovalCheckResult.None ignored -> {}
             }
 
             ProvisionResult result = provisioner.provision(node, context);
@@ -74,7 +96,7 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                     yield new StepOutcome.Failed(f.reason());
                 }
                 case ProvisionResult.PendingApproval pa ->
-                    new StepOutcome.Skipped("pending approval: " + pa.planReference());
+                    pendingApprovalHandler.recordPending(node, StepAction.PROVISION, tenancyId, pa.planReference());
             };
         } finally {
             span.end();
@@ -88,6 +110,22 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                 .startSpan();
         try (Scope scope = span.makeCurrent()) {
             DeprovisionContext context = new DeprovisionContext(tenancyId, graph);
+
+            // Check for prior approval state before calling provisioner (no requiresHuman for deprovision)
+            ApprovalCheckResult approvalCheck = pendingApprovalHandler.check(node, StepAction.DEPROVISION, tenancyId);
+            switch (approvalCheck) {
+                case ApprovalCheckResult.Pending p ->
+                    { return new StepOutcome.Skipped("pending approval: " + p.planReference()); }
+                case ApprovalCheckResult.Rejected r -> {
+                    pendingApprovalHandler.acknowledgeRejection(node, StepAction.DEPROVISION, tenancyId);
+                    span.setStatus(StatusCode.ERROR, "approval rejected: " + r.reason());
+                    return new StepOutcome.Rejected("approval rejected: " + r.reason());
+                }
+                case ApprovalCheckResult.Approved a ->
+                    context = context.withApproval(a.approval());
+                case ApprovalCheckResult.None ignored -> {}
+            }
+
             DeprovisionResult result = provisioner.deprovision(node, context);
 
             return switch (result) {
@@ -97,7 +135,7 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                     yield new StepOutcome.Failed(f.reason());
                 }
                 case DeprovisionResult.PendingApproval pa ->
-                    new StepOutcome.Skipped("pending approval: " + pa.planReference());
+                    pendingApprovalHandler.recordPending(node, StepAction.DEPROVISION, tenancyId, pa.planReference());
             };
         } finally {
             span.end();
