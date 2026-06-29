@@ -114,6 +114,7 @@ C4Context
 | L4 Observability | runtime/ (cross-cutting) | OTel tracing spans on reconciliation and execution |
 | L5 Testing | testing/ | Mock SPI implementations for consumer tests |
 | L6 Domain Examples | examples/dungeon/, examples/pipeline/ | Teaching examples implementing all SPIs |
+| L7 Work Adapter | work-adapter/ | WorkItem-backed HumanNodeHandler + PendingApprovalHandler — bridge to casehub-work |
 
 ### Chapter sequencing rationale
 
@@ -124,6 +125,7 @@ C4Context
 - C5 before C6: HITL integration in engine-adapter informs how the provisioner partitions work
 - C6 after C2: ExecutionBackend refactors the pipeline provisioner, requires stable pipeline
 - C7 after C6: Worker foundation extraction builds on the execution model established by C6
+- C8 after C5: approval-gated provisioning extends HITL from static `requiresHuman` declaration to provisioner-initiated runtime approval; independent of C6/C7
 
 ---
 
@@ -135,7 +137,7 @@ C4Container
 
   Container_Boundary(b1, "Layer: L1 Core API") {
     Container(api_graph, "DesiredStateGraph", "Java SPI", "Immutable graph with algebraic composition")
-    Container(api_spis, "GoalCompiler / NodeProvisioner / FaultPolicy / EventSource / HumanNodeHandler", "Java SPI", "Domain extension points")
+    Container(api_spis, "GoalCompiler / NodeProvisioner / FaultPolicy / EventSource / HumanNodeHandler / PendingApprovalHandler", "Java SPI", "Domain extension points")
     Container(api_exec, "TransitionExecutor", "Java SPI", "Pluggable plan execution")
   }
 
@@ -143,18 +145,24 @@ C4Container
     Container(planner, "TransitionPlanner", "Quarkus CDI", "Diffs desired vs actual, orders transitions")
     Container(loop, "ReconciliationLoop", "Quarkus CDI", "Event-driven + periodic re-sync per tenant")
     Container(fault, "FaultPolicyEngine", "Quarkus CDI", "Multi-policy composition with conflict detection")
-    Container(simple, "SimpleTransitionExecutor", "@DefaultBean", "Sequential executor, delegates human nodes to HumanNodeHandler")
+    Container(simple, "SimpleTransitionExecutor", "@DefaultBean", "Sequential executor with PendingApproval lifecycle")
   }
 
   Container_Boundary(b3, "Layer: L3 Engine Adapter") {
     Container(case_exec, "CaseTransitionExecutor", "@ApplicationScoped", "Two-phase case: prune Worker, grow Worker")
   }
 
+  Container_Boundary(b7, "Layer: L7 Work Adapter") {
+    Container(work_human, "WorkItemHumanNodeHandler", "@ApplicationScoped", "WorkItem-backed human node provisioning")
+    Container(work_approval, "WorkItemPendingApprovalHandler", "@ApplicationScoped", "WorkItem-backed approval lifecycle (pending)")
+  }
+
   Rel(planner, api_graph, "Reads desired graph")
   Rel(loop, planner, "Triggers plan")
   Rel(loop, api_exec, "Executes plan")
-  Rel(simple, api_spis, "Calls NodeProvisioner")
+  Rel(simple, api_spis, "Calls NodeProvisioner + PendingApprovalHandler")
   Rel(case_exec, api_exec, "Implements TransitionExecutor")
+  Rel(work_approval, api_spis, "Implements PendingApprovalHandler")
 ```
 
 ### Module structure
@@ -218,6 +226,7 @@ casehub-desiredstate is a library, not a standalone application. It deploys as M
 | SPI placement | Pure Java in api/; CDI implementations in runtime/ |
 | Reactive parity | `NodeProvisioner` (blocking) + `ReactiveNodeProvisioner` (Mutiny) as peer SPIs |
 | Multi-tenancy | Per-tenant `ReconciliationLoop` instances; `ProvisionContext` carries `tenancyId` |
+| Approval lifecycle | Provisioner-initiated: `PendingApproval` → `PendingApprovalHandler.recordPending()` → reconciliation polls `check()` → Approved/Rejected → re-call provisioner with `PlanApproval` or fire `APPROVAL_REJECTED` fault |
 
 ### Anti-patterns
 
@@ -241,7 +250,7 @@ casehub-desiredstate is a library, not a standalone application. It deploys as M
 
 | Journey | Description | Chapters | Status |
 |---|---|---|---|
-| Generic Desired-State Runtime | Build a domain-agnostic desired-state management system, prove genericity through distinct domains, evolve toward production capability | 7 | In progress |
+| Generic Desired-State Runtime | Build a domain-agnostic desired-state management system, prove genericity through distinct domains, evolve toward production capability | 8 | In progress |
 
 ```mermaid
 flowchart LR
@@ -251,6 +260,7 @@ flowchart LR
   C3 --> C5["C5: Human-in-the-Loop\nL3"]
   C5 --> C6["C6: Pluggable Execution\nL6"]
   C6 --> C7["C7: Worker Foundation\nL1,L2,L6"]
+  C5 --> C8["C8: Approval-Gated\nProvisioning\nL1,L2,L3,L5,L7"]
 
   style C1 fill:#90EE90,color:#000
   style C2 fill:#90EE90,color:#000
@@ -259,6 +269,7 @@ flowchart LR
   style C5 fill:#90EE90,color:#000
   style C6 fill:#90EE90,color:#000
   style C7 fill:#FFD700,color:#000
+  style C8 fill:#FFD700,color:#000
 ```
 
 ### §9.2 Chapter Index
@@ -272,17 +283,19 @@ flowchart LR
 | 5 | Human-in-the-Loop | Generic DSR | L3 | Medium | ✅ |
 | 6 | Pluggable Execution | Generic DSR | L6 | Medium | ✅ |
 | 7 | Worker Foundation | Generic DSR | L1, L2, L6 | Medium, Low, Low | 🚧 |
+| 8 | Approval-Gated Provisioning | Generic DSR | L1, L2, L3, L5, L7 | Medium, Medium, Medium, Low, Medium | 🚧 |
 
 **Layer x Chapter matrix**
 
-| Layer | C1 | C2 | C3 | C4 | C5 | C6 | C7 |
-|---|---|---|---|---|---|---|---|
-| L1 Core API | High | — | — | — | — | — | Medium |
-| L2 Runtime Engine | High | Low | Low | — | — | — | Low |
-| L3 Engine Adapter | High | — | — | — | Medium | — | — |
-| L4 Observability | — | — | High | — | — | — | — |
-| L5 Testing | High | — | — | — | — | — | — |
-| L6 Domain Examples | High | High | — | Medium | — | Medium | Low |
+| Layer | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 |
+|---|---|---|---|---|---|---|---|---|
+| L1 Core API | High | — | — | — | — | — | Medium | Medium |
+| L2 Runtime Engine | High | Low | Low | — | — | — | Low | Medium |
+| L3 Engine Adapter | High | — | — | — | Medium | — | — | Medium |
+| L4 Observability | — | — | High | — | — | — | — | — |
+| L5 Testing | High | — | — | — | — | — | — | Low |
+| L6 Domain Examples | High | High | — | Medium | — | Medium | Low | — |
+| L7 Work Adapter | — | — | — | — | — | — | — | Medium |
 
 L1 and L2 appear across multiple columns — they are foundational and bear cross-cutting responsibility. L6 has the most High entries — each new capability is validated through domain examples.
 
@@ -293,6 +306,7 @@ L1 and L2 appear across multiple columns — they are foundational and bear cros
 - C4 and C5 independent of each other: AI fault resolution and HITL are orthogonal integrations
 - C6 after C2: refactors the pipeline provisioner; requires a stable pipeline domain
 - C7 after C6: Worker foundation extraction builds on the execution model; depends on casehub-worker existing (cross-repo)
+- C8 after C5: approval-gated provisioning extends HITL from static `requiresHuman` flags to provisioner-initiated runtime approval; independent of C6/C7
 
 ### §9.3 Chapter Entries
 
@@ -440,15 +454,48 @@ Worker primitives extracted from casehub-engine-api to a new foundation-tier `ca
 
 ---
 
+### Chapter 8 — Approval-Gated Provisioning
+
+**Journey:** Generic DSR | **Sequence:** 8 of 8 | **Status:** 🚧
+**Delivered:** 🔲 | **Issues:** #14, #47, #48 | **Blog:** —
+
+**What this delivers**
+Provisioner-initiated approval gates for automated nodes. Unlike `requiresHuman` (C5), which statically marks nodes for human provisioning, PendingApproval is a runtime response: a provisioner decides during execution that human approval is needed before proceeding. The handler creates an approval WorkItem, tracks its lifecycle across reconciliation cycles, and re-calls the provisioner with `PlanApproval` context on approval. Rejection fires `APPROVAL_REJECTED` through the fault pipeline.
+
+This extends the HITL model established in C5 with a second, complementary pattern:
+- **C5 (`requiresHuman`):** the goal declaration says "this node needs a human" — the executor routes it to a WorkItem instead of the provisioner
+- **C8 (PendingApproval):** the provisioner says "I need approval before I can do this" — the executor records the approval request and polls until resolved
+
+**Accountability gaps closed**
+- ✅ Provisioners had no way to request approval — `ProvisionResult.PendingApproval` + `DeprovisionResult.PendingApproval` sealed variants
+- ✅ No approval lifecycle tracking — `PendingApprovalHandler` SPI: `check()` / `recordPending()` / `acknowledgeRejection()`
+- ✅ No re-entry with approval context — `ProvisionContext.withApproval()` / `DeprovisionContext.withApproval()` carry `PlanApproval`
+- ✅ No rejection fault type — `FaultType.APPROVAL_REJECTED` + `StepOutcome.Rejected`
+- ✅ SimpleTransitionExecutor had no approval awareness — full check/provision/record/acknowledge lifecycle integrated
+- 🔲 CaseTransitionExecutor silently swallows PendingApproval (#47) — blocked on casehubio/engine#590
+- 🔲 WorkItem-backed approval handler (work-adapter) — blocked on work#281/282
+
+**Layer Impact**
+
+| Layer | Delta |
+|---|---|
+| L1 Core API | Medium — PendingApprovalHandler SPI, ApprovalCheckResult, PlanApproval, sealed result variants, StepOutcome.Rejected, FaultType.APPROVAL_REJECTED, StepAction, context withApproval() |
+| L2 Runtime Engine | Medium — NoOpPendingApprovalHandler @DefaultBean, SimpleTransitionExecutor approval lifecycle |
+| L3 Engine Adapter | Medium — 🔲 CTE pre-filtering, DesiredStateDispatch with approval lifecycle (#47, blocked on engine#590) |
+| L5 Testing | Low — MockPendingApprovalHandler |
+| L7 Work Adapter | Medium — 🔲 WorkItemPendingApprovalHandler (blocked on work#281/282) |
+
+---
+
 ### §9.4 Layer Entries
 
 ### Layer — L1 Core API
 
-**Participates in chapters:** C1, C7
+**Participates in chapters:** C1, C7, C8
 **Architectural patterns:** SPI-driven architecture, immutable data structures, algebraic graph composition (Alga), sealed interfaces
 **Key protocols:** `casehub/garden: docs/protocols/universal/module-tier-structure.md`
-**Design refs:** `docs/superpowers/specs/2026-06-12-generic-runtime-design.md` §3–4
-**Issues:** #1
+**Design refs:** `docs/superpowers/specs/2026-06-12-generic-runtime-design.md` §3–4, `docs/superpowers/specs/2026-06-28-pending-approval-handler-design.md`
+**Issues:** #1, #14
 **Navigation:** `git log --grep="#1" --oneline`
 **Completed:** 2026-06-14
 
@@ -461,6 +508,7 @@ What this layer adds:
 - **Immutable dependency graph** — dual adjacency maps (forward + reverse), cycle detection on every edge addition, CAS versioning; inspired by Clojure loom's adjacency-map pattern
 - **Algebraic composition** — `overlay()` (union) and `connect()` (all-leaves-to-all-roots) from Alga; enables compositional goal building without manual edge wiring
 - **Sealed result types** — `StepOutcome`, `ProvisionResult`, `DeprovisionResult`, `GraphMutation` are sealed interfaces; exhaustive `switch` at compile time
+- **Approval lifecycle SPI (C8)** — `PendingApprovalHandler` with `check()`/`recordPending()`/`acknowledgeRejection()`; `ApprovalCheckResult` sealed (None/Pending/Approved/Rejected); `PlanApproval` record carried in `ProvisionContext`/`DeprovisionContext` via `withApproval()`; `ProvisionResult.PendingApproval`/`DeprovisionResult.PendingApproval` sealed variants; `StepOutcome.Rejected`; `FaultType.APPROVAL_REJECTED`; `StepAction` enum
 
 Not closed here: L2 (no runtime yet), L3 (no engine bridge).
 
@@ -477,6 +525,9 @@ Not closed here: L2 (no runtime yet), L3 (no engine bridge).
 - `api/src/.../TransitionExecutor.java` — SPI: executes a TransitionPlan, returns Uni<TransitionResult>
 - `api/src/.../GraphMutation.java` — sealed: AddNode, RemoveNode, UpdateNode, AddDependency, RemoveDependency
 - `api/src/.../TransitionPlan.java` — removals (leaves-first), additions (roots-first), before/after graphs
+- `api/src/.../PendingApprovalHandler.java` — SPI: check/recordPending/acknowledgeRejection for approval lifecycle
+- `api/src/.../ApprovalCheckResult.java` — sealed: None, Pending, Approved, Rejected
+- `api/src/.../PlanApproval.java` — record: planReference, approvedBy, approvedAt — carried in provision/deprovision context on re-entry
 
 #### Key wiring
 
@@ -524,7 +575,7 @@ Immutable versioned graph with dual adjacency maps and algebraic composition.
 
 ### Layer — L2 Runtime Engine
 
-**Participates in chapters:** C1, C2, C3, C7
+**Participates in chapters:** C1, C2, C3, C7, C8
 **Architectural patterns:** Event-driven reconciliation, topological sorting, CAS-based state management, CDI multi-bean composition
 **Key protocols:** `casehub/garden: docs/protocols/casehub/alternative-extension-patterns.md` (CDI displacement)
 **Design refs:** `docs/superpowers/specs/2026-06-12-generic-runtime-design.md` §5
@@ -543,6 +594,7 @@ What this layer adds:
 - **ReconciliationLoop** — per-tenant, dual-trigger (events debounced at 1s + periodic at 5m), state machine (IDLE→DIFFING→PLANNING→EXECUTING→RECONCILED/FAULTED)
 - **FaultPolicyEngine** — discovers all `FaultPolicy` beans via CDI `Instance<FaultPolicy>`, runs all matching, merges mutations, detects conflicts (`ConflictingMutationException`)
 - **SimpleTransitionExecutor** — `@DefaultBean`, walks removals then additions sequentially, delegates `requiresHuman` nodes to `HumanNodeHandler` SPI
+- **Approval lifecycle integration (C8)** — `SimpleTransitionExecutor` wraps every provisioner call with `PendingApprovalHandler`: check before (Pending→skip, Rejected→acknowledge+fault, Approved→withApproval context), record after (PendingApproval→recordPending). `NoOpPendingApprovalHandler @DefaultBean` returns Failed on `recordPending()` — misconfiguration signal when no handler is configured to create WorkItems.
 
 Not closed here: L3 (no case-backed execution), L4 (no tracing until C3).
 
@@ -600,11 +652,11 @@ Event-driven reconciliation loop with progressive fault mutation accumulation.
 
 ### Layer — L3 Engine Adapter
 
-**Participates in chapters:** C1, C5
+**Participates in chapters:** C1, C5, C8
 **Architectural patterns:** CDI displacement (`@ApplicationScoped` displaces `@DefaultBean`), case-backed execution, Worker(Workflow) generation
 **Key protocols:** `casehub/garden: docs/protocols/casehub/alternative-extension-patterns.md`
 **Design refs:** `docs/superpowers/specs/2026-06-12-generic-runtime-design.md` §6, `docs/superpowers/specs/2026-06-17-workitem-integration-design.md`
-**Issues:** #1, #30
+**Issues:** #1, #30, #47
 **Navigation:** `git log --grep="#1\|#30" --oneline -- engine-adapter/`
 **Completed:** 2026-06-14 (initial); extended C5 2026-06-17 (HITL)
 
@@ -617,6 +669,7 @@ What this layer adds:
 - **Case-backed execution** — crash recovery (case resumes where it left off), OTel tracing per workflow step, visualization (case plan with task statuses)
 - **WorkItem routing** — `requiresHuman=true` nodes get `humanTask` bindings with `HumanTaskTarget.inline()`; the engine creates WorkItems automatically
 - **Parallel execution** — independent nodes at the same topological level execute as parallel `fork` branches in the generated workflow
+- 🔲 **Approval-gated provisioning (C8, #47)** — CTE pre-filters approval-gated nodes before building the case; `DesiredStateDispatch` registers for `desiredstate:dispatch` and handles the full PendingApproval lifecycle within workflow steps; `DesiredStateExecutionRegistry` passes graph+tenancyId context to the dispatch handler. Blocked on casehubio/engine#590 (`CallableDispatchRegistry`).
 
 Not closed here: L4 (tracing is on the runtime, not the adapter — the engine provides its own tracing).
 
@@ -727,7 +780,7 @@ Library-instrumentation OTel tracing with conditional span creation and domain-p
 
 ### Layer — L5 Testing
 
-**Participates in chapters:** C1
+**Participates in chapters:** C1, C8
 **Architectural patterns:** Mock SPI implementations, controllable event streams
 **Issues:** #1
 **Navigation:** `git log --grep="#1" --oneline -- testing/`
@@ -750,6 +803,7 @@ Not closed here: no test fixtures for engine-adapter (CaseTransitionExecutor tes
 - `testing/src/.../MockActualStateAdapter.java` — configurable actual state for tests
 - `testing/src/.../MockNodeProvisioner.java` — configurable provision/deprovision outcomes
 - `testing/src/.../CannedEventSource.java` — push events into the reconciliation loop deterministically
+- `testing/src/.../MockPendingApprovalHandler.java` — configurable approval check results for tests (C8)
 
 #### Pattern to replicate
 
@@ -848,6 +902,44 @@ Blueprint builder → GoalCompiler → immutable graph with inferred dependencie
 
 ---
 
+### Layer — L7 Work Adapter
+
+**Participates in chapters:** C8
+**Architectural patterns:** CDI displacement (`@ApplicationScoped` displaces `@DefaultBean`), WorkItem-backed SPI implementations
+**Key protocols:** `casehub/garden: docs/protocols/universal/module-tier-structure.md`
+**Design refs:** `docs/superpowers/specs/2026-06-28-pending-approval-handler-design.md`
+**Issues:** #14
+**Navigation:** `git log --grep="#14" --oneline -- work-adapter/`
+**Completed:** 🔲 (blocked on casehubio/work#281, casehubio/work#282)
+
+#### What it adds
+
+**Before:** `NoOpPendingApprovalHandler @DefaultBean` returns Failed on `recordPending()` — a misconfiguration signal. `NoOpHumanNodeHandler @DefaultBean` skips human nodes silently.
+**After:** WorkItem-backed implementations that create and track WorkItems for approval-gated and human-flagged nodes.
+
+What this layer adds:
+- 🔲 **WorkItemPendingApprovalHandler** — creates a WorkItem via `WorkItemCreator` SPI when provisioner returns PendingApproval; polls `findByCallerRef()` each cycle; maps COMPLETED→Approved, REJECTED→Rejected (with `obsoleteByCallerRef` cleanup — GE-20260629-45f4be); displaces `NoOpPendingApprovalHandler` by classpath presence
+- **WorkItemHumanNodeHandler** — creates a WorkItem for `requiresHuman` nodes; displaces `NoOpHumanNodeHandler` by classpath presence
+
+Not closed here: blocked on casehubio/work#281 (`WorkItemRef.payload` field for data round-trip) and casehubio/work#282 (`WorkItemCreator.obsoleteByCallerRef` for rejection consumption).
+
+#### Key files
+
+- `work-adapter/src/.../WorkItemHumanNodeHandler.java` — existing, creates WorkItems for requiresHuman nodes
+- 🔲 `work-adapter/src/.../WorkItemPendingApprovalHandler.java` — pending implementation
+
+#### Key wiring
+
+**CDI displacement is by classpath presence.** `WorkItemPendingApprovalHandler @ApplicationScoped` displaces `NoOpPendingApprovalHandler @DefaultBean` when work-adapter/ is on classpath. Same pattern as `CaseTransitionExecutor` displacing `SimpleTransitionExecutor`.
+
+**`callerRef` is the correlation key.** Format: `desiredstate-approval:{tenancyId}:{nodeId}:{action}`. Deterministic — enables idempotent WorkItem creation across reconciliation cycles. See GE-20260629-45f4be for the callerRef blocking gotcha.
+
+#### Architectural decisions
+
+**Why a separate work-adapter module rather than putting WorkItem logic in runtime/:** runtime/ depends only on casehub-platform. Adding casehub-work-api as a dependency would force all consumers to have casehub-work on classpath even if they don't use WorkItem-backed approval. The adapter module activates by classpath presence — same pattern as engine-adapter/.
+
+---
+
 ## §10 Architectural Decisions
 
 No ADRs recorded yet. `docs/adr/` contains `.gitkeep` only. Architectural decisions are currently captured inline in layer entries (§9.4) and design specs (`docs/superpowers/specs/`).
@@ -895,3 +987,7 @@ No ADRs recorded yet. `docs/adr/` contains `.gitkeep` only. Architectural decisi
 | **CDI displacement** | `@ApplicationScoped` bean displaces `@DefaultBean` by classpath presence — no configuration |
 | **Algebraic graph composition** | `overlay()` (union) and `connect()` (leaves→roots) from Alga — compositional graph building |
 | **CAS** | Compare-and-swap — atomic update of the desired graph reference; concurrent goal updates and fault mutations use CAS for safe concurrent access |
+| **PendingApproval** | Runtime response from a provisioner indicating human approval is needed before the machine provisions. Contrast with `requiresHuman` which is a static declaration on the node. |
+| **PlanApproval** | Record carried in `ProvisionContext`/`DeprovisionContext` on re-entry after human approval — `planReference`, `approvedBy`, `approvedAt` |
+| **PendingApprovalHandler** | SPI that tracks the approval lifecycle: `check()` polls state, `recordPending()` creates the approval request, `acknowledgeRejection()` cleans up after rejection |
+| **Approval-gated provisioning** | Pattern where a provisioner returns PendingApproval → handler creates a WorkItem → reconciliation loop polls each cycle → on approval, provisioner re-called with PlanApproval context |
