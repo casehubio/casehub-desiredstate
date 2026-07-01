@@ -224,7 +224,8 @@ casehub-desiredstate is a library, not a standalone application. It deploys as M
 | Module structure | `casehub/garden: docs/protocols/universal/module-tier-structure.md` |
 | CDI displacement | `casehub/garden: docs/protocols/casehub/alternative-extension-patterns.md` |
 | SPI placement | Pure Java in api/; CDI implementations in runtime/ |
-| Reactive parity | `NodeProvisioner` (blocking) + `ReactiveNodeProvisioner` (Mutiny) as peer SPIs |
+| Multi-provisioner dispatch | `NodeProvisionerRouter` routes by `NodeType` using `handledTypes()` declarations; `DefaultNodeProvisionerRouter` validates at construction (fail-fast on overlaps, invalid intervals) |
+| Per-type reconciliation scheduling | Each `NodeType` gets its own resync interval from provisioner default or Preferences override; interval-grouped timers reconcile all types at the same frequency together |
 | Multi-tenancy | Per-tenant `ReconciliationLoop` instances; `ProvisionContext` carries `tenancyId` |
 | Approval lifecycle | Provisioner-initiated: `PendingApproval` → `PendingApprovalHandler.recordPending()` → reconciliation polls `check()` → Approved/Rejected → re-call provisioner with `PlanApproval` or fire `APPROVAL_REJECTED` fault |
 
@@ -518,8 +519,8 @@ Not closed here: L2 (no runtime yet), L3 (no engine bridge).
 - `api/src/.../DesiredStateGraph.java` — SPI interface: query (nodes, deps, roots, leaves), mutation (withNode, withoutNode), composition (overlay, connect)
 - `api/src/.../DesiredStateGraphFactory.java` — SPI: creates graph instances, decouples GoalCompiler from backing store
 - `api/src/.../GoalCompiler.java` — SPI: domain goal declaration → DesiredStateGraph
-- `api/src/.../NodeProvisioner.java` — SPI: provision/deprovision a single node
-- `api/src/.../ReactiveNodeProvisioner.java` — SPI: Uni-returning variant of NodeProvisioner
+- `api/src/.../NodeProvisioner.java` — SPI: provision/deprovision a single node, declare handled types via `handledTypes()`, declare resync interval via `resyncInterval()`
+- `api/src/.../NodeProvisionerRouter.java` — SPI interface: routes provision/deprovision calls by NodeType, resolves effective resync interval per type
 - `api/src/.../FaultPolicy.java` — SPI: returns List<GraphMutation> in response to FaultEvent
 - `api/src/.../EventSource.java` — SPI: streams Multi<StateEvent> for event-driven reconciliation
 - `api/src/.../TransitionExecutor.java` — SPI: executes a TransitionPlan, returns Uni<TransitionResult>
@@ -601,10 +602,13 @@ Not closed here: L3 (no case-backed execution), L4 (no tracing until C3).
 #### Key files
 
 - `runtime/src/.../TransitionPlanner.java` — diffs desired vs actual, produces TransitionPlan with ordered removals and additions
-- `runtime/src/.../ReconciliationLoop.java` — per-tenant loop: event subscription, periodic re-sync, drift detection, fault feedback
+- `runtime/src/.../ReconciliationLoop.java` — per-tenant loop: event subscription, interval-grouped per-type re-sync, drift detection, fault feedback
 - `runtime/src/.../FaultPolicyEngine.java` — CDI multi-policy composition with conflict detection
 - `runtime/src/.../ImmutableDesiredStateGraph.java` — default graph: dual adjacency maps, cycle detection, versioned CAS
-- `runtime/src/.../SimpleTransitionExecutor.java` — @DefaultBean sequential executor
+- `runtime/src/.../SimpleTransitionExecutor.java` — @DefaultBean sequential executor, routes via NodeProvisionerRouter
+- `runtime/src/.../DefaultNodeProvisionerRouter.java` — builds routing table from all provisioners, validates resync intervals ≥1s, integrates Preferences overrides
+- `runtime/src/.../CdiNodeProvisionerRouter.java` — CDI wiring via `Instance<NodeProvisioner>`
+- `runtime/src/.../DesiredStatePreferenceKeys.java` — `RESYNC_INTERVAL` preference key with per-NodeType sub-key support
 
 #### Key wiring
 
@@ -614,11 +618,17 @@ Not closed here: L3 (no case-backed execution), L4 (no tracing until C3).
 
 **SimpleTransitionExecutor is `@DefaultBean`.** CaseTransitionExecutor in engine-adapter/ is `@ApplicationScoped` — CDI selects it when the engine-adapter JAR is on classpath, displacing the default without conditional configuration.
 
+**Multi-provisioner routing via NodeProvisionerRouter.** The router builds a `Map<NodeType, NodeProvisioner>` from all provisioners' `handledTypes()` declarations at construction. Overlapping types fail fast with `IllegalArgumentException`. Missing provisioner for a node type returns `Failed("No provisioner for node type: X")`.
+
+**Per-type reconciliation scheduling.** Types are grouped by their effective resync interval (provisioner default or Preferences override). Each distinct interval gets one `ScheduledFuture` reconciling all types at that frequency. Concurrent cycles with disjoint type sets are safe — each type belongs to exactly one interval group.
+
 #### Architectural decisions
 
 **Why per-tenant loop instances rather than a shared loop:** Fault in one tenant's graph (infinite fault-mutation loop, pathological cycle) cannot affect another tenant's reconciliation. Isolation is worth the per-tenant overhead at the expected scale (10–200 nodes per tenant).
 
 **Why CAS on the desired graph reference rather than locks:** The reconciliation cycle reads the desired graph, computes mutations, and writes back. With CAS, a concurrent `updateDesired()` call wins and the cycle retries with the new graph on the next iteration. No blocking, no deadlock risk.
+
+**Why interval-grouped timers rather than per-provisioner timers:** Preferences allows per-NodeType interval overrides. A provisioner handling types with different Preferences intervals cannot be served by a single timer without silently ignoring overrides. Interval-grouped timers respect per-NodeType granularity: types with the same effective interval share a timer; types with different intervals get separate timers.
 
 #### Pattern introduced
 
@@ -662,8 +672,8 @@ Event-driven reconciliation loop with progressive fault mutation accumulation.
 
 #### What it adds
 
-**Before:** `SimpleTransitionExecutor` runs transitions sequentially with no durability, no visualization, human nodes skipped silently.
-**After:** `CaseTransitionExecutor` displaces the default — generates a case with two Worker(Workflow) phases (prune, grow), human nodes routed to WorkItems via `humanTask` bindings.
+**Before:** `SimpleTransitionExecutor` runs transitions sequentially with no durability, no visualization, human nodes skipped silently, single provisioner injection.
+**After:** `CaseTransitionExecutor` displaces the default — generates a case with two Worker(Workflow) phases (prune, grow), human nodes routed to WorkItems via `humanTask` bindings, routes via `NodeProvisionerRouter` for multi-provisioner dispatch.
 
 What this layer adds:
 - **Case-backed execution** — crash recovery (case resumes where it left off), OTel tracing per workflow step, visualization (case plan with task statuses)

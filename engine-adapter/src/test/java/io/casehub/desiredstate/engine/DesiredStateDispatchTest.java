@@ -2,6 +2,7 @@ package io.casehub.desiredstate.engine;
 
 import io.casehub.desiredstate.api.*;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
+import io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter;
 import io.casehub.desiredstate.testing.MockNodeProvisioner;
 import io.casehub.desiredstate.testing.MockPendingApprovalHandler;
 import io.casehub.engine.flow.CallableDispatchRegistry;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,10 +55,15 @@ class DesiredStateDispatchTest {
                 capturedDeprovisionContext = context;
                 return new DeprovisionResult.Success();
             }
+            @Override
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("service"));
+            }
         };
 
+        NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
         DesiredStateDispatch dispatch = new DesiredStateDispatch(
-            provisioner, approvalHandler, executionRegistry, callRegistry);
+            router, approvalHandler, executionRegistry, callRegistry);
         dispatch.register();
 
         executionRegistry.register("exec-1", graph, "tenant-a");
@@ -90,11 +97,16 @@ class DesiredStateDispatchTest {
             public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context) {
                 return new DeprovisionResult.Success();
             }
+            @Override
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("service"));
+            }
         };
         // Re-register overwrites — create fresh registry
         CallableDispatchRegistry freshRegistry = new CallableDispatchRegistry();
+        NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
         DesiredStateDispatch dispatch = new DesiredStateDispatch(
-            provisioner, approvalHandler, executionRegistry, freshRegistry);
+            router, approvalHandler, executionRegistry, freshRegistry);
         dispatch.register();
 
         Map<String, Object> result = freshRegistry.get("desiredstate:dispatch")
@@ -180,9 +192,14 @@ class DesiredStateDispatchTest {
             public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context) {
                 return new DeprovisionResult.Success();
             }
+            @Override
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("service"));
+            }
         };
         CallableDispatchRegistry freshRegistry = new CallableDispatchRegistry();
-        new DesiredStateDispatch(provisioner, approvalHandler, executionRegistry, freshRegistry)
+        NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
+        new DesiredStateDispatch(router, approvalHandler, executionRegistry, freshRegistry)
             .register();
 
         Map<String, Object> result = freshRegistry.get("desiredstate:dispatch")

@@ -2,6 +2,8 @@ package io.casehub.desiredstate.example.dungeon;
 
 import io.casehub.desiredstate.api.*;
 
+import java.util.Set;
+
 /**
  * Provisions dungeon nodes (rooms, creatures, traps) in the {@link DungeonWorld}.
  * Handles both provisioning and deprovisioning operations.
@@ -12,6 +14,11 @@ public class GoblinProvisioner implements NodeProvisioner {
 
     public GoblinProvisioner(DungeonWorld world) {
         this.world = world;
+    }
+
+    @Override
+    public Set<NodeType> handledTypes() {
+        return Set.of(DungeonNodeTypes.ROOM, DungeonNodeTypes.CREATURE, DungeonNodeTypes.TRAP);
     }
 
     @Override

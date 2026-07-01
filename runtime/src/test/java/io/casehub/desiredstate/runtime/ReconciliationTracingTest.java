@@ -126,8 +126,9 @@ class ReconciliationTracingTest {
         DesiredStateGraph desired = factory.of(List.of(nodeA, nodeB), List.of());
         actualAdapter.setStatuses(Map.of());
 
+        var router = new DefaultNodeProvisionerRouter(List.of(new SucceedingProvisioner()));
         SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
-                new SucceedingProvisioner(), new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         ReconciliationLoop loopWithSimple = new ReconciliationLoop(
                 planner, simpleExecutor, actualAdapter, faultEngine, testEventSource,
                 TEST_DEBOUNCE, TEST_RESYNC);
@@ -160,8 +161,9 @@ class ReconciliationTracingTest {
         DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
         actualAdapter.setStatuses(Map.of());
 
+        var router = new DefaultNodeProvisionerRouter(List.of(new FailingProvisioner()));
         SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
-                new FailingProvisioner(), new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         ReconciliationLoop loopWithSimple = new ReconciliationLoop(
                 planner, simpleExecutor, actualAdapter, faultEngine, testEventSource,
                 TEST_DEBOUNCE, TEST_RESYNC);
@@ -189,8 +191,9 @@ class ReconciliationTracingTest {
                 NodeId.of("a"), NodeStatus.PRESENT,
                 NodeId.of("orphan"), NodeStatus.PRESENT));
 
+        var router = new DefaultNodeProvisionerRouter(List.of(new SucceedingProvisioner()));
         SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
-                new SucceedingProvisioner(), new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         ReconciliationLoop loopWithSimple = new ReconciliationLoop(
                 planner, simpleExecutor, actualAdapter, faultEngine, testEventSource,
                 TEST_DEBOUNCE, TEST_RESYNC);
@@ -366,6 +369,11 @@ class ReconciliationTracingTest {
         public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context) {
             return new DeprovisionResult.Success();
         }
+
+        @Override
+        public Set<NodeType> handledTypes() {
+            return Set.of(NodeType.of("test"), NodeType.of("unknown"));
+        }
     }
 
     static class FailingProvisioner implements NodeProvisioner {
@@ -377,6 +385,11 @@ class ReconciliationTracingTest {
         @Override
         public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context) {
             return new DeprovisionResult.Failed("simulated failure");
+        }
+
+        @Override
+        public Set<NodeType> handledTypes() {
+            return Set.of(NodeType.of("test"));
         }
     }
 }

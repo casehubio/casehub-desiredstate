@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test;
 
 class CoreTypesTest {
     record TestSpec(String name, int size) implements NodeSpec {}
+    record HumanSpec(String name) implements NodeSpec {
+        @Override public boolean requiresHuman() { return true; }
+    }
 
     @Test void nodeId_equality() {
         var a = new NodeId("library");
@@ -37,5 +40,28 @@ class CoreTypesTest {
     @Test void nodeSpec_markerInterface() {
         NodeSpec spec = new TestSpec("Crypt", 10);
         assertThat(spec).isInstanceOf(NodeSpec.class);
+    }
+
+    @Test void nodeSpec_requiresHuman_defaultFalse() {
+        NodeSpec spec = new TestSpec("Library", 12);
+        assertThat(spec.requiresHuman()).isFalse();
+    }
+
+    @Test void desiredNode_orComposition_specTrue_fieldFalse() {
+        var spec = new HumanSpec("dragon-lair");
+        var node = new DesiredNode(new NodeId("lair"), new NodeType("room"), spec, false);
+        assertThat(node.requiresHuman()).isTrue();
+    }
+
+    @Test void desiredNode_orComposition_specFalse_fieldTrue() {
+        var spec = new TestSpec("Library", 12);
+        var node = new DesiredNode(new NodeId("library"), new NodeType("room"), spec, true);
+        assertThat(node.requiresHuman()).isTrue();
+    }
+
+    @Test void desiredNode_orComposition_bothFalse() {
+        var spec = new TestSpec("Library", 12);
+        var node = new DesiredNode(new NodeId("library"), new NodeType("room"), spec, false);
+        assertThat(node.requiresHuman()).isFalse();
     }
 }

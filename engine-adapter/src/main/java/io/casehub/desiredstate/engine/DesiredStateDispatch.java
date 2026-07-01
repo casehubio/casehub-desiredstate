@@ -11,17 +11,17 @@ import java.util.concurrent.CompletableFuture;
 @ApplicationScoped
 public class DesiredStateDispatch {
 
-    private final NodeProvisioner provisioner;
+    private final NodeProvisionerRouter router;
     private final PendingApprovalHandler pendingApprovalHandler;
     private final DesiredStateExecutionRegistry executionRegistry;
     private final CallableDispatchRegistry callRegistry;
 
     @Inject
-    public DesiredStateDispatch(NodeProvisioner provisioner,
+    public DesiredStateDispatch(NodeProvisionerRouter router,
                                  PendingApprovalHandler pendingApprovalHandler,
                                  DesiredStateExecutionRegistry executionRegistry,
                                  CallableDispatchRegistry callRegistry) {
-        this.provisioner = provisioner;
+        this.router = router;
         this.pendingApprovalHandler = pendingApprovalHandler;
         this.executionRegistry = executionRegistry;
         this.callRegistry = callRegistry;
@@ -85,7 +85,7 @@ public class DesiredStateDispatch {
             case ApprovalCheckResult.None ignored -> {}
         }
 
-        ProvisionResult result = provisioner.provision(node, context);
+        ProvisionResult result = router.provision(node, context);
 
         return switch (result) {
             case ProvisionResult.Success ignored ->
@@ -122,7 +122,7 @@ public class DesiredStateDispatch {
             case ApprovalCheckResult.None ignored -> {}
         }
 
-        DeprovisionResult result = provisioner.deprovision(node, context);
+        DeprovisionResult result = router.deprovision(node, context);
 
         return switch (result) {
             case DeprovisionResult.Success ignored ->

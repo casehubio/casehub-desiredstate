@@ -3,9 +3,11 @@ package io.casehub.desiredstate.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class SpiContractTest {
@@ -27,6 +29,7 @@ class SpiContractTest {
 
     @Test void nodeProvisioner_canBeImplemented() {
         NodeProvisioner provisioner = new NodeProvisioner() {
+            @Override public Set<NodeType> handledTypes() { return Set.of(NodeType.of("test")); }
             @Override public ProvisionResult provision(DesiredNode node, ProvisionContext ctx) { return new ProvisionResult.Success(); }
             @Override public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext ctx) { return new DeprovisionResult.Success(); }
         };
@@ -34,13 +37,13 @@ class SpiContractTest {
         assertThat(provisioner.provision(node, null)).isInstanceOf(ProvisionResult.Success.class);
     }
 
-    @Test void reactiveNodeProvisioner_canBeImplemented() {
-        ReactiveNodeProvisioner provisioner = new ReactiveNodeProvisioner() {
-            @Override public Uni<ProvisionResult> provision(DesiredNode node, ProvisionContext ctx) { return Uni.createFrom().item(new ProvisionResult.Success()); }
-            @Override public Uni<DeprovisionResult> deprovision(DesiredNode node, DeprovisionContext ctx) { return Uni.createFrom().item(new DeprovisionResult.Success()); }
+    @Test void nodeProvisioner_resyncInterval_defaultIsFiveMinutes() {
+        NodeProvisioner provisioner = new NodeProvisioner() {
+            @Override public Set<NodeType> handledTypes() { return Set.of(NodeType.of("test")); }
+            @Override public ProvisionResult provision(DesiredNode node, ProvisionContext ctx) { return new ProvisionResult.Success(); }
+            @Override public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext ctx) { return new DeprovisionResult.Success(); }
         };
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
-        assertThat(provisioner.provision(node, null).await().indefinitely()).isInstanceOf(ProvisionResult.Success.class);
+        assertThat(provisioner.resyncInterval()).isEqualTo(Duration.ofMinutes(5));
     }
 
     @Test void faultPolicy_canBeImplemented() {

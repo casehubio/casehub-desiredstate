@@ -2,6 +2,7 @@ package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.*;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
+import io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter;
 import io.casehub.desiredstate.runtime.NoOpHumanNodeHandler;
 import io.casehub.desiredstate.runtime.NoOpPendingApprovalHandler;
 import io.casehub.desiredstate.runtime.SimpleTransitionExecutor;
@@ -176,7 +177,8 @@ class PipelineTest {
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
 
         // Execute all additions via SimpleTransitionExecutor
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(provisioner, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         TransitionResult result = executor.execute(plan, "default").await().indefinitely();
 
         // All 8 nodes should succeed
@@ -232,7 +234,8 @@ class PipelineTest {
 
         // Provision the full pipeline first
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(provisioner, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
         executor.execute(plan, "default").await().indefinitely();

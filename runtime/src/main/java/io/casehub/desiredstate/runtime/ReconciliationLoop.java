@@ -11,12 +11,10 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -25,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Per-tenant event-driven reconciliation loop.
@@ -35,18 +34,22 @@ import java.util.logging.Logger;
  * <ol>
  *   <li><b>Event-driven:</b> subscribes to {@link EventSource#stream()} and debounces
  *       events within a configurable window, batching rapid-fire events into a single
- *       reconciliation cycle.</li>
- *   <li><b>Periodic re-sync:</b> a scheduled task at a configurable interval
- *       (default 5 minutes) triggers a full reconciliation.</li>
+ *       full-graph reconciliation cycle.</li>
+ *   <li><b>Periodic re-sync:</b> interval-grouped timers derived from
+ *       {@link NodeProvisionerRouter#resyncIntervalFor(NodeType)}. Types sharing the same
+ *       effective interval are grouped into a single {@link ScheduledFuture} that fires
+ *       {@link TenantLoop#reconcileTypes(Set)} with the filtered graph.</li>
  * </ol>
  *
- * <p>{@link #start(String, DesiredStateGraph)} fires an immediate initial reconciliation.
- * {@link #updateDesired(String, DesiredStateGraph)} atomically swaps the desired graph;
- * in-flight execution completes against the old version while the next cycle picks up the new one.
+ * <p>{@link #start(String, DesiredStateGraph)} fires an immediate initial full-graph
+ * reconciliation. {@link #updateDesired(String, DesiredStateGraph)} atomically swaps the
+ * desired graph and recomputes interval groups if node types changed; in-flight execution
+ * completes against the old version while the next cycle picks up the new one.
  *
  * <p>Fault feedback: after execution, any {@link StepOutcome.Failed} outcomes create
  * {@link FaultEvent}s evaluated through {@link FaultPolicyEngine}. Resulting mutations
- * are applied to the desired graph, and the next cycle will incorporate the changes.
+ * are applied to the desired graph via a CAS merge-and-retry loop, ensuring concurrent
+ * mutations are never silently dropped.
  *
  * <p>The reconciliation loop never dies on exception. A dead loop is worse than a failed cycle.
  */
@@ -63,27 +66,48 @@ public class ReconciliationLoop {
     private final ActualStateAdapter actualStateAdapter;
     private final FaultPolicyEngine faultPolicyEngine;
     private final EventSource eventSource;
+    private final NodeProvisionerRouter router;
     private final Duration debounceWindow;
-    private final Duration resyncInterval;
+    private final Duration resyncOverride;
 
     private final ConcurrentHashMap<String, TenantLoop> loops = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler;
 
     /**
-     * CDI constructor with default timers.
+     * CDI constructor with router-driven interval-grouped scheduling.
+     */
+    @Inject
+    public ReconciliationLoop(
+            TransitionPlanner planner,
+            TransitionExecutor executor,
+            ActualStateAdapter actualStateAdapter,
+            FaultPolicyEngine faultPolicyEngine,
+            EventSource eventSource,
+            NodeProvisionerRouter router) {
+        this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
+             router, DEFAULT_DEBOUNCE, null);
+    }
+
+    /**
+     * Test-friendly constructor with router and debounce control, using interval-grouped
+     * scheduling derived from the router.
      */
     public ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapter actualStateAdapter,
             FaultPolicyEngine faultPolicyEngine,
-            EventSource eventSource) {
+            EventSource eventSource,
+            NodeProvisionerRouter router,
+            Duration debounceWindow) {
         this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
-             DEFAULT_DEBOUNCE, DEFAULT_RESYNC);
+             router, debounceWindow, null);
     }
 
     /**
      * Test-friendly constructor accepting configurable durations.
+     * Uses a single resync timer at the given interval, bypassing interval-grouped scheduling.
+     * Pass {@code null} for the router when using this constructor.
      */
     public ReconciliationLoop(
             TransitionPlanner planner,
@@ -93,18 +117,67 @@ public class ReconciliationLoop {
             EventSource eventSource,
             Duration debounceWindow,
             Duration resyncInterval) {
+        this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
+             null, debounceWindow, resyncInterval);
+    }
+
+    /**
+     * CDI constructor with default timers and no router. Kept for backward compatibility.
+     */
+    public ReconciliationLoop(
+            TransitionPlanner planner,
+            TransitionExecutor executor,
+            ActualStateAdapter actualStateAdapter,
+            FaultPolicyEngine faultPolicyEngine,
+            EventSource eventSource) {
+        this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
+             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC);
+    }
+
+    /**
+     * Internal master constructor.
+     *
+     * @param router          provisioner router for interval-grouped scheduling (may be null)
+     * @param debounceWindow  debounce window for event-driven and requested reconciliation
+     * @param resyncOverride  if non-null, bypasses interval-grouped scheduling with a single timer
+     */
+    private ReconciliationLoop(
+            TransitionPlanner planner,
+            TransitionExecutor executor,
+            ActualStateAdapter actualStateAdapter,
+            FaultPolicyEngine faultPolicyEngine,
+            EventSource eventSource,
+            NodeProvisionerRouter router,
+            Duration debounceWindow,
+            Duration resyncOverride) {
         this.planner = planner;
         this.executor = executor;
         this.actualStateAdapter = actualStateAdapter;
         this.faultPolicyEngine = faultPolicyEngine;
         this.eventSource = eventSource;
+        this.router = router;
         this.debounceWindow = debounceWindow;
-        this.resyncInterval = resyncInterval;
-        this.scheduler = Executors.newScheduledThreadPool(1, r -> {
+        this.resyncOverride = resyncOverride;
+
+        int poolSize = computeSchedulerPoolSize();
+        this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
             Thread t = new Thread(r, "reconciliation-scheduler");
             t.setDaemon(true);
             return t;
         });
+    }
+
+    private int computeSchedulerPoolSize() {
+        if (resyncOverride != null || router == null) {
+            return 1;
+        }
+        // Count distinct interval groups from the router
+        Set<Duration> distinctIntervals = new HashSet<>();
+        for (NodeType type : router.allHandledTypes()) {
+            distinctIntervals.add(router.resyncIntervalFor(type));
+        }
+        int groups = Math.max(1, distinctIntervals.size());
+        return Math.min(groups, Runtime.getRuntime().availableProcessors());
     }
 
     /**
@@ -139,6 +212,9 @@ public class ReconciliationLoop {
     /**
      * Atomically swaps the desired graph for a tenant. In-flight execution completes
      * against the previous version; the new graph takes effect on the next reconciliation cycle.
+     *
+     * <p>If the set of node types in the graph changes, interval groups are recomputed:
+     * obsolete timers are cancelled and new ones are started for newly-added groups.
      *
      * @param tenancyId  the tenant identifier
      * @param newDesired the new desired state graph
@@ -185,6 +261,45 @@ public class ReconciliationLoop {
     }
 
     /**
+     * Computes interval groups for the node types present in the given graph.
+     * Types are grouped by their effective resync interval from the router.
+     */
+    private Map<Duration, Set<NodeType>> computeIntervalGroups(DesiredStateGraph desired) {
+        if (router == null) {
+            return Map.of();
+        }
+        Map<Duration, Set<NodeType>> groups = new LinkedHashMap<>();
+        Set<NodeType> graphTypes = desired.nodes().values().stream()
+            .map(DesiredNode::type)
+            .collect(Collectors.toSet());
+        for (NodeType type : graphTypes) {
+            Duration interval = router.resyncIntervalFor(type);
+            groups.computeIfAbsent(interval, k -> new LinkedHashSet<>()).add(type);
+        }
+        return groups;
+    }
+
+    /**
+     * Builds a filtered graph containing only nodes whose type is in the target set,
+     * plus dependencies between those nodes.
+     */
+    private DesiredStateGraph filterGraph(DesiredStateGraph full, Set<NodeType> types) {
+        DesiredStateGraph filtered = ImmutableDesiredStateGraph.empty();
+        for (DesiredNode node : full.nodes().values()) {
+            if (types.contains(node.type())) {
+                filtered = filtered.withNode(node);
+            }
+        }
+        // Add dependencies where both endpoints are in the filtered graph
+        for (Dependency dep : full.dependencies()) {
+            if (filtered.nodes().containsKey(dep.from()) && filtered.nodes().containsKey(dep.to())) {
+                filtered = filtered.withDependency(dep);
+            }
+        }
+        return filtered;
+    }
+
+    /**
      * Internal per-tenant reconciliation loop.
      */
     private class TenantLoop {
@@ -192,8 +307,13 @@ public class ReconciliationLoop {
         private final String tenancyId;
         private final AtomicReference<DesiredStateGraph> desiredRef;
         private volatile Cancellable eventSubscription;
-        private volatile ScheduledFuture<?> resyncFuture;
         private volatile ScheduledFuture<?> requestedReconciliation;
+
+        /** Single resync timer used when resyncOverride is set (test mode). */
+        private volatile ScheduledFuture<?> resyncFuture;
+
+        /** Interval-grouped timers used when router is available and no override. */
+        private final Map<Duration, ScheduledFuture<?>> resyncFutures = new ConcurrentHashMap<>();
 
         TenantLoop(String tenancyId, DesiredStateGraph desired) {
             this.tenancyId = tenancyId;
@@ -201,7 +321,7 @@ public class ReconciliationLoop {
         }
 
         void start() {
-            // Immediate initial reconciliation
+            // Immediate initial full-graph reconciliation
             reconcile();
 
             // Event-driven: subscribe with debounce
@@ -215,10 +335,34 @@ public class ReconciliationLoop {
                 );
 
             // Periodic re-sync
-            long resyncMillis = resyncInterval.toMillis();
-            resyncFuture = scheduler.scheduleAtFixedRate(
-                this::reconcile,
-                resyncMillis, resyncMillis, TimeUnit.MILLISECONDS);
+            if (resyncOverride != null) {
+                // Test mode: single timer at override interval
+                long resyncMillis = resyncOverride.toMillis();
+                resyncFuture = scheduler.scheduleAtFixedRate(
+                    this::reconcile,
+                    resyncMillis, resyncMillis, TimeUnit.MILLISECONDS);
+            } else if (router != null) {
+                // Production mode: interval-grouped timers
+                scheduleIntervalGroups(desiredRef.get());
+            } else {
+                // Legacy fallback: single timer at default interval
+                long resyncMillis = DEFAULT_RESYNC.toMillis();
+                resyncFuture = scheduler.scheduleAtFixedRate(
+                    this::reconcile,
+                    resyncMillis, resyncMillis, TimeUnit.MILLISECONDS);
+            }
+        }
+
+        private void scheduleIntervalGroups(DesiredStateGraph desired) {
+            Map<Duration, Set<NodeType>> groups = computeIntervalGroups(desired);
+            for (Map.Entry<Duration, Set<NodeType>> group : groups.entrySet()) {
+                long millis = group.getKey().toMillis();
+                Set<NodeType> types = Set.copyOf(group.getValue());
+                ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
+                    () -> reconcileTypes(types),
+                    millis, millis, TimeUnit.MILLISECONDS);
+                resyncFutures.put(group.getKey(), future);
+            }
         }
 
         void stop() {
@@ -228,13 +372,38 @@ public class ReconciliationLoop {
             if (resyncFuture != null) {
                 resyncFuture.cancel(false);
             }
+            for (ScheduledFuture<?> future : resyncFutures.values()) {
+                future.cancel(false);
+            }
+            resyncFutures.clear();
             if (requestedReconciliation != null) {
                 requestedReconciliation.cancel(false);
             }
         }
 
         void updateDesired(DesiredStateGraph newDesired) {
-            desiredRef.set(newDesired);
+            DesiredStateGraph old = desiredRef.getAndSet(newDesired);
+
+            // Recompute interval groups if using router-driven scheduling and types changed
+            if (resyncOverride == null && router != null) {
+                Set<NodeType> oldTypes = old.nodes().values().stream()
+                    .map(DesiredNode::type)
+                    .collect(Collectors.toSet());
+                Set<NodeType> newTypes = newDesired.nodes().values().stream()
+                    .map(DesiredNode::type)
+                    .collect(Collectors.toSet());
+                if (!oldTypes.equals(newTypes)) {
+                    synchronized (this) {
+                        // Cancel all existing interval group timers
+                        for (ScheduledFuture<?> future : resyncFutures.values()) {
+                            future.cancel(false);
+                        }
+                        resyncFutures.clear();
+                        // Schedule new interval groups
+                        scheduleIntervalGroups(newDesired);
+                    }
+                }
+            }
         }
 
         void scheduleReconciliation() {
@@ -252,6 +421,9 @@ public class ReconciliationLoop {
 
         private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
+        /**
+         * Full-graph reconciliation. Used by event-driven path and initial reconciliation.
+         */
         private void reconcile() {
             Tracer tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME);
             Span reconcileSpan = tracer.spanBuilder("reconcile")
@@ -282,6 +454,48 @@ public class ReconciliationLoop {
             }
         }
 
+        /**
+         * Type-filtered reconciliation. Filters the desired graph to nodes of the given
+         * types and reconciles only those nodes. Used by interval-grouped timers.
+         */
+        private void reconcileTypes(Set<NodeType> types) {
+            Tracer tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME);
+            Span reconcileSpan = tracer.spanBuilder("reconcile")
+                    .setAttribute(AttributeKey.stringKey("desiredstate.tenant.id"), tenancyId)
+                    .setAttribute(AttributeKey.stringArrayKey("desiredstate.reconcile.types"),
+                        types.stream().map(NodeType::value).sorted().toList())
+                    .startSpan();
+            try (Scope ignored = reconcileSpan.makeCurrent()) {
+                DesiredStateGraph fullDesired = desiredRef.get();
+                DesiredStateGraph filteredDesired = filterGraph(fullDesired, types);
+
+                if (filteredDesired.isEmpty()) {
+                    return;
+                }
+
+                ActualState actual = readActual(filteredDesired, tenancyId);
+
+                filteredDesired = detectDrift(filteredDesired, actual);
+
+                TransitionPlan plan = plan(filteredDesired, actual);
+                if (plan.isEmpty()) {
+                    return;
+                }
+
+                TransitionResult result = execute(plan, tenancyId);
+
+                faultFeedback(filteredDesired, plan, result);
+            } catch (Exception e) {
+                reconcileSpan.setStatus(StatusCode.ERROR, e.getMessage());
+                reconcileSpan.recordException(e);
+                LOG.log(Level.WARNING,
+                        "Type-filtered reconciliation cycle failed for tenant " + tenancyId
+                        + " types " + types, e);
+            } finally {
+                reconcileSpan.end();
+            }
+        }
+
         private ActualState readActual(DesiredStateGraph desired, String tenancyId) {
             Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("readActual").startSpan();
             try (Scope ignored = span.makeCurrent()) {
@@ -304,6 +518,7 @@ public class ReconciliationLoop {
             Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("detectDrift").startSpan();
             try (Scope ignored = span.makeCurrent()) {
                 int driftCount = 0;
+                List<GraphMutation> mutations = new ArrayList<>();
                 DesiredStateGraph mutated = desired;
                 for (Map.Entry<NodeId, DesiredNode> entry : desired.nodes().entrySet()) {
                     NodeStatus status = actual.statuses().getOrDefault(entry.getKey(), NodeStatus.UNKNOWN);
@@ -311,15 +526,16 @@ public class ReconciliationLoop {
                         driftCount++;
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), FaultType.NODE_DEGRADED, "Node drifted from desired spec");
-                        List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
-                        for (GraphMutation mutation : mutations) {
+                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        mutations.addAll(faultMutations);
+                        for (GraphMutation mutation : faultMutations) {
                             mutated = mutated.withMutation(mutation);
                         }
                     }
                 }
                 span.setAttribute(AttributeKey.longKey("desiredstate.drift.count"), driftCount);
-                if (mutated != desired) {
-                    desiredRef.compareAndSet(desired, mutated);
+                if (!mutations.isEmpty()) {
+                    casRetryMutations(mutations);
                 }
                 return mutated;
             } finally {
@@ -367,6 +583,7 @@ public class ReconciliationLoop {
 
                 int faultCount = 0;
                 int mutationCount = 0;
+                List<GraphMutation> mutations = new ArrayList<>();
                 DesiredStateGraph mutated = desired;
                 for (Map.Entry<NodeId, StepOutcome> entry : result.outcomes().entrySet()) {
                     if (entry.getValue() instanceof StepOutcome.Failed failed) {
@@ -376,30 +593,49 @@ public class ReconciliationLoop {
                                 : FaultType.PROVISION_FAILED;
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), faultType, failed.reason());
-                        List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
-                        mutationCount += mutations.size();
-                        for (GraphMutation mutation : mutations) {
+                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        mutationCount += faultMutations.size();
+                        mutations.addAll(faultMutations);
+                        for (GraphMutation mutation : faultMutations) {
                             mutated = mutated.withMutation(mutation);
                         }
                     } else if (entry.getValue() instanceof StepOutcome.Rejected rejected) {
                         faultCount++;
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), FaultType.APPROVAL_REJECTED, rejected.reason());
-                        List<GraphMutation> mutations = faultPolicyEngine.evaluate(faultEvent, mutated);
-                        mutationCount += mutations.size();
-                        for (GraphMutation mutation : mutations) {
+                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        mutationCount += faultMutations.size();
+                        mutations.addAll(faultMutations);
+                        for (GraphMutation mutation : faultMutations) {
                             mutated = mutated.withMutation(mutation);
                         }
                     }
                 }
                 span.setAttribute(AttributeKey.longKey("desiredstate.fault.count"), faultCount);
                 span.setAttribute(AttributeKey.longKey("desiredstate.mutation.count"), mutationCount);
-                if (mutated != desired) {
-                    desiredRef.compareAndSet(desired, mutated);
+                if (!mutations.isEmpty()) {
+                    casRetryMutations(mutations);
                 }
             } finally {
                 span.end();
             }
+        }
+
+        /**
+         * CAS merge-and-retry loop. Re-reads the current desired graph, applies all
+         * accumulated mutations, and retries if the ref was updated concurrently.
+         * Mutations are graph-structural and safely re-applicable to any graph version.
+         */
+        private void casRetryMutations(List<GraphMutation> mutations) {
+            DesiredStateGraph current;
+            DesiredStateGraph updated;
+            do {
+                current = desiredRef.get();
+                updated = current;
+                for (GraphMutation mutation : mutations) {
+                    updated = updated.withMutation(mutation);
+                }
+            } while (updated != current && !desiredRef.compareAndSet(current, updated));
         }
     }
 }

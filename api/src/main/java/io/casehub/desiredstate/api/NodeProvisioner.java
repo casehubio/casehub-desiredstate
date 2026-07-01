@@ -1,5 +1,8 @@
 package io.casehub.desiredstate.api;
 
+import java.time.Duration;
+import java.util.Set;
+
 /**
  * SPI for provisioning and deprovisioning nodes in the desired-state graph.
  *
@@ -21,6 +24,23 @@ package io.casehub.desiredstate.api;
  * {@link DeprovisionContext#approval()}.
  */
 public interface NodeProvisioner {
+    /**
+     * Declares the node types this provisioner handles. The runtime routes
+     * provision/deprovision calls by NodeType via {@link NodeProvisionerRouter}.
+     *
+     * @return non-empty set of handled types; overlapping types across provisioners
+     *         cause construction-time failure
+     */
+    Set<NodeType> handledTypes();
+
+    /**
+     * Declares the resync interval for periodic reconciliation of handled types.
+     * Must be >= 1 second; validated at router construction time.
+     *
+     * @return resync interval (default: 5 minutes)
+     */
+    default Duration resyncInterval() { return Duration.ofMinutes(5); }
+
     ProvisionResult provision(DesiredNode node, ProvisionContext context);
     DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context);
 }

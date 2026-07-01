@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Simple sequential transition executor.
- * Executes removals first, then additions, calling the NodeProvisioner for each step.
+ * Executes removals first, then additions, calling the NodeProvisionerRouter for each step.
  * Delegates requiresHuman nodes to the HumanNodeHandler.
  * Wraps provisioner calls with PendingApprovalHandler for approval lifecycle management.
  */
@@ -25,14 +25,14 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
 
     private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
-    private final NodeProvisioner provisioner;
+    private final NodeProvisionerRouter router;
     private final HumanNodeHandler humanNodeHandler;
     private final PendingApprovalHandler pendingApprovalHandler;
 
-    public SimpleTransitionExecutor(NodeProvisioner provisioner,
+    public SimpleTransitionExecutor(NodeProvisionerRouter router,
                                      HumanNodeHandler humanNodeHandler,
                                      PendingApprovalHandler pendingApprovalHandler) {
-        this.provisioner = provisioner;
+        this.router = router;
         this.humanNodeHandler = humanNodeHandler;
         this.pendingApprovalHandler = pendingApprovalHandler;
     }
@@ -87,7 +87,7 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                 case ApprovalCheckResult.None ignored -> {}
             }
 
-            ProvisionResult result = provisioner.provision(node, context);
+            ProvisionResult result = router.provision(node, context);
 
             return switch (result) {
                 case ProvisionResult.Success ignored -> new StepOutcome.Succeeded();
@@ -126,7 +126,7 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                 case ApprovalCheckResult.None ignored -> {}
             }
 
-            DeprovisionResult result = provisioner.deprovision(node, context);
+            DeprovisionResult result = router.deprovision(node, context);
 
             return switch (result) {
                 case DeprovisionResult.Success ignored -> new StepOutcome.Succeeded();

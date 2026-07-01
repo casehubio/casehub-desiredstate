@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,7 +22,8 @@ class SimpleTransitionExecutorTest {
     void setUp() {
         factory = new DefaultDesiredStateGraphFactory();
         mockProvisioner = new MockNodeProvisioner();
-        executor = new SimpleTransitionExecutor(mockProvisioner, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
     }
 
     @Test
@@ -156,8 +158,9 @@ class SimpleTransitionExecutorTest {
         HumanNodeHandler handler = (node, context) ->
             new StepOutcome.Skipped("test handler: " + node.id().value());
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor =
-            new SimpleTransitionExecutor(mockProvisioner, handler, new NoOpPendingApprovalHandler());
+            new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler());
 
         DesiredNode humanNode = new DesiredNode(
             NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
@@ -203,8 +206,9 @@ class SimpleTransitionExecutorTest {
             return new StepOutcome.Skipped("captured");
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor capturingExecutor =
-            new SimpleTransitionExecutor(mockProvisioner, capturingHandler, new NoOpPendingApprovalHandler());
+            new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler());
 
         DesiredNode humanNode = new DesiredNode(
             NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
@@ -250,6 +254,11 @@ class SimpleTransitionExecutorTest {
             if (shouldFail) return new DeprovisionResult.Failed("mock failure");
             return new DeprovisionResult.Success();
         }
+
+        @Override
+        public Set<NodeType> handledTypes() {
+            return Set.of(NodeType.of("test"), NodeType.of("database"));
+        }
     }
 
     // --- PendingApprovalHandler tests ---
@@ -289,8 +298,9 @@ class SimpleTransitionExecutorTest {
             public void acknowledgeRejection(DesiredNode n, StepAction a, String t) {}
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            mockProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
@@ -323,6 +333,9 @@ class SimpleTransitionExecutorTest {
             public DeprovisionResult deprovision(DesiredNode n, DeprovisionContext ctx) {
                 return new DeprovisionResult.Success();
             }
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("database"));
+            }
         };
 
         PendingApprovalHandler handler = new PendingApprovalHandler() {
@@ -335,8 +348,9 @@ class SimpleTransitionExecutorTest {
             public void acknowledgeRejection(DesiredNode n, StepAction a, String t) {}
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(capturingProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            capturingProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
@@ -374,8 +388,9 @@ class SimpleTransitionExecutorTest {
             }
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            mockProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
@@ -420,10 +435,14 @@ class SimpleTransitionExecutorTest {
             public DeprovisionResult deprovision(DesiredNode n, DeprovisionContext ctx) {
                 return new DeprovisionResult.Success();
             }
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("database"));
+            }
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(pendingProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            pendingProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
@@ -455,8 +474,9 @@ class SimpleTransitionExecutorTest {
             public void acknowledgeRejection(DesiredNode n, StepAction a, String t) {}
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            mockProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
@@ -491,8 +511,9 @@ class SimpleTransitionExecutorTest {
             }
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            mockProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
@@ -527,6 +548,9 @@ class SimpleTransitionExecutorTest {
                 capturedContext[0] = ctx;
                 return new DeprovisionResult.Success();
             }
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("database"));
+            }
         };
 
         PendingApprovalHandler handler = new PendingApprovalHandler() {
@@ -539,8 +563,9 @@ class SimpleTransitionExecutorTest {
             public void acknowledgeRejection(DesiredNode n, StepAction a, String t) {}
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(capturingProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            capturingProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
@@ -583,10 +608,14 @@ class SimpleTransitionExecutorTest {
             public DeprovisionResult deprovision(DesiredNode n, DeprovisionContext ctx) {
                 return new DeprovisionResult.PendingApproval(n.id(), "depro-plan-42");
             }
+            public Set<NodeType> handledTypes() {
+                return Set.of(NodeType.of("database"));
+            }
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(pendingProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            pendingProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
             NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
@@ -618,8 +647,9 @@ class SimpleTransitionExecutorTest {
             public void acknowledgeRejection(DesiredNode n, StepAction a, String t) {}
         };
 
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            mockProvisioner, new NoOpHumanNodeHandler(), handler);
+            router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode humanNode = new DesiredNode(
             NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true

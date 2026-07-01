@@ -5,4 +5,5 @@ package io.casehub.desiredstate.api;
  * Each domain (infra, compliance, IoT, deployment) provides its own implementations.
  */
 public interface NodeSpec {
+    default boolean requiresHuman() { return false; }
 }

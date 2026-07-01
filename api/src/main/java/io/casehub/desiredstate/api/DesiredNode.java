@@ -13,4 +13,9 @@ public record DesiredNode(NodeId id, NodeType type, NodeSpec spec, boolean requi
         Objects.requireNonNull(type, "DesiredNode type must not be null");
         Objects.requireNonNull(spec, "DesiredNode spec must not be null");
     }
+
+    @Override
+    public boolean requiresHuman() {
+        return requiresHuman || spec.requiresHuman();
+    }
 }

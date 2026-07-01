@@ -8,6 +8,7 @@ import io.casehub.platform.agent.AgentSessionConfig;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class PipelineProvisioner implements NodeProvisioner {
 
@@ -20,6 +21,17 @@ public class PipelineProvisioner implements NodeProvisioner {
         this.world = world;
         this.agentProvider = agentProvider;
         this.backends = List.copyOf(backends);
+    }
+
+    @Override
+    public Set<NodeType> handledTypes() {
+        return Set.of(
+            PipelineNodeTypes.DATA_SOURCE, PipelineNodeTypes.SCHEMA,
+            PipelineNodeTypes.INGESTION, PipelineNodeTypes.CLEANSER,
+            PipelineNodeTypes.ENRICHER, PipelineNodeTypes.VALIDATOR,
+            PipelineNodeTypes.TRANSFORMER, PipelineNodeTypes.SINK,
+            PipelineNodeTypes.AI_REVIEW, PipelineNodeTypes.HUMAN_REVIEW
+        );
     }
 
     @Override
