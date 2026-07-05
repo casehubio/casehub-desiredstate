@@ -25,14 +25,15 @@ public class FaultPolicyEngine {
      *
      * @param event   the fault event
      * @param current the current desired state graph
+     * @param actual  the actual state snapshot
      * @return merged list of graph mutations
      * @throws ConflictingMutationException if conflicting mutations are detected
      */
-    public List<GraphMutation> evaluate(FaultEvent event, DesiredStateGraph current) {
+    public List<GraphMutation> evaluate(FaultEvent event, DesiredStateGraph current, ActualState actual) {
         // Collect all mutations from all policies
         List<GraphMutation> allMutations = new ArrayList<>();
         for (FaultPolicy policy : policies) {
-            List<GraphMutation> policyMutations = policy.onFault(event, current);
+            List<GraphMutation> policyMutations = policy.onFault(event, current, actual);
             allMutations.addAll(policyMutations);
         }
 

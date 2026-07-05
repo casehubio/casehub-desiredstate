@@ -113,8 +113,9 @@ C4Context
 | L3 Engine Adapter | engine-adapter/ | CaseTransitionExecutor — bridge to casehub-engine for case-backed execution |
 | L4 Observability | runtime/ (cross-cutting) | OTel tracing spans on reconciliation and execution |
 | L5 Testing | testing/ | Mock SPI implementations for consumer tests |
-| L6 Domain Examples | examples/dungeon/, examples/pipeline/ | Teaching examples implementing all SPIs |
+| L6 Domain Examples | examples/dungeon/, examples/pipeline/, examples/spatial/ | Teaching examples implementing all SPIs |
 | L7 Work Adapter | work-adapter/ | WorkItem-backed HumanNodeHandler + PendingApprovalHandler — bridge to casehub-work |
+| L8 RAS Adapter | ras-adapter/ | RAS bridge — Ganglia for aggregate fault detection, CloudEvent emission for reconciliation patterns |
 
 ### Chapter sequencing rationale
 
@@ -157,12 +158,18 @@ C4Container
     Container(work_approval, "WorkItemPendingApprovalHandler", "@ApplicationScoped", "WorkItem-backed approval lifecycle (pending)")
   }
 
+  Container_Boundary(b8, "Layer: L8 RAS Adapter") {
+    Container(ras_ganglia, "Desiredstate Ganglia", "Quarkus CDI", "Situation definitions for aggregate fault patterns")
+    Container(ras_emitter, "ReconciliationEventEmitter", "@ApplicationScoped", "Emits CloudEvents for cycle completion, faults, drift, recovery")
+  }
+
   Rel(planner, api_graph, "Reads desired graph")
   Rel(loop, planner, "Triggers plan")
   Rel(loop, api_exec, "Executes plan")
   Rel(simple, api_spis, "Calls NodeProvisioner + PendingApprovalHandler")
   Rel(case_exec, api_exec, "Implements TransitionExecutor")
   Rel(work_approval, api_spis, "Implements PendingApprovalHandler")
+  Rel(loop, ras_emitter, "Emits CloudEvents")
 ```
 
 ### Module structure
@@ -174,8 +181,10 @@ C4Container
 | testing/ | casehub-desiredstate-testing | io.casehub.desiredstate.testing |
 | engine-adapter/ | casehub-desiredstate-engine | io.casehub.desiredstate.engine |
 | work-adapter/ | casehub-desiredstate-work | io.casehub.desiredstate.work |
+| ras-adapter/ | casehub-desiredstate-ras | io.casehub.desiredstate.ras |
 | examples/dungeon/ | casehub-desiredstate-example-dungeon | io.casehub.desiredstate.example.dungeon |
 | examples/pipeline/ | casehub-desiredstate-example-pipeline | io.casehub.desiredstate.example.pipeline |
+| examples/spatial/ | casehub-desiredstate-example-spatial | io.casehub.desiredstate.example.spatial |
 
 ---
 
@@ -228,6 +237,8 @@ casehub-desiredstate is a library, not a standalone application. It deploys as M
 | Per-type reconciliation scheduling | Each `NodeType` gets its own resync interval from provisioner default or Preferences override; interval-grouped timers reconcile all types at the same frequency together |
 | Multi-tenancy | Per-tenant `ReconciliationLoop` instances; `ProvisionContext` carries `tenancyId` |
 | Approval lifecycle | Provisioner-initiated: `PendingApproval` → `PendingApprovalHandler.recordPending()` → reconciliation polls `check()` → Approved/Rejected → re-call provisioner with `PlanApproval` or fire `APPROVAL_REJECTED` fault |
+| CloudEvent emission (RAS bridge) | `ReconciliationEventEmitter` emits CloudEvents on cycle completion, per-node faults, drift, recovery; `DesiredStateEventTypes` defines type URIs; enables RAS aggregate detection via Ganglia |
+| Aggregate fault detection (RAS) | RAS Ganglia consumes CloudEvents, extracts correlation keys (`tenancyId`, `zone`), evaluates situation definitions; detects zone-level aggregate faults invisible to per-node FaultPolicy; triggers replan via dispatch |
 
 ### Anti-patterns
 
@@ -521,7 +532,7 @@ Not closed here: L2 (no runtime yet), L3 (no engine bridge).
 - `api/src/.../GoalCompiler.java` — SPI: domain goal declaration → DesiredStateGraph
 - `api/src/.../NodeProvisioner.java` — SPI: provision/deprovision a single node, declare handled types via `handledTypes()`, declare resync interval via `resyncInterval()`
 - `api/src/.../NodeProvisionerRouter.java` — SPI interface: routes provision/deprovision calls by NodeType, resolves effective resync interval per type
-- `api/src/.../FaultPolicy.java` — SPI: returns List<GraphMutation> in response to FaultEvent
+- `api/src/.../FaultPolicy.java` — SPI: onFault(FaultEvent, DesiredStateGraph, ActualState) returns List<GraphMutation> in response to FaultEvent (with actual state visibility)
 - `api/src/.../EventSource.java` — SPI: streams Multi<StateEvent> for event-driven reconciliation
 - `api/src/.../TransitionExecutor.java` — SPI: executes a TransitionPlan, returns Uni<TransitionResult>
 - `api/src/.../GraphMutation.java` — sealed: AddNode, RemoveNode, UpdateNode, AddDependency, RemoveDependency
@@ -1001,3 +1012,6 @@ No ADRs recorded yet. `docs/adr/` contains `.gitkeep` only. Architectural decisi
 | **PlanApproval** | Record carried in `ProvisionContext`/`DeprovisionContext` on re-entry after human approval — `planReference`, `approvedBy`, `approvedAt` |
 | **PendingApprovalHandler** | SPI that tracks the approval lifecycle: `check()` polls state, `recordPending()` creates the approval request, `acknowledgeRejection()` cleans up after rejection |
 | **Approval-gated provisioning** | Pattern where a provisioner returns PendingApproval → handler creates a WorkItem → reconciliation loop polls each cycle → on approval, provisioner re-called with PlanApproval context |
+| **CloudEvent emission** | ReconciliationLoop emits CloudEvents after each cycle: ReconciliationCompletedData (cycle summary), NodeFaultedData (per-node failures), NodeDriftedData (per-node drift), NodeRecoveredData (per-node recovery from DEGRADED to PRESENT) |
+| **DesiredStateEventTypes** | CloudEvent type URI constants for reconciliation events — enables RAS consumption and aggregate detection |
+| **RAS Ganglia** | Situation definitions registered with RAS for aggregate fault detection — consumes CloudEvents, extracts correlation keys, evaluates patterns invisible to per-node FaultPolicy |

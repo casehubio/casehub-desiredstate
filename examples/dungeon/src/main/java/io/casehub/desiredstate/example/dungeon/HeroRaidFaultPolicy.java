@@ -11,7 +11,7 @@ import java.util.List;
 public class HeroRaidFaultPolicy implements FaultPolicy {
 
     @Override
-    public List<GraphMutation> onFault(FaultEvent event, DesiredStateGraph current) {
+    public List<GraphMutation> onFault(FaultEvent event, DesiredStateGraph current, ActualState actual) {
         if (event.type() != FaultType.NODE_DESTROYED) {
             return List.of();
         }

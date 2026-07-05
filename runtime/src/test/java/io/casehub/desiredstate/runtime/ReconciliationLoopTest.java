@@ -177,7 +177,7 @@ class ReconciliationLoopTest {
         // Configure fault policy to add a replacement node on failure
         DesiredNode replacement = new DesiredNode(
             NodeId.of("a-replacement"), NodeType.of("test"), new TestSpec("replacement"), false);
-        FaultPolicy addReplacementPolicy = (event, current) -> {
+        FaultPolicy addReplacementPolicy = (event, current, actual) -> {
             if (event.node().equals(NodeId.of("a"))) {
                 return List.of(new GraphMutation.AddNode(replacement));
             }
@@ -223,7 +223,7 @@ class ReconciliationLoopTest {
 
         // Capturing fault policy that records all FaultEvents
         List<FaultEvent> capturedEvents = new CopyOnWriteArrayList<>();
-        FaultPolicy capturingPolicy = (event, current) -> {
+        FaultPolicy capturingPolicy = (event, current, actual) -> {
             capturedEvents.add(event);
             return List.of();
         };
@@ -256,7 +256,7 @@ class ReconciliationLoopTest {
         // FaultPolicy: on NODE_DEGRADED for "a", add a new node "a-fix"
         DesiredNode fixNode = new DesiredNode(
             NodeId.of("a-fix"), NodeType.of("test"), new TestSpec("fix"), false);
-        FaultPolicy addFixPolicy = (event, current) -> {
+        FaultPolicy addFixPolicy = (event, current, actual) -> {
             if (event.type() == FaultType.NODE_DEGRADED && event.node().equals(NodeId.of("a"))) {
                 return List.of(new GraphMutation.AddNode(fixNode));
             }
@@ -293,7 +293,7 @@ class ReconciliationLoopTest {
         testExecutor.rejectNodes.add(NodeId.of("a"));
 
         List<FaultEvent> capturedEvents = new CopyOnWriteArrayList<>();
-        FaultPolicy capturingPolicy = (event, current) -> {
+        FaultPolicy capturingPolicy = (event, current, actual) -> {
             capturedEvents.add(event);
             return List.of();
         };
@@ -328,7 +328,7 @@ class ReconciliationLoopTest {
 
         // Capturing fault policy that records all FaultEvents
         List<FaultEvent> capturedEvents = new CopyOnWriteArrayList<>();
-        FaultPolicy capturingPolicy = (event, current) -> {
+        FaultPolicy capturingPolicy = (event, current, actual) -> {
             capturedEvents.add(event);
             return List.of();
         };

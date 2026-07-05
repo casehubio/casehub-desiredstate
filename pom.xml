@@ -26,6 +26,7 @@
         <module>testing</module>
         <module>engine-adapter</module>
         <module>work-adapter</module>
+        <module>ras-adapter</module>
         <module>examples/dungeon</module>
         <module>examples/pipeline</module>
         <module>examples/spatial</module>
@@ -62,6 +63,11 @@
             <dependency>
                 <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-work</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-ras</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

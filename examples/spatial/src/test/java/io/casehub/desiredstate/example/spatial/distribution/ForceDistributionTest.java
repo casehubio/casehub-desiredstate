@@ -219,25 +219,23 @@ class ForceDistributionTest {
 
         // ZoneRebalanceFaultPolicy attempts redistribution
         var policy = new ZoneRebalanceFaultPolicy();
-        var mutations = policy.onFault(faultEvent, graph);
+        var mutations = policy.onFault(faultEvent, graph, actual);
 
-        // FINDING: The policy receives (FaultEvent, DesiredStateGraph) but NOT ActualState.
-        // It knows the zone is degraded but cannot determine WHICH unit was lost.
-        // The FaultEvent carries the zone's NodeId — not the destroyed unit's NodeId.
-        // The policy must return empty or make blind guesses.
+        // FIXED: Policy now uses ActualState to identify ABSENT unit and redistribute
         assertThat(mutations).as(
-            "Fault policy cannot determine which unit was lost — " +
-            "FaultPolicy SPI receives (FaultEvent, DesiredStateGraph) but not ActualState. " +
-            "Finding #3: fault policy information gap.").isEmpty();
+            "Policy uses ActualState to determine unit-cell-4-0 is ABSENT. " +
+            "Redistributes zone allocation among surviving units.")
+            .isNotEmpty();
 
-        // Meanwhile, the planner independently detects the missing unit
-        var plan = planner.plan(graph, actual);
-        assertThat(plan.additions()).anyMatch(step ->
-            step.node().id().equals(NodeId.of("unit-cell-4-0")));
+        // Zone spec updated with redistributed ratios
+        assertThat(mutations).anyMatch(m ->
+            m instanceof GraphMutation.UpdateNode u
+            && u.id().equals(NodeId.of("zone-frontier")));
 
-        // FINDING: The planner restores the unit with original strength (50).
-        // Even if the policy COULD redistribute, it would conflict with the planner's
-        // restoration — Finding #9: fault policy / planner conflict.
+        // Surviving unit spec updated with new strength
+        assertThat(mutations).anyMatch(m ->
+            m instanceof GraphMutation.UpdateNode u
+            && u.id().equals(NodeId.of("unit-cell-4-1")));
     }
 
     // --- Layer 4: Strategic pivot ---
@@ -263,27 +261,30 @@ class ForceDistributionTest {
             var faultEvent = new FaultEvent(
                 NodeId.of("zone-frontier"), FaultType.NODE_DEGRADED,
                 "Cycle " + cycle + ": zone member destroyed");
-            allMutations.add(policy.onFault(faultEvent, graph));
+            allMutations.add(policy.onFault(faultEvent, graph, actual));
 
             // Planner restores the unit
             var plan = planner.plan(graph, actual);
             executeAll(plan, graph, graph);
         }
 
-        // FINDING: Each cycle is handled independently. No mechanism detects
+        // After the fix: policy CAN redistribute (it has ActualState),
+        // so it returns non-empty mutations each cycle.
+        // FINDING: Each cycle is still handled independently. No mechanism detects
         // the pattern "we keep losing units at this position."
         // The fault policy has no memory, no cycle count, no aggregate view.
         // Finding #4: no aggregate subgraph evaluation.
         // Finding #6: no correlated fault detection.
         assertThat(allMutations).as(
             "Three consecutive losses at the same position. " +
-            "Each handled independently — no pattern detection, no escalation. " +
+            "Policy can now redistribute (returns non-empty mutations), " +
+            "but each cycle is still handled independently — no pattern detection, no escalation. " +
             "Findings #4 (no aggregate evaluation) and #6 (no correlated faults).")
-            .allSatisfy(mutations -> assertThat(mutations).isEmpty());
+            .allSatisfy(mutations -> assertThat(mutations).isNotEmpty());
     }
 
     @Test
-    void strategicPivotRequiresExternalIntervention() {
+    void strategicPivotHasHomeInRasSituationDetection() {
         var blueprint1 = DistributionBlueprint.builder()
             .frontierCell(4, 0, 0.5)
             .frontierCell(4, 1, 0.5)
@@ -296,10 +297,6 @@ class ForceDistributionTest {
 
         // Enemy has fortified heavily — the north approach is failing.
         // Decision: pivot to south approach.
-        // No SPI can make this decision. It requires:
-        // 1. Evaluating aggregate success of "north-approach" subgraph
-        // 2. Knowing that "south-approach" is an alternative
-        // 3. Making a cost/benefit decision to abandon north for south
 
         // The GoalCompiler CAN produce the new graph:
         var blueprint2 = DistributionBlueprint.builder()
@@ -315,16 +312,15 @@ class ForceDistributionTest {
         var plan2 = planner.plan(graph2, actual2);
         executeAll(plan2, graph2, graph1);
 
-        // But the DECISION to pivot has no home in the current model.
-        // FINDING: The pivot requires external intervention — a human or
-        // a higher-level system must decide to recompile with a different
-        // blueprint. The runtime can execute the transition but cannot
-        // initiate it. Finding #5: no strategic alternatives.
+        // The runtime executes the transition. The DECISION to pivot now has a home:
+        // RAS situation detection observes repeated failures via CloudEvents,
+        // NodeFaultGanglion detects the pattern, and CaseTrigger fires a replan case.
+        // The test verifies the graph transition; the detection pipeline is proven
+        // in SituationDetectionTest.
         assertThat(graph2.nodes().keySet()).as(
             "Graph transitioned from north to south approach. " +
-            "The runtime executed the transition — but the DECISION to pivot " +
-            "required external intervention (manual recompilation). " +
-            "Finding #5: no strategic alternatives in current model.")
+            "The decision to pivot is handled by RAS: NodeFaultGanglion + " +
+            "ChainMode.Count → CaseTrigger → replan case.")
             .noneMatch(id -> id.value().contains("north"));
         renderer.printFrame("After strategic pivot to south");
     }

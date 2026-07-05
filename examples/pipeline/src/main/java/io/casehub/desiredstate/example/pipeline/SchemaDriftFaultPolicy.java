@@ -15,7 +15,7 @@ import java.util.List;
 public class SchemaDriftFaultPolicy implements FaultPolicy {
 
     @Override
-    public List<GraphMutation> onFault(FaultEvent event, DesiredStateGraph current) {
+    public List<GraphMutation> onFault(FaultEvent event, DesiredStateGraph current, ActualState actual) {
         if (event.type() != FaultType.NODE_DEGRADED) {
             return List.of();
         }

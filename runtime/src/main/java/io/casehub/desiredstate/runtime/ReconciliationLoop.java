@@ -1,6 +1,7 @@
 package io.casehub.desiredstate.runtime;
 
 import io.casehub.desiredstate.api.*;
+import io.cloudevents.CloudEvent;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
@@ -11,16 +12,20 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -69,6 +74,8 @@ public class ReconciliationLoop {
     private final NodeProvisionerRouter router;
     private final Duration debounceWindow;
     private final Duration resyncOverride;
+    private final Consumer<CloudEvent> cloudEventSink;
+    private final ReconciliationEventEmitter eventEmitter;
 
     private final ConcurrentHashMap<String, TenantLoop> loops = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler;
@@ -83,9 +90,10 @@ public class ReconciliationLoop {
             ActualStateAdapter actualStateAdapter,
             FaultPolicyEngine faultPolicyEngine,
             EventSource eventSource,
-            NodeProvisionerRouter router) {
+            NodeProvisionerRouter router,
+            Event<CloudEvent> cloudEventSink) {
         this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
-             router, DEFAULT_DEBOUNCE, null);
+             router, DEFAULT_DEBOUNCE, null, cloudEventSink::fire);
     }
 
     /**
@@ -101,7 +109,7 @@ public class ReconciliationLoop {
             NodeProvisionerRouter router,
             Duration debounceWindow) {
         this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
-             router, debounceWindow, null);
+             router, debounceWindow, null, null);
     }
 
     /**
@@ -118,7 +126,23 @@ public class ReconciliationLoop {
             Duration debounceWindow,
             Duration resyncInterval) {
         this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
-             null, debounceWindow, resyncInterval);
+             null, debounceWindow, resyncInterval, null);
+    }
+
+    /**
+     * Test-friendly constructor with event sink for CloudEvent capture.
+     */
+    public ReconciliationLoop(
+            TransitionPlanner planner,
+            TransitionExecutor executor,
+            ActualStateAdapter actualStateAdapter,
+            FaultPolicyEngine faultPolicyEngine,
+            EventSource eventSource,
+            Duration debounceWindow,
+            Duration resyncInterval,
+            Consumer<CloudEvent> cloudEventSink) {
+        this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
+             null, debounceWindow, resyncInterval, cloudEventSink);
     }
 
     /**
@@ -131,7 +155,7 @@ public class ReconciliationLoop {
             FaultPolicyEngine faultPolicyEngine,
             EventSource eventSource) {
         this(planner, executor, actualStateAdapter, faultPolicyEngine, eventSource,
-             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC);
+             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null);
     }
 
     /**
@@ -140,6 +164,7 @@ public class ReconciliationLoop {
      * @param router          provisioner router for interval-grouped scheduling (may be null)
      * @param debounceWindow  debounce window for event-driven and requested reconciliation
      * @param resyncOverride  if non-null, bypasses interval-grouped scheduling with a single timer
+     * @param cloudEventSink  consumer for CloudEvents (may be null — events discarded)
      */
     private ReconciliationLoop(
             TransitionPlanner planner,
@@ -149,7 +174,8 @@ public class ReconciliationLoop {
             EventSource eventSource,
             NodeProvisionerRouter router,
             Duration debounceWindow,
-            Duration resyncOverride) {
+            Duration resyncOverride,
+            Consumer<CloudEvent> cloudEventSink) {
         this.planner = planner;
         this.executor = executor;
         this.actualStateAdapter = actualStateAdapter;
@@ -158,6 +184,8 @@ public class ReconciliationLoop {
         this.router = router;
         this.debounceWindow = debounceWindow;
         this.resyncOverride = resyncOverride;
+        this.cloudEventSink = cloudEventSink != null ? cloudEventSink : event -> {};
+        this.eventEmitter = new ReconciliationEventEmitter();
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -245,6 +273,22 @@ public class ReconciliationLoop {
         }
     }
 
+    /**
+     * Returns the current desired state graph for a tenant.
+     *
+     * @param tenancyId the tenant identifier
+     * @return the current desired state graph
+     * @throws IllegalStateException if no loop is running for this tenant
+     */
+    public DesiredStateGraph getDesired(String tenancyId) {
+        TenantLoop loop = loops.get(tenancyId);
+        if (loop == null) {
+            throw new IllegalStateException(
+                "No reconciliation loop running for tenant: " + tenancyId);
+        }
+        return loop.desiredRef.get();
+    }
+
     @PreDestroy
     void shutdown() {
         for (String tenancyId : loops.keySet()) {
@@ -306,6 +350,9 @@ public class ReconciliationLoop {
 
         private final String tenancyId;
         private final AtomicReference<DesiredStateGraph> desiredRef;
+        private final AtomicLong cycleCounter = new AtomicLong(0);
+        // Read-then-modify race is harmless: duplicate ANTI signals are idempotent in RAS Count/Streak evaluation
+        private final Set<NodeId> activeProblems = ConcurrentHashMap.newKeySet();
         private volatile Cancellable eventSubscription;
         private volatile ScheduledFuture<?> requestedReconciliation;
 
@@ -434,16 +481,24 @@ public class ReconciliationLoop {
 
                 ActualState actual = readActual(desired, tenancyId);
 
-                desired = detectDrift(desired, actual);
+                Set<NodeId> driftedNodes = new HashSet<>();
+                desired = detectDrift(desired, actual, driftedNodes);
 
                 TransitionPlan plan = plan(desired, actual);
                 if (plan.isEmpty()) {
+                    // Even if plan is empty, emit events for drift/recovery
+                    if (!driftedNodes.isEmpty() || !activeProblems.isEmpty()) {
+                        TransitionResult emptyResult = new TransitionResult(Map.of());
+                        emitCycleEvents(desired, plan, emptyResult, actual, driftedNodes);
+                    }
                     return;
                 }
 
                 TransitionResult result = execute(plan, tenancyId);
 
-                faultFeedback(desired, plan, result);
+                faultFeedback(desired, plan, result, actual);
+
+                emitCycleEvents(desired, plan, result, actual, driftedNodes);
             } catch (Exception e) {
                 reconcileSpan.setStatus(StatusCode.ERROR, e.getMessage());
                 reconcileSpan.recordException(e);
@@ -475,16 +530,25 @@ public class ReconciliationLoop {
 
                 ActualState actual = readActual(filteredDesired, tenancyId);
 
-                filteredDesired = detectDrift(filteredDesired, actual);
+                Set<NodeId> driftedNodes = new HashSet<>();
+                filteredDesired = detectDrift(filteredDesired, actual, driftedNodes);
 
                 TransitionPlan plan = plan(filteredDesired, actual);
                 if (plan.isEmpty()) {
+                    // Type-filtered reconciliation checks global activeProblems — intentional,
+                    // cross-type recovery detection is correct (node recovery is independent of which type-filter cycle detects it)
+                    if (!driftedNodes.isEmpty() || !activeProblems.isEmpty()) {
+                        TransitionResult emptyResult = new TransitionResult(Map.of());
+                        emitCycleEvents(filteredDesired, plan, emptyResult, actual, driftedNodes);
+                    }
                     return;
                 }
 
                 TransitionResult result = execute(plan, tenancyId);
 
-                faultFeedback(filteredDesired, plan, result);
+                faultFeedback(filteredDesired, plan, result, actual);
+
+                emitCycleEvents(filteredDesired, plan, result, actual, driftedNodes);
             } catch (Exception e) {
                 reconcileSpan.setStatus(StatusCode.ERROR, e.getMessage());
                 reconcileSpan.recordException(e);
@@ -508,7 +572,8 @@ public class ReconciliationLoop {
             }
         }
 
-        private DesiredStateGraph detectDrift(DesiredStateGraph desired, ActualState actual) {
+        private DesiredStateGraph detectDrift(DesiredStateGraph desired, ActualState actual,
+                                              Set<NodeId> driftedNodesOut) {
             boolean hasDrift = desired.nodes().entrySet().stream()
                     .anyMatch(e -> actual.statuses().getOrDefault(e.getKey(), NodeStatus.UNKNOWN) == NodeStatus.DRIFTED);
             if (!hasDrift) {
@@ -524,9 +589,10 @@ public class ReconciliationLoop {
                     NodeStatus status = actual.statuses().getOrDefault(entry.getKey(), NodeStatus.UNKNOWN);
                     if (status == NodeStatus.DRIFTED) {
                         driftCount++;
+                        driftedNodesOut.add(entry.getKey());
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), FaultType.NODE_DEGRADED, "Node drifted from desired spec");
-                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated, actual);
                         mutations.addAll(faultMutations);
                         for (GraphMutation mutation : faultMutations) {
                             mutated = mutated.withMutation(mutation);
@@ -567,7 +633,7 @@ public class ReconciliationLoop {
         }
 
         private void faultFeedback(DesiredStateGraph desired, TransitionPlan plan,
-                                   TransitionResult result) {
+                                   TransitionResult result, ActualState actual) {
             boolean hasFaultyOutcomes = result.outcomes().values().stream()
                     .anyMatch(o -> o instanceof StepOutcome.Failed || o instanceof StepOutcome.Rejected);
             if (!hasFaultyOutcomes) {
@@ -593,7 +659,7 @@ public class ReconciliationLoop {
                                 : FaultType.PROVISION_FAILED;
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), faultType, failed.reason());
-                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated, actual);
                         mutationCount += faultMutations.size();
                         mutations.addAll(faultMutations);
                         for (GraphMutation mutation : faultMutations) {
@@ -603,7 +669,7 @@ public class ReconciliationLoop {
                         faultCount++;
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), FaultType.APPROVAL_REJECTED, rejected.reason());
-                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated);
+                        List<GraphMutation> faultMutations = faultPolicyEngine.evaluate(faultEvent, mutated, actual);
                         mutationCount += faultMutations.size();
                         mutations.addAll(faultMutations);
                         for (GraphMutation mutation : faultMutations) {
@@ -636,6 +702,122 @@ public class ReconciliationLoop {
                     updated = updated.withMutation(mutation);
                 }
             } while (updated != current && !desiredRef.compareAndSet(current, updated));
+        }
+
+        /**
+         * Emit CloudEvents for this reconciliation cycle.
+         * Called at cycle end after faultFeedback completes.
+         */
+        private void emitCycleEvents(DesiredStateGraph desired, TransitionPlan plan,
+                                     TransitionResult result, ActualState actual,
+                                     Set<NodeId> driftedNodes) {
+            long version = cycleCounter.incrementAndGet();
+            List<CloudEvent> events = new ArrayList<>();
+
+            // Build a map of node IDs to nodes from the plan steps for event emission
+            // This is necessary because nodes that were deprovisioned are no longer in the desired graph
+            Map<NodeId, DesiredNode> planNodes = new HashMap<>();
+            for (OrderedStep step : plan.removals()) {
+                planNodes.put(step.node().id(), step.node());
+            }
+            for (OrderedStep step : plan.additions()) {
+                planNodes.put(step.node().id(), step.node());
+            }
+
+            // Build set of removal node IDs for correct faultType determination
+            Set<NodeId> removalNodeIds = new HashSet<>();
+            for (OrderedStep step : plan.removals()) {
+                removalNodeIds.add(step.node().id());
+            }
+
+            // Detect recoveries: nodes with active problems now PRESENT
+            Set<NodeId> recovered = new HashSet<>();
+            for (NodeId problemNode : activeProblems) {
+                NodeStatus status = actual.statuses().get(problemNode);
+                if (status == NodeStatus.PRESENT) {
+                    recovered.add(problemNode);
+                    String parentNodeId = resolveParent(desired, problemNode);
+                    DesiredNode node = desired.nodes().get(problemNode);
+                    if (node != null) {
+                        NodeRecoveredData data = new NodeRecoveredData(
+                            tenancyId, problemNode.value(), node.type().value(),
+                            version, parentNodeId);
+                        events.add(eventEmitter.nodeRecovered(data));
+                    }
+                }
+            }
+            activeProblems.removeAll(recovered);
+
+            // Drifted nodes
+            for (NodeId nodeId : driftedNodes) {
+                DesiredNode node = desired.nodes().get(nodeId);
+                if (node != null) {
+                    String parentNodeId = resolveParent(desired, nodeId);
+                    NodeDriftedData data = new NodeDriftedData(
+                        tenancyId, nodeId.value(), node.type().value(),
+                        version, parentNodeId);
+                    events.add(eventEmitter.nodeDrifted(data));
+                    activeProblems.add(nodeId);
+                }
+            }
+
+            // Faulted nodes from execution
+            for (Map.Entry<NodeId, StepOutcome> entry : result.outcomes().entrySet()) {
+                if (entry.getValue() instanceof StepOutcome.Failed failed) {
+                    // Look up node from plan, fallback to desired graph for safety
+                    DesiredNode node = planNodes.getOrDefault(entry.getKey(),
+                            desired.nodes().get(entry.getKey()));
+                    if (node != null) {
+                        String parentNodeId = resolveParent(desired, entry.getKey());
+                        String faultType = removalNodeIds.contains(entry.getKey())
+                                ? "DEPROVISION_FAILED"
+                                : "PROVISION_FAILED";
+                        NodeFaultedData data = new NodeFaultedData(
+                            tenancyId, entry.getKey().value(), node.type().value(),
+                            faultType, failed.reason(), version, parentNodeId);
+                        events.add(eventEmitter.nodeFaulted(data));
+                        activeProblems.add(entry.getKey());
+                    }
+                } else if (entry.getValue() instanceof StepOutcome.Rejected rejected) {
+                    // Look up node from plan, fallback to desired graph for safety
+                    DesiredNode node = planNodes.getOrDefault(entry.getKey(),
+                            desired.nodes().get(entry.getKey()));
+                    if (node != null) {
+                        String parentNodeId = resolveParent(desired, entry.getKey());
+                        NodeFaultedData data = new NodeFaultedData(
+                            tenancyId, entry.getKey().value(), node.type().value(),
+                            "APPROVAL_REJECTED", rejected.reason(), version, parentNodeId);
+                        events.add(eventEmitter.nodeFaulted(data));
+                        activeProblems.add(entry.getKey());
+                    }
+                }
+            }
+
+            // Reconciliation completed
+            int faultCount = (int) result.outcomes().values().stream()
+                .filter(o -> o instanceof StepOutcome.Failed || o instanceof StepOutcome.Rejected)
+                .count();
+            ReconciliationCompletedData completedData = new ReconciliationCompletedData(
+                tenancyId, version, desired.nodes().size(),
+                plan.additions().size(), plan.removals().size(),
+                faultCount, Instant.now());
+            events.add(eventEmitter.reconciliationCompleted(completedData));
+
+            // Fire all events
+            events.forEach(cloudEventSink);
+        }
+
+        /**
+         * Resolve the parent node ID for a given node.
+         * Returns the first dependency (if any), or null for root nodes.
+         * For nodes with multiple dependencies, the parent is arbitrary (Set iteration order is non-deterministic).
+         */
+        private String resolveParent(DesiredStateGraph graph, NodeId nodeId) {
+            Set<NodeId> deps = graph.dependenciesOf(nodeId);
+            if (deps.isEmpty()) {
+                return null;
+            }
+            return deps.iterator().next().value();
         }
     }
 }

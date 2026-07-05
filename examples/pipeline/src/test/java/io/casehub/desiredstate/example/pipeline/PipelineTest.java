@@ -274,13 +274,13 @@ class PipelineTest {
 
         // Events 1-3: retry phase — all return empty
         for (int i = 0; i < 3; i++) {
-            assertThat(policy.onFault(fault, graph))
+            assertThat(policy.onFault(fault, graph, new ActualState(Map.of())))
                 .as("Fault %d should return empty (retry phase)", i + 1)
                 .isEmpty();
         }
 
         // Event 4: creates AI_REVIEW node
-        List<GraphMutation> mutations4 = policy.onFault(fault, graph);
+        List<GraphMutation> mutations4 = policy.onFault(fault, graph, new ActualState(Map.of()));
         assertThat(mutations4).hasSize(1);
         assertThat(mutations4.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addAiReview = (GraphMutation.AddNode) mutations4.get(0);
@@ -293,11 +293,11 @@ class PipelineTest {
 
         // Set AI_REVIEW as PENDING in world → next onFault returns empty (wait)
         world.addReview(NodeId.of("ai-review-ingest"), NodeId.of("ingest"));
-        assertThat(policy.onFault(fault, graph)).isEmpty();
+        assertThat(policy.onFault(fault, graph, new ActualState(Map.of()))).isEmpty();
 
         // Set AI_REVIEW as UNRESOLVED → next onFault creates HUMAN_REVIEW
         world.setAiReviewOutcome(NodeId.of("ingest"), false);
-        List<GraphMutation> mutationsHuman = policy.onFault(fault, graph);
+        List<GraphMutation> mutationsHuman = policy.onFault(fault, graph, new ActualState(Map.of()));
         assertThat(mutationsHuman).hasSize(1);
         assertThat(mutationsHuman.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addHumanReview = (GraphMutation.AddNode) mutationsHuman.get(0);
@@ -308,7 +308,7 @@ class PipelineTest {
         // Apply mutation and add to world → next onFault returns empty (idempotency)
         graph = graph.withMutation(addHumanReview);
         world.addReview(NodeId.of("human-review-ingest"), NodeId.of("ingest"));
-        assertThat(policy.onFault(fault, graph)).isEmpty();
+        assertThat(policy.onFault(fault, graph, new ActualState(Map.of()))).isEmpty();
     }
 
     @Test
@@ -324,11 +324,11 @@ class PipelineTest {
 
         // Faults 1-3: retry phase
         for (int i = 0; i < 3; i++) {
-            policy.onFault(fault, graph);
+            policy.onFault(fault, graph, new ActualState(Map.of()));
         }
 
         // Fault 4: creates AI_REVIEW
-        List<GraphMutation> mutations = policy.onFault(fault, graph);
+        List<GraphMutation> mutations = policy.onFault(fault, graph, new ActualState(Map.of()));
         assertThat(mutations).hasSize(1);
         graph = graph.withMutation(mutations.get(0));
 
@@ -337,7 +337,7 @@ class PipelineTest {
         world.setAiReviewOutcome(NodeId.of("ingest"), true);
 
         // Next onFault returns empty — AI resolved it, no human escalation
-        assertThat(policy.onFault(fault, graph)).isEmpty();
+        assertThat(policy.onFault(fault, graph, new ActualState(Map.of()))).isEmpty();
 
         // Verify no HUMAN_REVIEW was created
         assertThat(graph.nodes().containsKey(NodeId.of("human-review-ingest"))).isFalse();
@@ -361,7 +361,7 @@ class PipelineTest {
         FaultEvent fault = new FaultEvent(NodeId.of("quality-gate"), FaultType.NODE_DEGRADED,
             "quality threshold breached");
 
-        List<GraphMutation> mutations = policy.onFault(fault, graph);
+        List<GraphMutation> mutations = policy.onFault(fault, graph, new ActualState(Map.of()));
         assertThat(mutations).hasSize(1);
         assertThat(mutations.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addHuman = (GraphMutation.AddNode) mutations.get(0);
@@ -383,7 +383,7 @@ class PipelineTest {
         FaultEvent fault = new FaultEvent(NodeId.of("click-schema"), FaultType.NODE_DEGRADED,
             "schema version drift detected");
 
-        List<GraphMutation> mutations = policy.onFault(fault, graph);
+        List<GraphMutation> mutations = policy.onFault(fault, graph, new ActualState(Map.of()));
         assertThat(mutations).hasSize(1);
         assertThat(mutations.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addHuman = (GraphMutation.AddNode) mutations.get(0);

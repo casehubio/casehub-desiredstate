@@ -10,41 +10,47 @@
         <version>0.2-SNAPSHOT</version>
     </parent>
 
-    <artifactId>casehub-desiredstate-api</artifactId>
+    <artifactId>casehub-desiredstate-ras</artifactId>
 
-    <name>CaseHub Desired State :: API</name>
-    <description>Core SPIs and domain types — GoalCompiler, ActualStateAdapter, NodeProvisioner,
-        FaultPolicy, EventSource; DesiredStateGraph, DesiredNode, TransitionPlan, ReconciliationResult.
-        Pure Java dependencies: casehub-platform-api, casehub-ras-api. Mutiny and CDI annotations provided.</description>
+    <name>CaseHub Desired State :: RAS Adapter</name>
+    <description>RAS bridge — Ganglia for reconciliation patterns, situation definitions,
+        correlation key extraction for zone-level aggregate detection.</description>
 
     <dependencies>
         <dependency>
             <groupId>io.casehub</groupId>
-            <artifactId>casehub-platform-api</artifactId>
+            <artifactId>casehub-desiredstate-api</artifactId>
         </dependency>
         <dependency>
             <groupId>io.casehub</groupId>
             <artifactId>casehub-ras-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.smallrye.reactive</groupId>
-            <artifactId>mutiny</artifactId>
-            <scope>provided</scope>
+            <groupId>io.cloudevents</groupId>
+            <artifactId>cloudevents-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>jakarta.inject</groupId>
-            <artifactId>jakarta.inject-api</artifactId>
-            <scope>provided</scope>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
         <dependency>
-            <groupId>jakarta.enterprise</groupId>
-            <artifactId>jakarta.enterprise.cdi-api</artifactId>
-            <scope>provided</scope>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
+            <groupId>io.cloudevents</groupId>
+            <artifactId>cloudevents-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.casehub</groupId>
+            <artifactId>casehub-ras-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

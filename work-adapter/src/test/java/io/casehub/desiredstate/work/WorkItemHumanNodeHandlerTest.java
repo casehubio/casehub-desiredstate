@@ -58,7 +58,7 @@ class WorkItemHumanNodeHandlerTest {
         UUID existingId = UUID.randomUUID();
         mockCreator.activeRef = new WorkItemRef(
             existingId, WorkItemStatus.PENDING, "desiredstate:tenant1:thermo-1",
-            null, null, null, null, "tenant1"
+            null, null, null, null, "tenant1", null
         );
 
         DesiredNode node = new DesiredNode(
@@ -151,7 +151,7 @@ class WorkItemHumanNodeHandlerTest {
             UUID id = UUID.randomUUID();
             return new WorkItemRef(
                 id, WorkItemStatus.PENDING, request.callerRef,
-                null, null, null, null, request.tenancyId
+                null, null, null, null, request.tenancyId, null
             );
         }
 
@@ -163,6 +163,11 @@ class WorkItemHumanNodeHandlerTest {
         @Override
         public Optional<WorkItemRef> findActiveByCallerRef(String callerRef) {
             return Optional.ofNullable(activeRef);
+        }
+
+        @Override
+        public void obsoleteByCallerRef(String callerRef) {
+            // No-op for mock
         }
     }
 }
