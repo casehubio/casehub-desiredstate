@@ -226,6 +226,58 @@ public class ReconciliationLoop {
     }
 
     /**
+     * Starts a reconciliation loop for the given tenant with a lifecycle listener.
+     * The listener fires on every reconciliation cycle, including empty-plan cycles.
+     *
+     * @param tenancyId the tenant identifier
+     * @param desired   the initial desired state graph
+     * @param listener  listener notified after each reconciliation cycle
+     * @throws IllegalStateException if a loop is already running for this tenant
+     */
+    public void start(String tenancyId, DesiredStateGraph desired, ReconciliationListener listener) {
+        TenantLoop loop = new TenantLoop(tenancyId, desired, listener);
+        TenantLoop existing = loops.putIfAbsent(tenancyId, loop);
+        if (existing != null) {
+            throw new IllegalStateException("Reconciliation loop already running for tenant: " + tenancyId);
+        }
+        loop.start();
+    }
+
+    /**
+     * Sets or replaces the reconciliation listener for a running tenant loop.
+     *
+     * @param tenancyId the tenant identifier
+     * @param listener  the new listener (may be null to clear)
+     * @throws IllegalStateException if no loop is running for this tenant
+     */
+    public void setListener(String tenancyId, ReconciliationListener listener) {
+        TenantLoop loop = loops.get(tenancyId);
+        if (loop == null) {
+            throw new IllegalStateException("No reconciliation loop running for tenant: " + tenancyId);
+        }
+        loop.listener = listener;
+    }
+
+    /**
+     * Atomically swaps the desired graph if the current value matches {@code expected}.
+     * Uses compare-and-set semantics on the underlying {@link AtomicReference}.
+     *
+     * @param tenancyId   the tenant identifier
+     * @param expected    the expected current desired graph (identity comparison)
+     * @param newDesired  the new desired graph to set
+     * @return true if the swap succeeded
+     * @throws IllegalStateException if no loop is running for this tenant
+     */
+    public boolean compareAndSetDesired(String tenancyId,
+            DesiredStateGraph expected, DesiredStateGraph newDesired) {
+        TenantLoop loop = loops.get(tenancyId);
+        if (loop == null) {
+            throw new IllegalStateException("No reconciliation loop running for tenant: " + tenancyId);
+        }
+        return loop.desiredRef.compareAndSet(expected, newDesired);
+    }
+
+    /**
      * Stops the reconciliation loop for the given tenant.
      *
      * @param tenancyId the tenant identifier
@@ -353,6 +405,7 @@ public class ReconciliationLoop {
         private final AtomicLong cycleCounter = new AtomicLong(0);
         // Read-then-modify race is harmless: duplicate ANTI signals are idempotent in RAS Count/Streak evaluation
         private final Set<NodeId> activeProblems = ConcurrentHashMap.newKeySet();
+        private volatile ReconciliationListener listener;
         private volatile Cancellable eventSubscription;
         private volatile ScheduledFuture<?> requestedReconciliation;
 
@@ -363,8 +416,13 @@ public class ReconciliationLoop {
         private final Map<Duration, ScheduledFuture<?>> resyncFutures = new ConcurrentHashMap<>();
 
         TenantLoop(String tenancyId, DesiredStateGraph desired) {
+            this(tenancyId, desired, null);
+        }
+
+        TenantLoop(String tenancyId, DesiredStateGraph desired, ReconciliationListener listener) {
             this.tenancyId = tenancyId;
             this.desiredRef = new AtomicReference<>(desired);
+            this.listener = listener;
         }
 
         void start() {
@@ -466,6 +524,18 @@ public class ReconciliationLoop {
             }
         }
 
+        private void fireListener(DesiredStateGraph desired, ActualState actual) {
+            ReconciliationListener l = listener;
+            if (l != null) {
+                try {
+                    l.onReconciliationCycleCompleted(tenancyId, desired, actual);
+                } catch (Exception e) {
+                    LOG.log(Level.WARNING,
+                        "Reconciliation listener failed for tenant " + tenancyId, e);
+                }
+            }
+        }
+
         private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
         /**
@@ -480,6 +550,9 @@ public class ReconciliationLoop {
                 DesiredStateGraph desired = desiredRef.get();
 
                 ActualState actual = readActual(desired, tenancyId);
+
+                // Listener fires unconditionally — including empty-plan cycles
+                fireListener(desired, actual);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
                 desired = detectDrift(desired, actual, driftedNodes);
@@ -529,6 +602,9 @@ public class ReconciliationLoop {
                 }
 
                 ActualState actual = readActual(filteredDesired, tenancyId);
+
+                // Listener fires unconditionally — pass full desired graph, not filtered
+                fireListener(fullDesired, actual);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
                 filteredDesired = detectDrift(filteredDesired, actual, driftedNodes);
