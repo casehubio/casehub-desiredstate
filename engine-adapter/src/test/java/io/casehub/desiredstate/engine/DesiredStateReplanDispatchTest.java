@@ -70,7 +70,7 @@ class DesiredStateReplanDispatchTest {
             }
         };
 
-        mockRecompiler = (current, situation, factory) -> Optional.of(newGraph);
+        mockRecompiler = (current, situation, factory) -> Optional.of(CompilationResult.single(newGraph));
 
         registry = new CallableDispatchRegistry();
         dispatch = new DesiredStateReplanDispatch(mockLoop, mockRecompiler, mockFactory, registry);

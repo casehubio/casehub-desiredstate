@@ -8,7 +8,7 @@ import java.util.*;
 public class AttackGoalCompiler implements GoalCompiler<AttackBlueprint> {
 
     @Override
-    public DesiredStateGraph compile(AttackBlueprint goals, DesiredStateGraphFactory factory) {
+    public CompilationResult compile(AttackBlueprint goals, DesiredStateGraphFactory factory) {
         var nodes = new ArrayList<DesiredNode>();
         var deps = new ArrayList<Dependency>();
 
@@ -52,6 +52,6 @@ public class AttackGoalCompiler implements GoalCompiler<AttackBlueprint> {
             previousWaypointCellId = wpCellId;
         }
 
-        return factory.of(nodes, deps);
+        return CompilationResult.single(factory.of(nodes, deps));
     }
 }

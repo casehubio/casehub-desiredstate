@@ -29,7 +29,7 @@ class SituationRecompilerTest {
             @Override public DesiredStateGraph of(Collection<DesiredNode> nodes, Collection<Dependency> deps) { return null; }
         };
 
-        Optional<DesiredStateGraph> result = recompiler.recompile(null, situation, mockFactory);
+        Optional<CompilationResult> result = recompiler.recompile(null, situation, mockFactory);
 
         assertThat(result).isEmpty();
     }
@@ -54,16 +54,17 @@ class SituationRecompilerTest {
             @Override public DesiredStateGraph connect(DesiredStateGraph other) { return this; }
         };
 
-        SituationRecompiler recompiler = (current, situation, factory) -> Optional.of(mockGraph);
+        SituationRecompiler recompiler = (current, situation, factory) -> Optional.of(CompilationResult.single(mockGraph));
 
         ActiveSituation situation = new ActiveSituation(
             "sit-1", "zone-A", "tenant-1", 0.95,
             Map.of("nodeId", "node-123", "reason", "persistent-drift"),
             Instant.now().minusSeconds(300), Instant.now(), 5);
 
-        Optional<DesiredStateGraph> result = recompiler.recompile(null, situation, null);
+        Optional<CompilationResult> result = recompiler.recompile(null, situation, null);
 
         assertThat(result).isPresent();
-        assertThat(result.get()).isSameAs(mockGraph);
+        DesiredStateGraph extractedGraph = ((CompilationResult.SingleGraph) result.get()).graph();
+        assertThat(extractedGraph).isSameAs(mockGraph);
     }
 }

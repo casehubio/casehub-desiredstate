@@ -22,7 +22,7 @@ class NoOpSituationRecompilerTest {
             Map.of("nodeId", "node-123", "reason", "persistent-drift"),
             Instant.now().minusSeconds(300), Instant.now(), 5);
 
-        Optional<DesiredStateGraph> result = recompiler.recompile(current, situation, null);
+        Optional<CompilationResult> result = recompiler.recompile(current, situation, null);
 
         assertThat(result).isEmpty();
     }

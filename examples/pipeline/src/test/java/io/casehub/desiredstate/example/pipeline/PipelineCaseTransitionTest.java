@@ -73,16 +73,19 @@ class PipelineCaseTransitionTest {
             .sink("warehouse", "s3://analytics/sessions", "parquet", List.of("date"))
             .build();
 
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
 
-        TransitionResult result = executor.execute(plan, "pipeline-tenant")
+        TransitionResult transitionResult = executor.execute(plan, "pipeline-tenant")
             .await().indefinitely();
 
         assertThat(runtime.lastDefinition).isNotNull();
-        assertThat(result.outcomes()).hasSize(plan.additions().size());
-        result.outcomes().forEach((id, outcome) ->
+        assertThat(transitionResult.outcomes()).hasSize(plan.additions().size());
+        transitionResult.outcomes().forEach((id, outcome) ->
             assertThat(outcome)
                 .as("Node %s should succeed optimistically", id.value())
                 .isInstanceOf(StepOutcome.Succeeded.class));

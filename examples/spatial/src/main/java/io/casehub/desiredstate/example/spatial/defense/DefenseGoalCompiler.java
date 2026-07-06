@@ -8,7 +8,7 @@ import java.util.*;
 public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
 
     @Override
-    public DesiredStateGraph compile(DefenseBlueprint goals, DesiredStateGraphFactory factory) {
+    public CompilationResult compile(DefenseBlueprint goals, DesiredStateGraphFactory factory) {
         var nodes = new ArrayList<DesiredNode>();
         var deps = new ArrayList<Dependency>();
 
@@ -67,6 +67,6 @@ public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
             }
         }
 
-        return factory.of(nodes, deps);
+        return CompilationResult.single(factory.of(nodes, deps));
     }
 }

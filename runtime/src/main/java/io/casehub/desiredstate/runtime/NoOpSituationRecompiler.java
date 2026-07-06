@@ -1,5 +1,6 @@
 package io.casehub.desiredstate.runtime;
 
+import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
 import io.casehub.desiredstate.api.SituationRecompiler;
@@ -21,7 +22,7 @@ import java.util.Optional;
 public class NoOpSituationRecompiler implements SituationRecompiler {
 
     @Override
-    public Optional<DesiredStateGraph> recompile(
+    public Optional<CompilationResult> recompile(
             DesiredStateGraph current,
             ActiveSituation situation,
             DesiredStateGraphFactory factory) {

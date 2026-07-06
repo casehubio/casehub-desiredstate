@@ -64,7 +64,9 @@ class PipelineTest {
     @Test
     void buildBasicPipeline() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // --- 8 nodes ---
         assertThat(graph.nodes()).hasSize(8);
@@ -122,7 +124,9 @@ class PipelineTest {
     @Test
     void topologicalOrderMatchesMedallionLayers() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Plan against empty actual state — everything is new
         ActualState empty = new ActualState(Map.of());
@@ -167,7 +171,9 @@ class PipelineTest {
     @Test
     void provisionFullPipeline() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Plan against empty actual state — everything needs provisioning
         ActualState empty = new ActualState(Map.of());
@@ -179,11 +185,11 @@ class PipelineTest {
         // Execute all additions via SimpleTransitionExecutor
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
         SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
-        TransitionResult result = executor.execute(plan, "default").await().indefinitely();
+        TransitionResult transitionResult = executor.execute(plan, "default").await().indefinitely();
 
         // All 8 nodes should succeed
-        assertThat(result.outcomes()).hasSize(8);
-        result.outcomes().forEach((id, outcome) ->
+        assertThat(transitionResult.outcomes()).hasSize(8);
+        transitionResult.outcomes().forEach((id, outcome) ->
             assertThat(outcome)
                 .as("Node %s should succeed", id.value())
                 .isInstanceOf(StepOutcome.Succeeded.class));
@@ -230,7 +236,9 @@ class PipelineTest {
     @Test
     void deprovisionCascade_downstreamGoesIdle() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Provision the full pipeline first
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
@@ -401,7 +409,9 @@ class PipelineTest {
     @Test
     void fullReconciliationCycle() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
 
         // Phase 1: All ABSENT → provision all
@@ -409,8 +419,8 @@ class PipelineTest {
         TransitionPlan plan = planner.plan(graph, actual);
         assertThat(plan.additions()).hasSize(8);
         for (OrderedStep step : plan.additions()) {
-            ProvisionResult result = provisioner.provision(step.node(), new ProvisionContext("test", graph));
-            assertThat(result).isInstanceOf(ProvisionResult.Success.class);
+            ProvisionResult provisionResult = provisioner.provision(step.node(), new ProvisionContext("test", graph));
+            assertThat(provisionResult).isInstanceOf(ProvisionResult.Success.class);
         }
 
         // Phase 2: All PRESENT → empty plan (reconciled)
@@ -444,7 +454,9 @@ class PipelineTest {
     @Test
     void faultGeneratedNodes_neverInBlueprint() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         for (DesiredNode node : graph.nodes().values()) {
             assertThat(node.type())
@@ -486,7 +498,9 @@ class PipelineTest {
     @Test
     void layerConstraint_acceptsValidPipeline() {
         PipelineBlueprint blueprint = standardBlueprint();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         MedallionLayerConstraint.validate(graph);
     }

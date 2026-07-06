@@ -61,7 +61,10 @@ class ForceDistributionTest {
             .zoneName("frontier")
             .build();
 
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Verify zone allocation
         var zoneNode = graph.nodes().get(NodeId.of("zone-frontier"));
@@ -94,7 +97,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAll(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1, graph1);
 
         // Frontier expands — 3 new cells discovered beyond
@@ -110,7 +115,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 
@@ -130,7 +137,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAll(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1, graph1);
 
         // Enemy fortification → double weight on (4,0)
@@ -140,7 +149,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 
@@ -160,7 +171,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAll(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1, graph1);
 
         // Split into north-flank and south-flank
@@ -176,8 +189,12 @@ class ForceDistributionTest {
             .totalForce(40)
             .zoneName("south-flank")
             .build();
-        var graphA = compiler.compile(blueprint2a, factory);
-        var graphB = compiler.compile(blueprint2b, factory);
+        CompilationResult resultA = compiler.compile(blueprint2a, factory);
+
+        var graphA = ((CompilationResult.SingleGraph) resultA).graph();
+        CompilationResult resultB = compiler.compile(blueprint2b, factory);
+
+        var graphB = ((CompilationResult.SingleGraph) resultB).graph();
         var graph2 = graphA.overlay(graphB);
 
         var actual2 = adapter.readActual(graph2, "test");
@@ -202,7 +219,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
         executeAll(planner.plan(graph, adapter.readActual(graph, "test")), graph, graph);
 
         // Inject: destroy unit at (4,0)
@@ -248,7 +267,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
         executeAll(planner.plan(graph, adapter.readActual(graph, "test")), graph, graph);
 
         var policy = new ZoneRebalanceFaultPolicy();
@@ -291,7 +312,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("north-approach")
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAll(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1, graph1);
         renderer.printFrame("North approach deployed");
 
@@ -305,7 +328,9 @@ class ForceDistributionTest {
             .totalForce(100)
             .zoneName("south-approach")
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
 
         // The reconciliation loop CAN transition between them:
         var actual2 = adapter.readActual(graph2, "test");

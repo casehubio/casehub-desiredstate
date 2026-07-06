@@ -62,7 +62,10 @@ class AttackWaypointsTest {
             .totalForce(75)
             .build();
 
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Verify dependency chain: wp3 → wp2 → wp1
         var wp1 = NodeId.of("cell-1-1");
@@ -95,7 +98,9 @@ class AttackWaypointsTest {
             .waypoint(5, 7, 25)
             .totalForce(100)
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
         executeAdditions(plan1, graph1);
@@ -110,7 +115,9 @@ class AttackWaypointsTest {
             .waypoint(5, 7, 25)
             .totalForce(100)
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 
@@ -133,7 +140,9 @@ class AttackWaypointsTest {
             .waypoint(3, 3, 30)
             .totalForce(100)
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAdditions(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1);
 
         // Losses at waypoint (2,2) → recompile with more force there
@@ -144,7 +153,9 @@ class AttackWaypointsTest {
             .waypoint(3, 3, 25)
             .totalForce(100)
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 
@@ -163,7 +174,9 @@ class AttackWaypointsTest {
             .waypoint(3, 3, 30)
             .totalForce(100)
             .build();
-        var graph1 = compiler.compile(blueprint, factory);
+        CompilationResult result1 = compiler.compile(blueprint, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAdditions(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1);
 
         // Incremental mutation: update waypoint (2,2) strength to 50
@@ -193,7 +206,9 @@ class AttackWaypointsTest {
             .waypoint(5, 5, 40)
             .totalForce(100)
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         executeAdditions(planner.plan(graph1, adapter.readActual(graph1, "test")), graph1);
 
         // High ground at (7,8) revealed as occupied → need more force at (5,5)
@@ -204,7 +219,9 @@ class AttackWaypointsTest {
             .waypoint(5, 5, 60) // hardened
             .totalForce(100)
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 

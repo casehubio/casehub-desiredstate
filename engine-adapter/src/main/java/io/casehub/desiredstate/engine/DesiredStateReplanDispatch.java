@@ -1,5 +1,6 @@
 package io.casehub.desiredstate.engine;
 
+import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
 import io.casehub.desiredstate.api.SituationRecompiler;
@@ -83,14 +84,18 @@ public class DesiredStateReplanDispatch {
 
             DesiredStateGraph current = reconciliationLoop.getDesired(tenancyId);
 
-            Optional<DesiredStateGraph> newGraph = situationRecompiler.recompile(
+            Optional<CompilationResult> newResult = situationRecompiler.recompile(
                 current, situation, graphFactory);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("situationId", situationId);
 
-            if (newGraph.isPresent()) {
-                reconciliationLoop.updateDesired(tenancyId, newGraph.get());
+            if (newResult.isPresent()) {
+                DesiredStateGraph newGraph = switch (newResult.get()) {
+                    case CompilationResult.SingleGraph sg -> sg.graph();
+                    case CompilationResult.Lifecycle lc -> lc.phases().getFirst().graph();
+                };
+                reconciliationLoop.updateDesired(tenancyId, newGraph);
                 result.put("status", "REPLANNED");
             } else {
                 result.put("status", "NO_CHANGE");

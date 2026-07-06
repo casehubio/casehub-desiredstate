@@ -48,7 +48,10 @@ class DefensePostureTest {
                 Map.of("cell-2-0", 0.4, "cell-2-1", 0.3, "cell-2-2", 0.3), 100)
             .build();
 
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
 
         assertThat(graph.nodes()).isNotEmpty();
         assertThat(graph.roots()).isNotEmpty();
@@ -73,7 +76,9 @@ class DefensePostureTest {
             .scout(2, 4)
             .zone("perimeter", Map.of("cell-1-0", 0.5, "cell-1-1", 0.5), 50)
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
         for (var step : plan1.additions()) {
@@ -89,7 +94,9 @@ class DefensePostureTest {
                 Map.of("cell-1-0", 0.3, "cell-1-1", 0.3,
                        "cell-2-3", 0.2, "cell-2-4", 0.2), 50)
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 
@@ -108,7 +115,9 @@ class DefensePostureTest {
             .zone("perimeter",
                 Map.of("cell-1-0", 0.5, "cell-1-1", 0.5), 100)
             .build();
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
         var actual1 = adapter.readActual(graph, "test");
         var plan1 = planner.plan(graph, actual1);
         for (var step : plan1.additions()) {
@@ -142,7 +151,9 @@ class DefensePostureTest {
             .zone("perimeter",
                 Map.of("cell-1-0", 0.5, "cell-1-1", 0.5), 100)
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
         for (var step : plan1.additions()) {
@@ -155,7 +166,9 @@ class DefensePostureTest {
             .zone("perimeter",
                 Map.of("cell-1-0", 0.8, "cell-1-1", 0.2), 100)
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 
@@ -176,7 +189,9 @@ class DefensePostureTest {
             .zone("perimeter",
                 Map.of("cell-2-4", 0.3, "cell-2-5", 0.4, "cell-2-6", 0.3), 100)
             .build();
-        var graph1 = compiler.compile(blueprint1, factory);
+        CompilationResult result1 = compiler.compile(blueprint1, factory);
+
+        var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
         for (var step : plan1.additions()) {
@@ -189,7 +204,9 @@ class DefensePostureTest {
             .zone("perimeter",
                 Map.of("cell-2-4", 0.5, "cell-2-6", 0.5), 100)
             .build();
-        var graph2 = compiler.compile(blueprint2, factory);
+        CompilationResult result2 = compiler.compile(blueprint2, factory);
+
+        var graph2 = ((CompilationResult.SingleGraph) result2).graph();
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);
 

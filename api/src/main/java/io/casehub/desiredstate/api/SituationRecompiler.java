@@ -41,7 +41,7 @@ public interface SituationRecompiler {
      * @param factory   graph factory for creating new graphs
      * @return {@code Optional.empty()} if no replan needed, or a new graph to replace current
      */
-    Optional<DesiredStateGraph> recompile(
+    Optional<CompilationResult> recompile(
         DesiredStateGraph current,
         ActiveSituation situation,
         DesiredStateGraphFactory factory);

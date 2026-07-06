@@ -45,7 +45,8 @@ class DungeonTest {
             .build();
 
         // Compile to graph
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Verify graph structure
         assertEquals(4, graph.nodes().size(), "Should have 4 nodes");
@@ -85,8 +86,8 @@ class DungeonTest {
         // Execute provisioning manually
         for (OrderedStep step : additions) {
             ProvisionContext context = new ProvisionContext("test-tenancy", graph);
-            ProvisionResult result = provisioner.provision(step.node(), context);
-            assertInstanceOf(ProvisionResult.Success.class, result,
+            ProvisionResult provisionResult = provisioner.provision(step.node(), context);
+            assertInstanceOf(ProvisionResult.Success.class, provisionResult,
                 "Provisioning " + step.node().id() + " should succeed");
         }
 
@@ -116,7 +117,8 @@ class DungeonTest {
         DungeonBlueprint blueprint = DungeonBlueprint.builder()
             .room("library", "Ancient tomes of dark magic", 75)
             .build();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Create fault policy
         HeroRaidFaultPolicy policy = new HeroRaidFaultPolicy();
@@ -148,7 +150,8 @@ class DungeonTest {
             .build();
 
         // Compile to graph
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Verify necromancer has both dependencies
         assertTrue(graph.dependenciesOf(NodeId.of("necromancer")).contains(NodeId.of("crypt")),
@@ -168,7 +171,8 @@ class DungeonTest {
             .build();
 
         // Compile to graph
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Verify dragon node has requiresHuman=true
         DesiredNode dragonNode = graph.nodes().get(NodeId.of("dragon"));
@@ -185,7 +189,8 @@ class DungeonTest {
             .build();
 
         // Compile and provision
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
         ActualState actual = adapter.readActual(graph, "default");
         TransitionPlan plan = planner.plan(graph, actual);
 
@@ -239,7 +244,8 @@ class DungeonTest {
         DungeonBlueprint blueprint = DungeonBlueprint.builder()
             .room("library", "Ancient tomes", 75)
             .build();
-        DesiredStateGraph graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
         HeroRaidFaultPolicy policy = new HeroRaidFaultPolicy();
 
         // Test with PROVISION_FAILED fault

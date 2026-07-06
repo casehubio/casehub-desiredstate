@@ -19,7 +19,7 @@ import java.util.List;
 public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
     @Override
-    public DesiredStateGraph compile(PipelineBlueprint goals, DesiredStateGraphFactory factory) {
+    public CompilationResult compile(PipelineBlueprint goals, DesiredStateGraphFactory factory) {
         List<DesiredNode> nodes = new ArrayList<>();
         List<Dependency> dependencies = new ArrayList<>();
 
@@ -131,6 +131,6 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
         DesiredStateGraph graph = factory.of(nodes, dependencies);
         MedallionLayerConstraint.validate(graph);
-        return graph;
+        return CompilationResult.single(graph);
     }
 }

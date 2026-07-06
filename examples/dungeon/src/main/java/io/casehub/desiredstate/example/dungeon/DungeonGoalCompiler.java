@@ -11,7 +11,7 @@ import java.util.List;
 public class DungeonGoalCompiler implements GoalCompiler<DungeonBlueprint> {
 
     @Override
-    public DesiredStateGraph compile(DungeonBlueprint goals, DesiredStateGraphFactory factory) {
+    public CompilationResult compile(DungeonBlueprint goals, DesiredStateGraphFactory factory) {
         List<DesiredNode> nodes = new ArrayList<>();
         List<Dependency> dependencies = new ArrayList<>();
 
@@ -44,6 +44,6 @@ public class DungeonGoalCompiler implements GoalCompiler<DungeonBlueprint> {
             dependencies.add(new Dependency(nodeId, NodeId.of(trap.roomDep())));
         }
 
-        return factory.of(nodes, dependencies);
+        return CompilationResult.single(factory.of(nodes, dependencies));
     }
 }

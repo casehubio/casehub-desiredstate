@@ -120,7 +120,9 @@ class SituationDetectionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
 
         // Provision initial state
         var provisioner = new BattlefieldProvisioner(world);
@@ -196,7 +198,9 @@ class SituationDetectionTest {
             .totalForce(100)
             .zoneName("frontier")
             .build();
-        var graph = compiler.compile(blueprint, factory);
+        CompilationResult result = compiler.compile(blueprint, factory);
+
+        var graph = ((CompilationResult.SingleGraph) result).graph();
 
         var provisioner = new BattlefieldProvisioner(world);
         for (var node : graph.nodes().values()) {

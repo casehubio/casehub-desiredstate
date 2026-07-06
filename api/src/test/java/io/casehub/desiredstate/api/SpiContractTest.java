@@ -14,12 +14,31 @@ class SpiContractTest {
     record TestSpec(String name) implements NodeSpec {}
 
     @Test void goalCompiler_canBeImplemented() {
-        GoalCompiler<String> compiler = (goals, factory) -> factory.empty();
-        DesiredStateGraphFactory mockFactory = new DesiredStateGraphFactory() {
-            @Override public DesiredStateGraph empty() { return null; }
-            @Override public DesiredStateGraph of(Collection<DesiredNode> nodes, Collection<Dependency> deps) { return null; }
+        DesiredStateGraph mockGraph = new DesiredStateGraph() {
+            @Override public Map<NodeId, DesiredNode> nodes() { return Map.of(); }
+            @Override public Set<Dependency> dependencies() { return Set.of(); }
+            @Override public Set<NodeId> dependenciesOf(NodeId node) { return Set.of(); }
+            @Override public Set<NodeId> dependentsOf(NodeId node) { return Set.of(); }
+            @Override public Set<NodeId> roots() { return Set.of(); }
+            @Override public Set<NodeId> leaves() { return Set.of(); }
+            @Override public int version() { return 1; }
+            @Override public boolean isEmpty() { return true; }
+            @Override public DesiredStateGraph withNode(DesiredNode node) { return this; }
+            @Override public DesiredStateGraph withoutNode(NodeId id) { return this; }
+            @Override public DesiredStateGraph withDependency(Dependency dep) { return this; }
+            @Override public DesiredStateGraph withoutDependency(Dependency dep) { return this; }
+            @Override public DesiredStateGraph withMutation(GraphMutation mutation) { return this; }
+            @Override public DesiredStateGraph overlay(DesiredStateGraph other) { return this; }
+            @Override public DesiredStateGraph connect(DesiredStateGraph other) { return this; }
         };
-        assertThat(compiler.compile("test", mockFactory)).isNull();
+        GoalCompiler<String> compiler = (goals, factory) -> CompilationResult.single(mockGraph);
+        DesiredStateGraphFactory mockFactory = new DesiredStateGraphFactory() {
+            @Override public DesiredStateGraph empty() { return mockGraph; }
+            @Override public DesiredStateGraph of(Collection<DesiredNode> nodes, Collection<Dependency> deps) { return mockGraph; }
+        };
+        CompilationResult result = compiler.compile("test", mockFactory);
+        DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
+        assertThat(graph).isSameAs(mockGraph);
     }
 
     @Test void actualStateAdapter_canBeImplemented() {

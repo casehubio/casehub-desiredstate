@@ -8,7 +8,7 @@ import java.util.*;
 public class DistributionGoalCompiler implements GoalCompiler<DistributionBlueprint> {
 
     @Override
-    public DesiredStateGraph compile(DistributionBlueprint goals, DesiredStateGraphFactory factory) {
+    public CompilationResult compile(DistributionBlueprint goals, DesiredStateGraphFactory factory) {
         var nodes = new ArrayList<DesiredNode>();
         var deps = new ArrayList<Dependency>();
 
@@ -36,6 +36,6 @@ public class DistributionGoalCompiler implements GoalCompiler<DistributionBluepr
             deps.add(new Dependency(unitId, zoneId));
         }
 
-        return factory.of(nodes, deps);
+        return CompilationResult.single(factory.of(nodes, deps));
     }
 }
