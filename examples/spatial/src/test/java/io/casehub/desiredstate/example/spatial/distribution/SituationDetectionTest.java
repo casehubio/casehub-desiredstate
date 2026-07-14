@@ -10,6 +10,7 @@ import io.casehub.desiredstate.runtime.ReconciliationEventEmitter;
 import io.casehub.ras.api.*;
 import io.casehub.ras.persistence.memory.InMemorySituationStore;
 import io.casehub.ras.runtime.DefaultRasTriggerPolicy;
+import io.casehub.ras.runtime.RasMetrics;
 import io.casehub.ras.runtime.SituationEvaluator;
 import io.casehub.ras.runtime.TestSituationDefinitionRegistry;
 import io.casehub.ras.testing.MockCaseTrigger;
@@ -107,7 +108,8 @@ class SituationDetectionTest {
             caseTrigger,
             registry,
             3, // max retries
-            new TestChangeEvent()
+            new TestChangeEvent(),
+            new RasMetrics(registry)
         );
     }
 
