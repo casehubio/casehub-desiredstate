@@ -1,18 +1,37 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.CompletionCondition;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderedStep;
+import io.casehub.desiredstate.api.Phase;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionExecutor;
+import io.casehub.desiredstate.api.TransitionPlan;
+import io.casehub.desiredstate.api.TransitionResult;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
 
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class LifecycleManagerTest {
 
@@ -41,7 +60,7 @@ class LifecycleManagerTest {
 
     @Test
     void singleGraph_startsReconciliationDirectly() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.makePresent(NodeId.of("a"));
 
@@ -53,8 +72,8 @@ class LifecycleManagerTest {
 
     @Test
     void lifecycle_transitionsOnCompletion() throws Exception {
-        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), false);
-        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraph buildGraph = ImmutableDesiredStateGraph.empty().withNode(buildNode);
         DesiredStateGraph defendGraph = ImmutableDesiredStateGraph.empty().withNode(defendNode);
@@ -77,8 +96,8 @@ class LifecycleManagerTest {
 
     @Test
     void lifecycle_staysOnPhaseUntilComplete() throws Exception {
-        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), false);
-        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraph buildGraph = ImmutableDesiredStateGraph.empty().withNode(buildNode);
         DesiredStateGraph defendGraph = ImmutableDesiredStateGraph.empty().withNode(defendNode);
@@ -101,7 +120,7 @@ class LifecycleManagerTest {
 
     @Test
     void stop_cleansUpLifecycleState() {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.makePresent(NodeId.of("a"));
 

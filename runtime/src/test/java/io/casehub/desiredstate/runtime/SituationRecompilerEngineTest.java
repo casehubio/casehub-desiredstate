@@ -1,13 +1,25 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.ras.api.ActiveSituation;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class SituationRecompilerEngineTest {
 
@@ -29,7 +41,7 @@ class SituationRecompilerEngineTest {
     @Test
     void singleRecompiler_returnsNonEmpty_shouldReturnResult() {
         DesiredStateGraph newGraph = graph.withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false));
+            new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE));
         SituationRecompiler recompiler = (tid, c, a, s, f) -> Optional.of(CompilationResult.single(newGraph));
 
         SituationRecompilerEngine engine = new SituationRecompilerEngine(List.of(recompiler));
@@ -63,9 +75,9 @@ class SituationRecompilerEngineTest {
     @Test
     void shouldRespectPriorityOrdering() {
         DesiredStateGraph lowGraph = graph.withNode(
-            new DesiredNode(NodeId.of("low"), NodeType.of("test"), new TestSpec("low"), false));
+            new DesiredNode(NodeId.of("low"), NodeType.of("test"), new TestSpec("low"), HumanGating.NONE));
         DesiredStateGraph highGraph = graph.withNode(
-            new DesiredNode(NodeId.of("high"), NodeType.of("test"), new TestSpec("high"), false));
+            new DesiredNode(NodeId.of("high"), NodeType.of("test"), new TestSpec("high"), HumanGating.NONE));
 
         SituationRecompiler lowPriority = new SituationRecompiler() {
             @Override

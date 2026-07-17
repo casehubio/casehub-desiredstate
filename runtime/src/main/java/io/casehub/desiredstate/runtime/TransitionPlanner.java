@@ -1,9 +1,26 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderedStep;
+import io.casehub.desiredstate.api.StepAction;
+import io.casehub.desiredstate.api.TransitionPlan;
 import jakarta.enterprise.context.ApplicationScoped;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 
 /**
  * Plans transitions by comparing desired state against actual state.
@@ -35,7 +52,7 @@ public class TransitionPlanner {
                 };
                 if (remove) {
                     removals.add(new OrderedStep(
-                        new DesiredNode(nodeId, NodeType.of("unknown"), new UnknownSpec(), false),
+                        new DesiredNode(nodeId, NodeType.of("unknown"), new UnknownSpec(), HumanGating.NONE),
                         StepAction.DEPROVISION));
                 }
             }

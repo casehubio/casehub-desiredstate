@@ -6,6 +6,7 @@ import io.casehub.desiredstate.api.CbrPath;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultType;
@@ -67,7 +68,7 @@ class CbrFaultPolicyTest {
     @Test
     void candidateBelowRetrievalThreshold_shouldBeFiltered() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("new"), false));
+            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("new"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.3, "case-1", Map.of())));
@@ -84,7 +85,7 @@ class CbrFaultPolicyTest {
     @Test
     void candidateBelowAdaptationThreshold_shouldBeFiltered() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("new"), false));
+            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("new"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.8, "case-1", Map.of())));
@@ -101,7 +102,7 @@ class CbrFaultPolicyTest {
     @Test
     void successfulAdaptation_shouldProduceMutations() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), false));
+            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.9, "case-1", Map.of())));
@@ -134,9 +135,9 @@ class CbrFaultPolicyTest {
     @Test
     void shouldSelectHighestConfidenceAdaptation() {
         DesiredStateGraph low = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("low"), NodeType.of("t"), new TestSpec("low"), false));
+            new DesiredNode(NodeId.of("low"), NodeType.of("t"), new TestSpec("low"), HumanGating.NONE));
         DesiredStateGraph high = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("high"), NodeType.of("t"), new TestSpec("high"), false));
+            new DesiredNode(NodeId.of("high"), NodeType.of("t"), new TestSpec("high"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(low, 0.9, "case-low", Map.of()),
@@ -157,7 +158,7 @@ class CbrFaultPolicyTest {
     @Test
     void perCallPreferenceResolution_changedThreshold() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.3, "case-1", Map.of())));
@@ -200,7 +201,7 @@ class CbrFaultPolicyTest {
     @Test
     void successfulAdaptation_recordsProposalInTracker() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-                new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), false));
+                new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), HumanGating.NONE));
 
         retriever.setResults(List.of(
                 new RetrievedConfiguration(adapted, 0.9, "case-42", Map.of())));
@@ -234,7 +235,7 @@ class CbrFaultPolicyTest {
     @Test
     void identicalGraphs_noMutations_doesNotRecordProposal() {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-                new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), false));
+                new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
 
         retriever.setResults(List.of(
                 new RetrievedConfiguration(graph, 0.9, "case-99", Map.of())));

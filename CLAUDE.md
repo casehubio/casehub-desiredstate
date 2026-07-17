@@ -38,7 +38,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, ImmutableDesiredStateGraph, SimpleTransitionExecutor, DefaultNodeProvisionerRouter, CdiNodeProvisionerRouter, DesiredStatePreferenceKeys, SituationRecompilerEngine, CbrFaultPolicy, CbrSituationRecompiler, GraphDiff. Multi-provisioner dispatch, per-type reconciliation scheduling, and CBR chain. Quarkus library. |
 | `testing/` | `casehub-desiredstate-testing` | `io.casehub.desiredstate.testing` | Mock SPIs and test fixtures. **Test scope only.** |
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | CaseTransitionExecutor — orchestration-tier bridge. Generates cases with Worker(Workflow) phases. DesiredStateDispatch registers `desiredstate:dispatch` via CallableDispatchRegistry (engine-flow) for workflow step execution with full PendingApproval lifecycle. DesiredStateReplanDispatch registers `desiredstate:replan` for RAS-triggered situation response via SituationRecompilerEngine (reads ActualState via ActualStateAdapterRouter). CTE pre-filters approval-gated nodes before case creation. |
-| `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | WorkItem-backed HumanNodeHandler + PendingApprovalHandler — creates WorkItems for requiresHuman nodes and approval-gated nodes via WorkItemCreator SPI. |
+| `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | Future home of WorkItemPendingApprovalHandler (issue #81). WorkItemHumanNodeHandler removed (#72) — human nodes require case-backed orchestration via engine-adapter. |
 | `examples/dungeon/` | `casehub-desiredstate-example-dungeon` | `io.casehub.desiredstate.example.dungeon` | Nefarious Dungeons — teaching example implementing all SPIs with 2D tile visualizer. |
 | `examples/pipeline/` | `casehub-desiredstate-example-pipeline` | `io.casehub.desiredstate.example.pipeline` | Data Pipeline — teaching example with medallion architecture (Bronze/Silver/Gold), schema validation, three-tier fault escalation (retry → AI → human), pluggable `ExecutionBackend` strategy per processing stage. PendingApproval gates on Gold-tier nodes. |
 | `examples/spatial/` | `casehub-desiredstate-example-spatial` | `io.casehub.desiredstate.example.spatial` | Spatial/vector POC — 10x10 terrain grid, fog of war, three scenarios evaluating graph model with spatial state. Defense posture, attack waypoints, force distribution. |
@@ -65,8 +65,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `FaultPolicy` | `onFault(String tenancyId, FaultEvent, DesiredStateGraph, ActualState) → List<GraphMutation>` | Mutate graph in response to fault (with actual state visibility) |
 | `EventSource` | `stream() → Multi<StateEvent>` | Stream actual-state events into reconciliation loop |
 | `TransitionExecutor` | `execute(TransitionPlan, String tenancyId) → Uni<TransitionResult>` | Execute a transition plan (SPI'd — simple or case-backed) |
-| `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle requiresHuman nodes during provision |
-| `HumanNodeHandler` | `default onDeprovision(DesiredNode, DeprovisionContext) → StepOutcome` | Handle requiresHuman nodes during deprovision (default: Skipped) |
+| `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle human-gated nodes during provision (called when `requiresHuman(PROVISION)`) |
+| `HumanNodeHandler` | `default onDeprovision(DesiredNode, DeprovisionContext) → StepOutcome` | Handle human-gated nodes during deprovision (default: Skipped; called when `requiresHuman(DEPROVISION)`) |
 | `PendingApprovalHandler` | `check(DesiredNode, StepAction, String tenancyId) → ApprovalCheckResult` | Track approval lifecycle for provisioner-initiated PendingApproval requests |
 | `SituationRecompiler` | `recompile(String tenancyId, DesiredStateGraph, ActualState, ActiveSituation, DesiredStateGraphFactory) → Optional<CompilationResult>` | Situation-driven graph recompilation — independent of GoalCompiler. `priority()` default method for chain ordering |
 | `ConfigurationRetriever` | `retrieve(RetrievalContext, int maxResults) → List<RetrievedConfiguration>` | CBR Retrieve — find similar past configurations by fault/situation context |
@@ -83,15 +83,16 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `CompilationResult` | Sealed — `SingleGraph(DesiredStateGraph)` \| `Lifecycle(List<Phase>)`. Returned by GoalCompiler.compile() |
 | `Phase` | `id`, `graph`, `completionCondition`. Successor sequence is list ordering |
 | `LifecycleManager` | `@ApplicationScoped` — orchestrates phase transitions via CAS. `start()`, `stop()`, `updateDesired()`, `compareAndSetDesired()` |
-| `DesiredNode` | `id`, `type`, `spec` (opaque domain payload), `requiresHuman` |
-| `NodeSpec` | Marker interface — domains implement with typed records |
+| `DesiredNode` | `id`, `type`, `spec` (opaque domain payload), `humanGating` (per-action enum). `requiresHuman(StepAction)` and `requiresHuman()` merge node + spec gating |
+| `HumanGating` | Enum — `NONE`, `PROVISION_ONLY`, `DEPROVISION_ONLY`, `ALL`. `requiresHuman(StepAction)`, `any()`, `merge(HumanGating)` |
+| `NodeSpec` | Marker interface — domains implement with typed records. `humanGating()` default returns `NONE` |
 | `NodeId`, `NodeType`, `Dependency` | Value types for graph identity and edges |
 | `TransitionPlan` | Pruning-first ordered steps — `removals`, `additions`, `before`/`after` graphs |
 | `TransitionResult` | Per-node `StepOutcome` map (Succeeded/Failed/Skipped) |
 | `ActualState` | Map of `NodeId → NodeStatus` (PRESENT/ABSENT/DEGRADED/UNKNOWN) |
 | `ReconciliationResult` | `resolved`, `drifted`, `faulted` node sets + `mutations` |
 | `FaultEvent` | Node + `FaultType` + detail |
-| `GraphMutation` | Sealed interface — AddNode, RemoveNode, UpdateNode, AddDependency, RemoveDependency |
+| `GraphMutation` | Sealed interface — AddNode, RemoveNode, UpdateNode(id, adaptedNode), AddDependency, RemoveDependency. UpdateNode carries full adapted DesiredNode |
 | `ProvisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
 | `DeprovisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
 | `PlanApproval` | `planReference`, `approvedBy`, `approvedAt` — carried in context on re-entry |
@@ -135,21 +136,22 @@ This ensures no dangling dependencies and no half-removed states.
 
 ## Human Nodes
 
-`DesiredNode.requiresHuman = true` → `SimpleTransitionExecutor` delegates to `HumanNodeHandler` SPI
-for both provision and deprovision. `requiresHuman` is a routing signal — it gates whether the handler
-is consulted; the handler decides what each action means for the domain. Precedence: requiresHuman >
-PendingApproval > provisioner.
+`DesiredNode.humanGating` controls per-action routing via `HumanGating` enum (NONE, PROVISION_ONLY,
+DEPROVISION_ONLY, ALL). `SimpleTransitionExecutor` checks `node.requiresHuman(StepAction)` independently
+for each action — a node with `PROVISION_ONLY` routes provision to `HumanNodeHandler` and deprovision
+to the provisioner. Precedence per action: humanGating > PendingApproval > provisioner.
+
+`NodeSpec.humanGating()` provides type-level gating (default NONE). `DesiredNode.humanGating` provides
+instance-level gating. Merge: per-action OR — either source can elevate an action to human-gated.
 
 `NoOpHumanNodeHandler` (`@DefaultBean`) skips the node for both actions (misconfiguration signal).
-`WorkItemHumanNodeHandler` (work-adapter, classpath-activated) creates WorkItems via `WorkItemCreator`
-SPI — callerRef format: `desiredstate:<tenancyId>:<nodeId>:<action>` (action = `provision` or `deprovision`).
-WorkItem types: `desiredstate-provision`, `desiredstate-deprovision`.
+Human nodes that need lifecycle management require `CaseTransitionExecutor` (engine-adapter) — it
+creates `HumanTaskTarget` case bindings (binding names: `human-provision-<nodeId>`,
+`human-deprovision-<nodeId>`), delegating human task execution to casehub-work. CTE cancels any
+previous active case before starting a new one, cascading cancellation to associated WorkItems.
 
-`CaseTransitionExecutor` (engine-adapter) separates human nodes from automated nodes for both additions
-and removals — human nodes get `humanTask` bindings (binding names: `human-provision-<nodeId>`,
-`human-deprovision-<nodeId>`). CTE does NOT call `HumanNodeHandler` — it uses the engine's HITL
-infrastructure directly. The reconciliation loop detects human node completion on the next cycle via
-ActualStateAdapter.
+`WorkItemHumanNodeHandler` was removed (#72) — creating orphaned WorkItems without case lifecycle
+is not a valid deployment option.
 
 **Approval-gated nodes:** `NodeProvisioner.provision()` may return `PendingApproval(nodeId, planReference)` →
 `SimpleTransitionExecutor` delegates to `PendingApprovalHandler` SPI. `NoOpPendingApprovalHandler` (`@DefaultBean`)

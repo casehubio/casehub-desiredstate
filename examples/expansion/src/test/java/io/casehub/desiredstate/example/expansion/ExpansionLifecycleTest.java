@@ -150,7 +150,7 @@ class ExpansionLifecycleTest {
     void singlePhaseBackwardCompat() throws Exception {
         // Compile a single-phase result (non-lifecycle)
         DesiredNode node = new DesiredNode(NodeId.of("standalone"),
-            ExpansionNodeTypes.NEXUS, new NexusSpec("loc-1"), false);
+            ExpansionNodeTypes.NEXUS, new NexusSpec("loc-1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         manager.start("t1", CompilationResult.single(graph));

@@ -37,7 +37,7 @@ class DesiredStateDispatchTest {
         callRegistry = new CallableDispatchRegistry();
 
         testNode = new DesiredNode(
-            NodeId.of("app"), NodeType.of("service"), new TestSpec(), false);
+            NodeId.of("app"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
 
         DefaultDesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         graph = factory.of(List.of(testNode), List.of());

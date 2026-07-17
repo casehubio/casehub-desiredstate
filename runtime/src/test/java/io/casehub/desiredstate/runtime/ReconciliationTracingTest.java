@@ -1,6 +1,28 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.DeprovisionResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.EventSource;
+import io.casehub.desiredstate.api.FaultPolicy;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeProvisioner;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderedStep;
+import io.casehub.desiredstate.api.ProvisionContext;
+import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.StateEvent;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionExecutor;
+import io.casehub.desiredstate.api.TransitionPlan;
+import io.casehub.desiredstate.api.TransitionResult;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -16,7 +38,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -302,7 +328,7 @@ class ReconciliationTracingTest {
     // --- Test helpers (same pattern as ReconciliationLoopTest) ---
 
     private DesiredNode node(String id) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(id), false);
+        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(id), HumanGating.NONE);
     }
 
     record TestSpec(String value) implements NodeSpec {}

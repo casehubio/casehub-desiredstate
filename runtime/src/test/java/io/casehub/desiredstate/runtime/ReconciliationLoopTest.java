@@ -1,6 +1,26 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.EventSource;
+import io.casehub.desiredstate.api.FaultEvent;
+import io.casehub.desiredstate.api.FaultPolicy;
+import io.casehub.desiredstate.api.FaultType;
+import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderedStep;
+import io.casehub.desiredstate.api.StateEvent;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionExecutor;
+import io.casehub.desiredstate.api.TransitionPlan;
+import io.casehub.desiredstate.api.TransitionResult;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.subscription.MultiEmitter;
@@ -9,13 +29,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReconciliationLoopTest {
 
@@ -177,7 +203,7 @@ class ReconciliationLoopTest {
 
         // Configure fault policy to add a replacement node on failure
         DesiredNode replacement = new DesiredNode(
-            NodeId.of("a-replacement"), NodeType.of("test"), new TestSpec("replacement"), false);
+            NodeId.of("a-replacement"), NodeType.of("test"), new TestSpec("replacement"), HumanGating.NONE);
         FaultPolicy addReplacementPolicy = (tid, event, current, actual) -> {
             if (event.node().equals(NodeId.of("a"))) {
                 return List.of(new GraphMutation.AddNode(replacement));
@@ -258,7 +284,7 @@ class ReconciliationLoopTest {
 
         // FaultPolicy: on NODE_DEGRADED for "a", add a new node "a-fix"
         DesiredNode fixNode = new DesiredNode(
-            NodeId.of("a-fix"), NodeType.of("test"), new TestSpec("fix"), false);
+            NodeId.of("a-fix"), NodeType.of("test"), new TestSpec("fix"), HumanGating.NONE);
         FaultPolicy addFixPolicy = (tid, event, current, actual) -> {
             if (event.type() == FaultType.NODE_DEGRADED && event.node().equals(NodeId.of("a"))) {
                 return List.of(new GraphMutation.AddNode(fixNode));
@@ -361,7 +387,7 @@ class ReconciliationLoopTest {
     // --- Test helpers ---
 
     private DesiredNode node(String id) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(id), false);
+        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(id), HumanGating.NONE);
     }
 
     record TestSpec(String value) implements NodeSpec {}

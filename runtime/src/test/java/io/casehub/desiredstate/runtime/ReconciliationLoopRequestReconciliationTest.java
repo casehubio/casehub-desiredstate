@@ -1,15 +1,24 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReconciliationLoopRequestReconciliationTest {
 
@@ -53,7 +62,7 @@ class ReconciliationLoopRequestReconciliationTest {
 
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new ReconciliationLoopTest.TestSpec("x"), false));
+            .withNode(new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new ReconciliationLoopTest.TestSpec("x"), HumanGating.NONE));
         loop.start("tenant-1", graph);
 
         assertTrue(initialLatch.await(2, TimeUnit.SECONDS), "Initial reconciliation did not occur");

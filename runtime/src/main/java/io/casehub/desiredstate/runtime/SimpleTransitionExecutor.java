@@ -78,13 +78,13 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
         Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("provision")
                 .setAttribute(AttributeKey.stringKey("desiredstate.node.id"), node.id().value())
                 .setAttribute(AttributeKey.stringKey("desiredstate.node.type"), node.type().value())
-                .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman())
+                .setAttribute(AttributeKey.stringKey("desiredstate.human.gating"), node.humanGating().name())
+                .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman(StepAction.PROVISION))
                 .startSpan();
         try (Scope scope = span.makeCurrent()) {
             ProvisionContext context = new ProvisionContext(tenancyId, graph);
 
-            // requiresHuman takes precedence — delegates entirely to HumanNodeHandler
-            if (node.requiresHuman()) {
+            if (node.requiresHuman(StepAction.PROVISION)) {
                 return humanNodeHandler.onProvision(node, context);
             }
 
@@ -123,12 +123,13 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
         Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("deprovision")
                                        .setAttribute(AttributeKey.stringKey("desiredstate.node.id"), node.id().value())
                                        .setAttribute(AttributeKey.stringKey("desiredstate.node.type"), node.type().value())
-                                       .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman())
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.human.gating"), node.humanGating().name())
+                                       .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman(StepAction.DEPROVISION))
                                        .startSpan();
         try (Scope scope = span.makeCurrent()) {
             DeprovisionContext context = new DeprovisionContext(tenancyId, graph);
 
-            if (node.requiresHuman()) {
+            if (node.requiresHuman(StepAction.DEPROVISION)) {
                 return humanNodeHandler.onDeprovision(node, context);
             }
 

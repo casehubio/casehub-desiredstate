@@ -101,6 +101,14 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         TransitionPlan runnablePlan = new TransitionPlan(
             runnableRemovals, runnableAdditions, plan.before(), plan.after());
 
+        executionRegistry.getActiveCaseId(tenancyId).ifPresent(id -> {
+            try {
+                caseHubRuntime.cancelCase(id);
+            } catch (Exception e) {
+                LOG.warnf("Failed to cancel previous case %s for tenancy %s — proceeding", id, tenancyId);
+            }
+        });
+
         String executionId = UUID.randomUUID().toString();
         executionRegistry.register(executionId, plan.after(), tenancyId);
 
@@ -120,6 +128,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
                 caseId, runnableRemovals.size(), runnableAdditions.size());
 
             executionRegistry.remove(executionId);
+            executionRegistry.setActiveCaseId(tenancyId, caseId);
 
             Map<NodeId, StepOutcome> allOutcomes = new LinkedHashMap<>(preFilteredOutcomes);
             allOutcomes.putAll(buildOptimisticResult(runnablePlan, caseId).outcomes());
@@ -128,7 +137,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
     }
 
     private StepOutcome checkApproval(OrderedStep step, String tenancyId) {
-        if (step.node().requiresHuman()) {
+        if (step.node().requiresHuman(step.action())) {
             return null; // human nodes handled separately in buildCaseDefinition
         }
         ApprovalCheckResult check = pendingApprovalHandler.check(
@@ -160,7 +169,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         List<OrderedStep> automatedRemovals = new ArrayList<>();
         List<OrderedStep> humanRemovals     = new ArrayList<>();
         for (OrderedStep step : plan.removals()) {
-            if (step.node().requiresHuman()) {
+            if (step.node().requiresHuman(step.action())) {
                 humanRemovals.add(step);
             } else {
                 automatedRemovals.add(step);
@@ -186,7 +195,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         List<OrderedStep> automatedAdditions = new ArrayList<>();
         List<OrderedStep> humanAdditions     = new ArrayList<>();
         for (OrderedStep step : plan.additions()) {
-            if (step.node().requiresHuman()) {
+            if (step.node().requiresHuman(step.action())) {
                 humanAdditions.add(step);
             } else {
                 automatedAdditions.add(step);
@@ -261,15 +270,15 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
 
         for (OrderedStep step : plan.removals()) {
-            if (step.node().requiresHuman()) {
-                outcomes.put(step.node().id(), new StepOutcome.Skipped("routed to WorkItem"));
+            if (step.node().requiresHuman(step.action())) {
+                outcomes.put(step.node().id(), new StepOutcome.Skipped("routed to human task binding"));
             } else {
                 outcomes.put(step.node().id(), new StepOutcome.Succeeded());
             }
         }
         for (OrderedStep step : plan.additions()) {
-            if (step.node().requiresHuman()) {
-                outcomes.put(step.node().id(), new StepOutcome.Skipped("routed to WorkItem"));
+            if (step.node().requiresHuman(step.action())) {
+                outcomes.put(step.node().id(), new StepOutcome.Skipped("routed to human task binding"));
             } else {
                 outcomes.put(step.node().id(), new StepOutcome.Succeeded());
             }

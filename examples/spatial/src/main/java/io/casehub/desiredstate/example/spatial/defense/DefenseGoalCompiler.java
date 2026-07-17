@@ -15,18 +15,18 @@ public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
         // Base cell
         var baseCellId = NodeId.of("cell-%d-%d".formatted(goals.baseRow(), goals.baseCol()));
         nodes.add(new DesiredNode(baseCellId, SpatialNodeTypes.CELL,
-            new CellSpec(goals.baseRow(), goals.baseCol(), 0, TerrainType.OPEN), false));
+            new CellSpec(goals.baseRow(), goals.baseCol(), 0, TerrainType.OPEN), HumanGating.NONE));
 
         // Scout cells and scouts
         for (var pos : goals.scoutPositions()) {
             var scoutCellId = NodeId.of("cell-%d-%d".formatted(pos[0], pos[1]));
             if (nodes.stream().noneMatch(n -> n.id().equals(scoutCellId))) {
                 nodes.add(new DesiredNode(scoutCellId, SpatialNodeTypes.CELL,
-                    new CellSpec(pos[0], pos[1], 0, TerrainType.OPEN), false));
+                    new CellSpec(pos[0], pos[1], 0, TerrainType.OPEN), HumanGating.NONE));
             }
             var scoutId = NodeId.of("scout-%d-%d".formatted(pos[0], pos[1]));
             nodes.add(new DesiredNode(scoutId, SpatialNodeTypes.SCOUT,
-                new ScoutSpec(scoutCellId, 2), false));
+                new ScoutSpec(scoutCellId, 2), HumanGating.NONE));
             deps.add(new Dependency(scoutId, scoutCellId));
         }
 
@@ -47,13 +47,13 @@ public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
                     var row = Integer.parseInt(parts[0]);
                     var col = Integer.parseInt(parts[1]);
                     nodes.add(new DesiredNode(cellId, SpatialNodeTypes.CELL,
-                        new CellSpec(row, col, 0, TerrainType.OPEN), false));
+                        new CellSpec(row, col, 0, TerrainType.OPEN), HumanGating.NONE));
                 }
                 deps.add(new Dependency(zoneId, cellId));
             }
 
             var zoneSpec = new ZoneSpec(zoneDef.name(), allocationByNodeId, zoneDef.totalForce());
-            nodes.add(new DesiredNode(zoneId, SpatialNodeTypes.ZONE, zoneSpec, false));
+            nodes.add(new DesiredNode(zoneId, SpatialNodeTypes.ZONE, zoneSpec, HumanGating.NONE));
 
             // Units per cell
             for (var entry : allocationByNodeId.entrySet()) {
@@ -61,7 +61,7 @@ public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
                 var unitId = NodeId.of("unit-" + cellId.value());
                 var strength = zoneSpec.strengthFor(cellId);
                 nodes.add(new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-                    new UnitSpec(cellId, strength), false));
+                    new UnitSpec(cellId, strength), HumanGating.NONE));
                 deps.add(new Dependency(unitId, cellId));
                 deps.add(new Dependency(unitId, zoneId));
             }

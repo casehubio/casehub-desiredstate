@@ -32,7 +32,7 @@ class TypesTest {
     };
 
     @Test void graphMutation_sealedExhaustive() {
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
+        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), HumanGating.NONE);
         GraphMutation mutation = new GraphMutation.AddNode(node);
         String result = switch (mutation) {
             case GraphMutation.AddNode m -> "add:" + m.node().id().value();

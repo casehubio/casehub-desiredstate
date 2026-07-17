@@ -1,5 +1,6 @@
 package io.casehub.desiredstate.example.dungeon;
 
+import io.casehub.desiredstate.api.HumanGating;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,7 +13,7 @@ public class DungeonBlueprint {
     public record RoomEntry(String id, String description, int size) {
     }
 
-    public record CreatureEntry(String id, String species, int level, List<String> roomDeps, boolean requiresHuman) {
+    public record CreatureEntry(String id, String species, int level, List<String> roomDeps, HumanGating humanGating) {
     }
 
     public record TrapEntry(String id, String type, int damage, String roomDep) {
@@ -55,12 +56,12 @@ public class DungeonBlueprint {
         }
 
         public Builder creature(String id, String species, int level, String... roomDeps) {
-            creatures.add(new CreatureEntry(id, species, level, List.of(roomDeps), false));
+            creatures.add(new CreatureEntry(id, species, level, List.of(roomDeps), HumanGating.NONE));
             return this;
         }
 
         public Builder humanCreature(String id, String species, int level, String... roomDeps) {
-            creatures.add(new CreatureEntry(id, species, level, List.of(roomDeps), true));
+            creatures.add(new CreatureEntry(id, species, level, List.of(roomDeps), HumanGating.ALL));
             return this;
         }
 

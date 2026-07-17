@@ -1,6 +1,14 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.CbrPath;
+import io.casehub.desiredstate.api.CbrProposal;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -83,7 +91,7 @@ class CbrProposalTrackerTest {
             "src-1", CbrPath.FAULT, Set.of(nodeId), Instant.now()));
 
         var result = new TransitionResult(Map.of());
-        var node = new DesiredNode(nodeId, new NodeType("t"), new TestSpec("v"), false);
+        var node = new DesiredNode(nodeId, new NodeType("t"), new TestSpec("v"), HumanGating.NONE);
         var graph = factory.of(java.util.List.of(node), Set.of());
         var outcomes = tracker.matchOutcomes("t1", result, graph);
 

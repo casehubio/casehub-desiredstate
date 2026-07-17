@@ -2,6 +2,7 @@ package io.casehub.desiredstate.runtime;
 
 import io.casehub.desiredstate.api.DeprovisionContext;
 import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
@@ -23,7 +24,7 @@ class NoOpHumanNodeHandlerTest {
     void returnsSkippedWithConfigurationMessage() {
         NoOpHumanNodeHandler handler = new NoOpHumanNodeHandler();
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), true
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), HumanGating.ALL
         );
         DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
             .of(List.of(node), List.of());
@@ -40,7 +41,7 @@ class NoOpHumanNodeHandlerTest {
     void deprovision_returnsSkippedWithConfigurationMessage() {
         NoOpHumanNodeHandler handler = new NoOpHumanNodeHandler();
         DesiredNode node = new DesiredNode(
-                NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), true
+                NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), HumanGating.ALL
         );
         DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
                                           .of(List.of(node), List.of());

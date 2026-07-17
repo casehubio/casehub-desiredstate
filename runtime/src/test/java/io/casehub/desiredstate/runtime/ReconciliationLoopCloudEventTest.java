@@ -1,6 +1,22 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateEventTypes;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.EventSource;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderedStep;
+import io.casehub.desiredstate.api.StateEvent;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionExecutor;
+import io.casehub.desiredstate.api.TransitionPlan;
+import io.casehub.desiredstate.api.TransitionResult;
 import io.cloudevents.CloudEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -10,13 +26,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 class ReconciliationLoopCloudEventTest {
@@ -58,7 +78,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsNodeFaultedOnProvisionFailure() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
@@ -85,7 +105,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsNodeDriftedOnDriftDetection() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.DRIFTED));
@@ -101,7 +121,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsNodeRecoveredWhenPreviouslyFaultedNodeIsPresent() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         // First cycle: node fails to provision
@@ -133,7 +153,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsReconciliationCompletedAfterEachCycle() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
@@ -156,7 +176,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void getDesired_returnsCurrentGraph() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of());
@@ -181,7 +201,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsNodeFaultedOnDeprovisionFailure() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         // Initial cycle: provision node
@@ -220,7 +240,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsNodeFaultedOnApprovalRejected() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));

@@ -1,12 +1,21 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.CyclicDependencyException;
+import io.casehub.desiredstate.api.DanglingDependencyException;
+import io.casehub.desiredstate.api.Dependency;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ImmutableDesiredStateGraphTest {
 
@@ -17,15 +26,15 @@ class ImmutableDesiredStateGraphTest {
     static final NodeType ITEM = NodeType.of("item");
 
     static DesiredNode node(String id) {
-        return new DesiredNode(NodeId.of(id), ROOM, new TestSpec(id), false);
+        return new DesiredNode(NodeId.of(id), ROOM, new TestSpec(id), HumanGating.NONE);
     }
 
     static DesiredNode node(String id, NodeType type) {
-        return new DesiredNode(NodeId.of(id), type, new TestSpec(id), false);
+        return new DesiredNode(NodeId.of(id), type, new TestSpec(id), HumanGating.NONE);
     }
 
     static DesiredNode node(String id, NodeSpec spec) {
-        return new DesiredNode(NodeId.of(id), ROOM, spec, false);
+        return new DesiredNode(NodeId.of(id), ROOM, spec, HumanGating.NONE);
     }
 
     static Dependency dep(String from, String to) {
@@ -389,7 +398,7 @@ class ImmutableDesiredStateGraphTest {
         var newSpec = new TestSpec("updated");
         var g = factory.empty()
                 .withNode(node("A"))
-                .withMutation(new GraphMutation.UpdateNode(NodeId.of("A"), newSpec));
+                .withMutation(new GraphMutation.UpdateNode(NodeId.of("A"), new DesiredNode(NodeId.of("A"), NodeType.of("test"), newSpec, HumanGating.NONE)));
 
         assertThat(g.nodes().get(NodeId.of("A")).spec()).isEqualTo(newSpec);
     }
@@ -397,7 +406,7 @@ class ImmutableDesiredStateGraphTest {
     @Test void withMutation_updateNode_nonexistent_throws() {
         var g = factory.empty();
 
-        assertThatThrownBy(() -> g.withMutation(new GraphMutation.UpdateNode(NodeId.of("phantom"), new TestSpec("x"))))
+        assertThatThrownBy(() -> g.withMutation(new GraphMutation.UpdateNode(NodeId.of("phantom"), new DesiredNode(NodeId.of("phantom"), NodeType.of("test"), new TestSpec("x"), HumanGating.NONE))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -1,6 +1,7 @@
 package io.casehub.desiredstate.engine;
 
 import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
@@ -109,7 +110,7 @@ class TransitionWorkflowGeneratorTest {
     }
 
     private static DesiredNode node(String id, String type) {
-        return new DesiredNode(NodeId.of(id), NodeType.of(type), new TestNodeSpec(), false);
+        return new DesiredNode(NodeId.of(id), NodeType.of(type), new TestNodeSpec(), HumanGating.NONE);
     }
 
     /** Minimal NodeSpec for tests. */

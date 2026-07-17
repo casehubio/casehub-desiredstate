@@ -33,8 +33,8 @@ final class GraphDiff {
 
             if (currentNode == null) {
                 mutations.add(new GraphMutation.AddNode(adaptedNode));
-            } else if (!Objects.equals(currentNode.spec(), adaptedNode.spec())) {
-                mutations.add(new GraphMutation.UpdateNode(id, adaptedNode.spec()));
+            } else if (!currentNode.equals(adaptedNode)) {
+                mutations.add(new GraphMutation.UpdateNode(id, adaptedNode));
             }
         }
 

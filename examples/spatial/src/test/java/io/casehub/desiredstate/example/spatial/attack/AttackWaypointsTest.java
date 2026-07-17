@@ -183,7 +183,7 @@ class AttackWaypointsTest {
         var wp2Id = NodeId.of("cell-2-2");
         var unitId = NodeId.of("unit-waypoint-2-2");
         var graph2 = graph1
-            .withMutation(new GraphMutation.UpdateNode(unitId, new UnitSpec(wp2Id, 50)));
+            .withMutation(new GraphMutation.UpdateNode(unitId, new DesiredNode(unitId, SpatialNodeTypes.UNIT, new UnitSpec(wp2Id, 50), HumanGating.NONE)));
 
         var actual2 = adapter.readActual(graph2, "test");
         var plan2 = planner.plan(graph2, actual2);

@@ -59,7 +59,7 @@ class DesiredStateReplanDispatchTest {
                 NodeId.of("fallback-1"),
                 NodeType.of("fallback"),
                 new TestNodeSpec("fallback config"),
-                false));
+                HumanGating.NONE));
 
         mockLoop = new ReconciliationLoop(null, null, null, null, null) {
             @Override

@@ -4,6 +4,7 @@ import io.casehub.desiredstate.api.Dependency;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
@@ -26,11 +27,11 @@ class GraphDiffTest {
     }
 
     private DesiredNode node(String id, String spec) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(spec), false);
+        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(spec), HumanGating.NONE);
     }
 
     private DesiredNode node(String id, String type, String spec) {
-        return new DesiredNode(NodeId.of(id), NodeType.of(type), new TestSpec(spec), false);
+        return new DesiredNode(NodeId.of(id), NodeType.of(type), new TestSpec(spec), HumanGating.NONE);
     }
 
     @Test
@@ -63,7 +64,7 @@ class GraphDiffTest {
         assertThat(mutations.get(0)).isInstanceOf(GraphMutation.UpdateNode.class);
         GraphMutation.UpdateNode update = (GraphMutation.UpdateNode) mutations.get(0);
         assertThat(update.id()).isEqualTo(NodeId.of("n1"));
-        assertThat(update.newSpec()).isEqualTo(new TestSpec("v2"));
+        assertThat(update.adaptedNode().spec()).isEqualTo(new TestSpec("v2"));
     }
 
     @Test
@@ -208,7 +209,7 @@ class GraphDiffTest {
 
     @Test
     void targetNodeId_updateNode() {
-        assertThat(GraphDiff.targetNodeId(new GraphMutation.UpdateNode(NodeId.of("n1"), new TestSpec("v2")))).isEqualTo(NodeId.of("n1"));
+        assertThat(GraphDiff.targetNodeId(new GraphMutation.UpdateNode(NodeId.of("n1"), node("n1", "v2")))).isEqualTo(NodeId.of("n1"));
     }
 
     @Test
@@ -222,4 +223,18 @@ class GraphDiffTest {
         assertThat(GraphDiff.targetNodeId(new GraphMutation.RemoveDependency(
                 new Dependency(NodeId.of("a"), NodeId.of("b"))))).isNull();
     }
+
+    @Test
+    void humanGating_change_only_generates_updateNode() {
+        DesiredNode current = new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode adapted = new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.DEPROVISION_ONLY);
+
+        List<GraphMutation> mutations = GraphDiff.computeMutations(graph(current), graph(adapted));
+
+        assertThat(mutations).hasSize(1);
+        assertThat(mutations.get(0)).isInstanceOf(GraphMutation.UpdateNode.class);
+        GraphMutation.UpdateNode update = (GraphMutation.UpdateNode) mutations.get(0);
+        assertThat(update.id()).isEqualTo(NodeId.of("n1"));
+    }
+
 }

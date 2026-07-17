@@ -1,6 +1,31 @@
 package io.casehub.desiredstate.example.pipeline;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ApprovalCheckResult;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.Dependency;
+import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.DeprovisionResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.FaultEvent;
+import io.casehub.desiredstate.api.FaultType;
+import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeProvisioner;
+import io.casehub.desiredstate.api.NodeProvisionerRouter;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderedStep;
+import io.casehub.desiredstate.api.PlanApproval;
+import io.casehub.desiredstate.api.ProvisionContext;
+import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.StepAction;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionPlan;
+import io.casehub.desiredstate.api.TransitionResult;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter;
 import io.casehub.desiredstate.runtime.NoOpHumanNodeHandler;
@@ -8,7 +33,12 @@ import io.casehub.desiredstate.runtime.NoOpPendingApprovalHandler;
 import io.casehub.desiredstate.runtime.SimpleTransitionExecutor;
 import io.casehub.desiredstate.runtime.TransitionPlanner;
 import io.casehub.desiredstate.testing.MockPendingApprovalHandler;
-import io.casehub.platform.agent.*;
+import io.casehub.platform.agent.AgentEvent;
+import io.casehub.platform.agent.AgentProvider;
+import io.casehub.platform.agent.AgentSession;
+import io.casehub.platform.agent.AgentSessionConfig;
+import io.casehub.platform.agent.AgentSessionInit;
+import io.casehub.platform.agent.NoOpAgentProvider;
 import io.smallrye.mutiny.Multi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,6 +91,20 @@ class PipelineTest {
             .sink("warehouse", "s3://analytics/sessions", "parquet", List.of("date", "country"))
             .build();
     }
+
+    private PipelineBlueprint standardBlueprintWithApproval() {
+        return PipelineBlueprint.builder()
+                                .source("clickstream", "json", "kafka://clicks")
+                                .schema("click-schema", List.of("userId", "pageUrl", "timestamp"), 1)
+                                .ingestion("click-ingest", "clickstream", 1000, "json")
+                                .cleanser("click-clean", List.of("deduplicate", "normalize-timestamps"), true, "DROP")
+                                .enricher("geo-enrich", "geo-lookup", List.of("userId"), List.of("country", "city"))
+                                .validator("quality-gate", "click-schema", 0.95, true)
+                                .transformer("gold-agg", List.of("sessionize", "count-pages"), List.of("group-by-session"), "parquet", true)
+                                .sink("warehouse-sink", "s3://analytics/sessions", "parquet", List.of("date", "country"), true)
+                                .build();
+    }
+
 
     @Test
     void buildBasicPipeline() {
@@ -222,7 +266,7 @@ class PipelineTest {
         DesiredNode enricher = new DesiredNode(
             NodeId.of("geo-enrich"), PipelineNodeTypes.ENRICHER,
             new EnricherSpec("geo-lookup", List.of("userId"), List.of("country", "city")),
-            false);
+            HumanGating.NONE);
 
         // Do NOT register the lookup source — provisioning should fail
         DesiredStateGraph graph = factory.of(List.of(enricher), List.of());
@@ -276,7 +320,7 @@ class PipelineTest {
         // Create an ingestion node and put it in a graph
         DesiredNode ingestNode = new DesiredNode(
             NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
-            new IngestionSpec("clickstream", 1000, "json"), false);
+            new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(ingestNode), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("ingest"), FaultType.PROVISION_FAILED, "source unavailable");
@@ -326,7 +370,7 @@ class PipelineTest {
 
         DesiredNode ingestNode = new DesiredNode(
             NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
-            new IngestionSpec("clickstream", 1000, "json"), false);
+            new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(ingestNode), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("ingest"), FaultType.PROVISION_FAILED, "source unavailable");
@@ -359,7 +403,7 @@ class PipelineTest {
         // Create a validator node
         DesiredNode validator = new DesiredNode(
             NodeId.of("quality-gate"), PipelineNodeTypes.VALIDATOR,
-            new ValidatorSpec("click-schema", 0.95, true), false);
+            new ValidatorSpec("click-schema", 0.95, true), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(validator), List.of());
 
         // Set the validator as QUARANTINED in world
@@ -386,7 +430,7 @@ class PipelineTest {
         // Create a schema node
         DesiredNode schema = new DesiredNode(
             NodeId.of("click-schema"), PipelineNodeTypes.SCHEMA,
-            new SchemaSpec("click-schema", List.of("userId", "pageUrl", "timestamp"), 1), false);
+            new SchemaSpec("click-schema", List.of("userId", "pageUrl", "timestamp"), 1), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(schema), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("click-schema"), FaultType.NODE_DEGRADED,
@@ -511,10 +555,10 @@ class PipelineTest {
         // Bronze node depending on a Gold node — backward
         DesiredNode source = new DesiredNode(NodeId.of("raw-source"),
             PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("raw", "json", "kafka://raw"), false);
+            new DataSourceSpec("raw", "json", "kafka://raw"), HumanGating.NONE);
         DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
             PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), false);
+            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
 
         // source depends on transformer — backward (Bronze depends on Gold)
         DesiredStateGraph graph = factory.of(
@@ -533,10 +577,10 @@ class PipelineTest {
         // Gold node depending directly on Bronze (skipping Silver)
         DesiredNode source = new DesiredNode(NodeId.of("clickstream"),
             PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("clickstream", "json", "kafka://clicks"), false);
+            new DataSourceSpec("clickstream", "json", "kafka://clicks"), HumanGating.NONE);
         DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
             PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), false);
+            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
 
         // transformer depends on source — Gold depends on Bronze (skips Silver)
         DesiredStateGraph graph = factory.of(
@@ -554,10 +598,10 @@ class PipelineTest {
     void layerConstraint_allowsSameLayerDependencies() {
         DesiredNode source1 = new DesiredNode(NodeId.of("source-a"),
             PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("a", "json", "kafka://a"), false);
+            new DataSourceSpec("a", "json", "kafka://a"), HumanGating.NONE);
         DesiredNode source2 = new DesiredNode(NodeId.of("source-b"),
             PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("b", "json", "kafka://b"), false);
+            new DataSourceSpec("b", "json", "kafka://b"), HumanGating.NONE);
 
         // source-b depends on source-a — same layer (Bronze → Bronze)
         DesiredStateGraph graph = factory.of(
@@ -572,10 +616,10 @@ class PipelineTest {
         // AI_REVIEW node depending on a Gold node — no layer, should be ignored
         DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
             PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), false);
+            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
         DesiredNode aiReview = new DesiredNode(NodeId.of("ai-review-session-agg"),
             PipelineNodeTypes.AI_REVIEW,
-            new AiReviewSpec(NodeId.of("session-agg"), "provision failure"), false);
+            new AiReviewSpec(NodeId.of("session-agg"), "provision failure"), HumanGating.NONE);
 
         DesiredStateGraph graph = factory.of(
             List.of(transformer, aiReview),
@@ -632,7 +676,7 @@ class PipelineTest {
         NodeId targetNode = NodeId.of("ingest");
         NodeId reviewNode = NodeId.of("ai-review-ingest");
         DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(targetNode, "source unavailable"), false);
+                new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
 
         // Provision the AI_REVIEW node
@@ -666,7 +710,7 @@ class PipelineTest {
         NodeId targetNode = NodeId.of("ingest");
         NodeId reviewNode = NodeId.of("ai-review-ingest");
         DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(targetNode, "source unavailable"), false);
+                new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
 
         ProvisionResult result = agentProvisioner.provision(aiReview, new ProvisionContext("default", graph));
@@ -684,7 +728,7 @@ class PipelineTest {
         NodeId targetNode = NodeId.of("ingest");
         NodeId reviewNode = NodeId.of("ai-review-ingest");
         DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(targetNode, "source unavailable"), false);
+                new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
 
         ProvisionResult result = noOpProvisioner.provision(aiReview, new ProvisionContext("default", graph));
@@ -792,5 +836,42 @@ class PipelineTest {
         // All nodes should succeed — no approval gate
         assertThat(result.outcomes().get(NodeId.of("session-agg")))
             .isInstanceOf(StepOutcome.Succeeded.class);
+    }
+
+    @Test
+    void goldTier_transformer_deprovisionOnly_gating() {
+        PipelineBlueprint blueprint = standardBlueprintWithApproval();
+        CompilationResult result    = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph     = ((CompilationResult.SingleGraph) result).graph();
+
+        DesiredNode transformer = graph.nodes().get(NodeId.of("gold-agg"));
+        assertThat(transformer).isNotNull();
+        assertThat(transformer.requiresHuman(StepAction.PROVISION)).isFalse();
+        assertThat(transformer.requiresHuman(StepAction.DEPROVISION)).isTrue();
+        assertThat(transformer.humanGating()).isEqualTo(HumanGating.NONE);
+        assertThat(transformer.spec().humanGating()).isEqualTo(HumanGating.DEPROVISION_ONLY);
+    }
+
+    @Test
+    void goldTier_sink_deprovisionOnly_gating() {
+        PipelineBlueprint blueprint = standardBlueprintWithApproval();
+        CompilationResult result    = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph     = ((CompilationResult.SingleGraph) result).graph();
+
+        DesiredNode sink = graph.nodes().get(NodeId.of("warehouse-sink"));
+        assertThat(sink).isNotNull();
+        assertThat(sink.requiresHuman(StepAction.PROVISION)).isFalse();
+        assertThat(sink.requiresHuman(StepAction.DEPROVISION)).isTrue();
+    }
+
+    @Test
+    void bronzeSilver_noHumanGating() {
+        PipelineBlueprint blueprint = standardBlueprint();
+        CompilationResult result    = compiler.compile(blueprint, factory);
+        DesiredStateGraph graph     = ((CompilationResult.SingleGraph) result).graph();
+
+        for (DesiredNode node : graph.nodes().values()) {
+            assertThat(node.requiresHuman()).as("Node %s should not require human", node.id()).isFalse();
+        }
     }
 }

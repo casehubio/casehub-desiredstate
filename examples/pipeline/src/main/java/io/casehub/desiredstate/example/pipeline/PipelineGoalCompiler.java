@@ -1,6 +1,14 @@
 package io.casehub.desiredstate.example.pipeline;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.Dependency;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.GoalCompiler;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,21 +45,21 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
         for (PipelineBlueprint.SourceEntry src : goals.sources()) {
             NodeId id = NodeId.of(src.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.DATA_SOURCE,
-                new DataSourceSpec(src.id(), src.format(), src.uri()), false));
+                new DataSourceSpec(src.id(), src.format(), src.uri()), HumanGating.NONE));
             sourceIds.add(id);
         }
 
         for (PipelineBlueprint.SchemaEntry schema : goals.schemas()) {
             NodeId id = NodeId.of(schema.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.SCHEMA,
-                new SchemaSpec(schema.id(), schema.fields(), schema.version()), false));
+                new SchemaSpec(schema.id(), schema.fields(), schema.version()), HumanGating.NONE));
             schemaIds.add(id);
         }
 
         for (PipelineBlueprint.IngestionEntry ing : goals.ingestions()) {
             NodeId id = NodeId.of(ing.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.INGESTION,
-                new IngestionSpec(ing.sourceRef(), ing.batchSize(), ing.format()), false));
+                new IngestionSpec(ing.sourceRef(), ing.batchSize(), ing.format()), HumanGating.NONE));
             ingestionIds.add(id);
 
             // ingestion depends on its datasource
@@ -63,7 +71,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
         for (PipelineBlueprint.CleanserEntry cl : goals.cleansers()) {
             NodeId id = NodeId.of(cl.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.CLEANSER,
-                new CleanserSpec(cl.rules(), cl.deduplication(), cl.nullHandling()), false));
+                new CleanserSpec(cl.rules(), cl.deduplication(), cl.nullHandling()), HumanGating.NONE));
             cleanserIds.add(id);
 
             // cleanser depends on all ingestions
@@ -79,7 +87,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
         for (PipelineBlueprint.EnricherEntry en : goals.enrichers()) {
             NodeId id = NodeId.of(en.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.ENRICHER,
-                new EnricherSpec(en.lookupSource(), en.joinKeys(), en.enrichFields()), false));
+                new EnricherSpec(en.lookupSource(), en.joinKeys(), en.enrichFields()), HumanGating.NONE));
             enricherIds.add(id);
 
             // enricher depends on all cleansers
@@ -91,7 +99,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
         for (PipelineBlueprint.ValidatorEntry val : goals.validators()) {
             NodeId id = NodeId.of(val.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.VALIDATOR,
-                new ValidatorSpec(val.schemaRef(), val.qualityThreshold(), val.anomalyDetection()), false));
+                new ValidatorSpec(val.schemaRef(), val.qualityThreshold(), val.anomalyDetection()), HumanGating.NONE));
             validatorIds.add(id);
 
             // validator depends on all enrichers
@@ -109,7 +117,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
         for (PipelineBlueprint.TransformerEntry tx : goals.transformers()) {
             NodeId id = NodeId.of(tx.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.TRANSFORMER,
-                new TransformerSpec(tx.aggregations(), tx.reshapeRules(), tx.outputFormat(), tx.approvalRequired()), false));
+                new TransformerSpec(tx.aggregations(), tx.reshapeRules(), tx.outputFormat(), tx.approvalRequired()), HumanGating.NONE));
             transformerIds.add(id);
 
             // transformer depends on all validators
@@ -121,7 +129,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
         for (PipelineBlueprint.SinkEntry sink : goals.sinks()) {
             NodeId id = NodeId.of(sink.id());
             nodes.add(new DesiredNode(id, PipelineNodeTypes.SINK,
-                new SinkSpec(sink.destination(), sink.format(), sink.partitionKeys(), sink.approvalRequired()), false));
+                new SinkSpec(sink.destination(), sink.format(), sink.partitionKeys(), sink.approvalRequired()), HumanGating.NONE));
 
             // sink depends on all transformers
             for (NodeId txId : transformerIds) {

@@ -6,6 +6,7 @@ import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisioner;
@@ -31,6 +32,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SimpleTransitionExecutorTest {
@@ -50,10 +52,10 @@ class SimpleTransitionExecutorTest {
     @Test
     void executesRemovalsThenAdditionsInOrder() {
         DesiredNode nodeToRemove = new DesiredNode(
-            NodeId.of("old"), NodeType.of("test"), new TestSpec("old"), false
+            NodeId.of("old"), NodeType.of("test"), new TestSpec("old"), HumanGating.NONE
         );
         DesiredNode nodeToAdd = new DesiredNode(
-            NodeId.of("new"), NodeType.of("test"), new TestSpec("new"), false
+            NodeId.of("new"), NodeType.of("test"), new TestSpec("new"), HumanGating.NONE
         );
 
         DesiredStateGraph graph = factory.of(List.of(nodeToAdd), List.of());
@@ -84,10 +86,10 @@ class SimpleTransitionExecutorTest {
     @Test
     void skipsHumanNodesWithNoOpHandler() {
         DesiredNode humanNode = new DesiredNode(
-            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
         DesiredNode normalNode = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("normal"), false
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("normal"), HumanGating.NONE
         );
 
         DesiredStateGraph graph = factory.of(List.of(humanNode, normalNode), List.of());
@@ -121,7 +123,7 @@ class SimpleTransitionExecutorTest {
     @Test
     void provisionFailure_recordsFailedOutcome() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("failing"), NodeType.of("test"), new TestSpec("fail"), false
+            NodeId.of("failing"), NodeType.of("test"), new TestSpec("fail"), HumanGating.NONE
         );
 
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -149,7 +151,7 @@ class SimpleTransitionExecutorTest {
     @Test
     void deprovisionFailure_recordsFailedOutcome() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("failing"), NodeType.of("test"), new TestSpec("fail"), false
+            NodeId.of("failing"), NodeType.of("test"), new TestSpec("fail"), HumanGating.NONE
         );
 
         DesiredStateGraph graph = factory.empty();
@@ -184,10 +186,10 @@ class SimpleTransitionExecutorTest {
             new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler());
 
         DesiredNode humanNode = new DesiredNode(
-            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
         DesiredNode normalNode = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("normal"), false
+            NodeId.of("n1"), NodeType.of("test"), new TestSpec("normal"), HumanGating.NONE
         );
 
         DesiredStateGraph graph = factory.of(List.of(humanNode, normalNode), List.of());
@@ -232,7 +234,7 @@ class SimpleTransitionExecutorTest {
             new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler());
 
         DesiredNode humanNode = new DesiredNode(
-            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
 
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
@@ -287,7 +289,7 @@ class SimpleTransitionExecutorTest {
     @Test
     void pendingApproval_noHandler_returnsFailed() {
         DesiredNode node = new DesiredNode(
-            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         mockProvisioner.shouldReturnPendingApproval = true;
 
@@ -324,7 +326,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
         TransitionPlan plan = new TransitionPlan(
@@ -374,7 +376,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
         TransitionPlan plan = new TransitionPlan(
@@ -414,7 +416,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
         TransitionPlan plan = new TransitionPlan(
@@ -466,7 +468,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
         TransitionPlan plan = new TransitionPlan(
@@ -500,7 +502,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.empty();
         TransitionPlan plan = new TransitionPlan(
@@ -537,7 +539,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.empty();
         TransitionPlan plan = new TransitionPlan(
@@ -589,7 +591,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.empty();
         TransitionPlan plan = new TransitionPlan(
@@ -639,7 +641,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode node = new DesiredNode(
-            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
+            NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), HumanGating.NONE
         );
         DesiredStateGraph graph = factory.empty();
         TransitionPlan plan = new TransitionPlan(
@@ -673,7 +675,7 @@ class SimpleTransitionExecutorTest {
             router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode humanNode = new DesiredNode(
-            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+            NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
         TransitionPlan plan = new TransitionPlan(
@@ -710,7 +712,7 @@ class SimpleTransitionExecutorTest {
                 new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler());
 
         DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+                NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
 
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
@@ -759,7 +761,7 @@ class SimpleTransitionExecutorTest {
                 new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler());
 
         DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+                NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
 
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
@@ -799,7 +801,7 @@ class SimpleTransitionExecutorTest {
                 router, new NoOpHumanNodeHandler(), handler);
 
         DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
+                NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), HumanGating.ALL
         );
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
         TransitionPlan plan = new TransitionPlan(
@@ -817,6 +819,86 @@ class SimpleTransitionExecutorTest {
                                                                                  .contains("requires human"));
         assertTrue(mockProvisioner.callOrder.isEmpty(),
                    "Provisioner should NOT be called when requiresHuman overrides approval");
+    }
+
+    @Test
+    void provisionOnly_provision_delegatesToHandler_deprovision_toProvisioner() {
+        boolean[] handlerCalled = {false};
+        HumanNodeHandler handler = new HumanNodeHandler() {
+            @Override
+            public StepOutcome onProvision(DesiredNode node, ProvisionContext context) {
+                handlerCalled[0] = true;
+                return new StepOutcome.Skipped("human provision");
+            }
+        };
+
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
+                router, handler, new NoOpPendingApprovalHandler());
+
+        DesiredNode node = new DesiredNode(
+                NodeId.of("n1"), NodeType.of("test"), new TestSpec("val"), HumanGating.PROVISION_ONLY
+        );
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+
+        // Provision → should go to handler
+        TransitionPlan provisionPlan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
+        TransitionResult provisionResult = exec.execute(provisionPlan, "t1")
+                                               .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        assertTrue(handlerCalled[0], "Handler should be called for provision");
+        assertInstanceOf(StepOutcome.Skipped.class, provisionResult.outcomes().get(NodeId.of("n1")));
+
+        // Deprovision → should go to provisioner, NOT handler
+        mockProvisioner.callOrder.clear();
+        TransitionPlan deprovisionPlan = new TransitionPlan(
+                List.of(new OrderedStep(node, StepAction.DEPROVISION)), List.of(), graph, graph);
+        TransitionResult deprovisionResult = exec.execute(deprovisionPlan, "t1")
+                                                 .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        assertFalse(mockProvisioner.callOrder.isEmpty(), "Provisioner SHOULD be called for deprovision");
+        assertInstanceOf(StepOutcome.Succeeded.class, deprovisionResult.outcomes().get(NodeId.of("n1")));
+    }
+
+    @Test
+    void deprovisionOnly_provision_toProvisioner_deprovision_delegatesToHandler() {
+        boolean[] handlerDeprovisionCalled = {false};
+        HumanNodeHandler handler = new HumanNodeHandler() {
+            @Override
+            public StepOutcome onProvision(DesiredNode node, ProvisionContext context) {
+                return new StepOutcome.Failed("should not be called");
+            }
+
+            @Override
+            public StepOutcome onDeprovision(DesiredNode node, DeprovisionContext context) {
+                handlerDeprovisionCalled[0] = true;
+                return new StepOutcome.Skipped("human deprovision");
+            }
+        };
+
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
+                router, handler, new NoOpPendingApprovalHandler());
+
+        DesiredNode node = new DesiredNode(
+                NodeId.of("n1"), NodeType.of("test"), new TestSpec("val"), HumanGating.DEPROVISION_ONLY
+        );
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+
+        // Provision → should go to provisioner
+        TransitionPlan provisionPlan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
+        TransitionResult provisionResult = exec.execute(provisionPlan, "t1")
+                                               .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        assertFalse(mockProvisioner.callOrder.isEmpty(), "Provisioner SHOULD be called for provision");
+        assertInstanceOf(StepOutcome.Succeeded.class, provisionResult.outcomes().get(NodeId.of("n1")));
+
+        // Deprovision → should go to handler
+        TransitionPlan deprovisionPlan = new TransitionPlan(
+                List.of(new OrderedStep(node, StepAction.DEPROVISION)), List.of(), graph, graph);
+        TransitionResult deprovisionResult = exec.execute(deprovisionPlan, "t1")
+                                                 .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        assertTrue(handlerDeprovisionCalled[0], "Handler should be called for deprovision");
+        assertInstanceOf(StepOutcome.Skipped.class, deprovisionResult.outcomes().get(NodeId.of("n1")));
     }
 
 

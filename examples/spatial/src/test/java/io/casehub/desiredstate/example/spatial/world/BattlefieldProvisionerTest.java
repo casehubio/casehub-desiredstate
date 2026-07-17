@@ -34,7 +34,7 @@ class BattlefieldProvisionerTest {
     @Test
     void provisionCell_revealsInWorld() {
         var cellNode = new DesiredNode(NodeId.of("cell-5-5"), SpatialNodeTypes.CELL,
-            new CellSpec(5, 5, 0, TerrainType.OPEN), false);
+            new CellSpec(5, 5, 0, TerrainType.OPEN), HumanGating.NONE);
         var graph = factory.of(List.of(cellNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -49,9 +49,9 @@ class BattlefieldProvisionerTest {
         var cellId = NodeId.of("cell-3-3");
         var unitId = NodeId.of("unit-1");
         var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(3, 3, 0, TerrainType.OPEN), false);
+            new CellSpec(3, 3, 0, TerrainType.OPEN), HumanGating.NONE);
         var unitNode = new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-            new UnitSpec(cellId, 10), false);
+            new UnitSpec(cellId, 10), HumanGating.NONE);
         var graph = factory.of(List.of(cellNode, unitNode),
             List.of(new Dependency(unitId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -69,9 +69,9 @@ class BattlefieldProvisionerTest {
         var cellId = NodeId.of("cell-5-5");
         var scoutId = NodeId.of("scout-1");
         var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(5, 5, 0, TerrainType.OPEN), false);
+            new CellSpec(5, 5, 0, TerrainType.OPEN), HumanGating.NONE);
         var scoutNode = new DesiredNode(scoutId, SpatialNodeTypes.SCOUT,
-            new ScoutSpec(cellId, 2), false);
+            new ScoutSpec(cellId, 2), HumanGating.NONE);
         var graph = factory.of(List.of(cellNode, scoutNode),
             List.of(new Dependency(scoutId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -88,9 +88,9 @@ class BattlefieldProvisionerTest {
         var zoneId = NodeId.of("zone-north");
         var allocation = Map.of(cellId, 1.0);
         var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(5, 5, 0, TerrainType.OPEN), false);
+            new CellSpec(5, 5, 0, TerrainType.OPEN), HumanGating.NONE);
         var zoneNode = new DesiredNode(zoneId, SpatialNodeTypes.ZONE,
-            new ZoneSpec("north", allocation, 100), false);
+            new ZoneSpec("north", allocation, 100), HumanGating.NONE);
         var graph = factory.of(List.of(cellNode, zoneNode),
             List.of(new Dependency(zoneId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -106,9 +106,9 @@ class BattlefieldProvisionerTest {
         var cellId = NodeId.of("cell-3-3");
         var unitId = NodeId.of("unit-1");
         var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(3, 3, 0, TerrainType.OPEN), false);
+            new CellSpec(3, 3, 0, TerrainType.OPEN), HumanGating.NONE);
         var unitNode = new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-            new UnitSpec(cellId, 10), false);
+            new UnitSpec(cellId, 10), HumanGating.NONE);
         var graph = factory.of(List.of(cellNode, unitNode),
             List.of(new Dependency(unitId, cellId)));
         var ctx = new ProvisionContext("test", graph);

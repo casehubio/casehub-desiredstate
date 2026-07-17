@@ -2,6 +2,7 @@ package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultPolicy;
@@ -38,7 +39,7 @@ public class SchemaDriftFaultPolicy implements FaultPolicy {
         }
 
         DesiredNode humanNode = new DesiredNode(humanReviewId, PipelineNodeTypes.HUMAN_REVIEW,
-                                                new HumanReviewSpec(event.node(), event.detail(), "Schema drift requires approval"), true);
+                                                new HumanReviewSpec(event.node(), event.detail(), "Schema drift requires approval"), HumanGating.ALL);
         return List.of(new GraphMutation.AddNode(humanNode));
     }
 }

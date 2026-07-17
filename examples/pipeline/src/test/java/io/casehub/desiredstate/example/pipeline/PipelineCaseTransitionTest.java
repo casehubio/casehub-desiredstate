@@ -96,11 +96,11 @@ class PipelineCaseTransitionTest {
         DesiredNode oldNode = new DesiredNode(
             NodeId.of("old-stage"), PipelineNodeTypes.TRANSFORMER,
             new TransformerSpec(List.of("old-agg"), List.of("old-rule"), "parquet"),
-            false);
+            HumanGating.NONE);
         DesiredNode newNode = new DesiredNode(
             NodeId.of("new-stage"), PipelineNodeTypes.TRANSFORMER,
             new TransformerSpec(List.of("new-agg"), List.of("new-rule"), "parquet"),
-            false);
+            HumanGating.NONE);
 
         DesiredStateGraph graph = factory.of(List.of(newNode), List.of());
 
@@ -125,7 +125,7 @@ class PipelineCaseTransitionTest {
         DesiredNode humanNode = new DesiredNode(
             NodeId.of("human-review"), PipelineNodeTypes.HUMAN_REVIEW,
             new HumanReviewSpec(NodeId.of("failing-stage"), "schema mismatch", "auto-fix exhausted"),
-            true);
+            HumanGating.ALL);
 
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 
@@ -141,7 +141,7 @@ class PipelineCaseTransitionTest {
         assertThat(result.outcomes().get(NodeId.of("human-review")))
             .isInstanceOf(StepOutcome.Skipped.class);
         assertThat(((StepOutcome.Skipped) result.outcomes().get(NodeId.of("human-review"))).reason())
-            .contains("WorkItem");
+            .contains("human task binding");
     }
 
     @Test

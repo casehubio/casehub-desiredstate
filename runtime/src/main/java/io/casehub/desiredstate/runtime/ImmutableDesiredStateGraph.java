@@ -204,13 +204,11 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             case GraphMutation.AddNode m -> withNode(m.node());
             case GraphMutation.RemoveNode m -> withoutNode(m.id());
             case GraphMutation.UpdateNode m -> {
-                DesiredNode existing = nodes.get(m.id());
-                if (existing == null) {
+                if (!nodes.containsKey(m.id())) {
                     throw new IllegalArgumentException(
                             "Cannot update node " + m.id().value() + ": not in graph");
                 }
-                DesiredNode updated = new DesiredNode(existing.id(), existing.type(), m.newSpec(), existing.requiresHuman());
-                yield withNode(updated);
+                yield withNode(m.adaptedNode());
             }
             case GraphMutation.AddDependency m -> withDependency(m.dependency());
             case GraphMutation.RemoveDependency m -> withoutDependency(m.dependency());

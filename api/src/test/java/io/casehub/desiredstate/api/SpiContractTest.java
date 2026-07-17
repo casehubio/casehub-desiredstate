@@ -60,7 +60,7 @@ class SpiContractTest {
             @Override public ProvisionResult provision(DesiredNode node, ProvisionContext ctx) { return new ProvisionResult.Success(); }
             @Override public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext ctx) { return new DeprovisionResult.Success(); }
         };
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
+        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), HumanGating.NONE);
         assertThat(provisioner.provision(node, null)).isInstanceOf(ProvisionResult.Success.class);
     }
 
@@ -111,7 +111,7 @@ class SpiContractTest {
     @Test void conflictingMutationException_carriesBothMutations() {
         var id = new NodeId("lib");
         GraphMutation a = new GraphMutation.RemoveNode(id);
-        GraphMutation b = new GraphMutation.UpdateNode(id, new TestSpec("new"));
+        GraphMutation b = new GraphMutation.UpdateNode(id, new DesiredNode(id, new NodeType("t"), new TestSpec("new"), HumanGating.NONE));
         var ex = new ConflictingMutationException(id, a, b);
         assertThat(ex.getNodeId()).isEqualTo(id);
         assertThat(ex.getMutationA()).isEqualTo(a);

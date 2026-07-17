@@ -57,8 +57,8 @@ class CompilationResultTest {
     @Test
     void allPresent_allNodesPresent_returnsTrue() {
         var graph = new TestGraph(Map.of(
-            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false),
-            NodeId.of("b"), new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), false)
+            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE),
+            NodeId.of("b"), new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), HumanGating.NONE)
         ));
         var actual = new ActualState(Map.of(
             NodeId.of("a"), NodeStatus.PRESENT,
@@ -70,7 +70,7 @@ class CompilationResultTest {
     @Test
     void allPresent_someAbsent_returnsFalse() {
         var graph = new TestGraph(Map.of(
-            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false)
+            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE)
         ));
         var actual = new ActualState(Map.of(NodeId.of("a"), NodeStatus.ABSENT));
         assertThat(CompletionCondition.allPresent().isComplete(graph, actual)).isFalse();
@@ -79,7 +79,7 @@ class CompilationResultTest {
     @Test
     void allPresent_unknownStatus_returnsFalse() {
         var graph = new TestGraph(Map.of(
-            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false)
+            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE)
         ));
         var actual = new ActualState(Map.of());
         assertThat(CompletionCondition.allPresent().isComplete(graph, actual)).isFalse();

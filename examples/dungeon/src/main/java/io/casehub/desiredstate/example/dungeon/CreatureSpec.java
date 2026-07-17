@@ -1,18 +1,16 @@
 package io.casehub.desiredstate.example.dungeon;
 
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeSpec;
 
-/**
- * Specification for a creature: species and level.
- */
-public record CreatureSpec(String species, int level, boolean requiresHuman) implements NodeSpec {
+public record CreatureSpec(String species, int level, HumanGating humanGating) implements NodeSpec {
 
     public CreatureSpec(String species, int level) {
-        this(species, level, false);
+        this(species, level, HumanGating.NONE);
     }
 
     @Override
-    public boolean requiresHuman() {
-        return requiresHuman;
+    public HumanGating humanGating() {
+        return humanGating;
     }
 }

@@ -2,6 +2,8 @@ package io.casehub.desiredstate.engine;
 
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
@@ -26,4 +28,19 @@ public class DesiredStateExecutionRegistry {
     public void remove(String executionId) {
         contexts.remove(executionId);
     }
+
+    private final ConcurrentHashMap<String, UUID> activeCases = new ConcurrentHashMap<>();
+
+    public Optional<UUID> getActiveCaseId(String tenancyId) {
+        return Optional.ofNullable(activeCases.get(tenancyId));
+    }
+
+    public void setActiveCaseId(String tenancyId, UUID caseId) {
+        activeCases.put(tenancyId, caseId);
+    }
+
+    public void clearActiveCaseId(String tenancyId) {
+        activeCases.remove(tenancyId);
+    }
+
 }

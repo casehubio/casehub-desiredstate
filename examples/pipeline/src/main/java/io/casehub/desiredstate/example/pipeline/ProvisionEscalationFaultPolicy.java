@@ -2,6 +2,7 @@ package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultPolicy;
@@ -63,7 +64,7 @@ public class ProvisionEscalationFaultPolicy implements FaultPolicy {
 
         if (!current.nodes().containsKey(aiReviewId)) {
             DesiredNode reviewNode = new DesiredNode(aiReviewId, PipelineNodeTypes.AI_REVIEW,
-                                                     new AiReviewSpec(event.node(), event.detail()), false);
+                                                     new AiReviewSpec(event.node(), event.detail()), HumanGating.NONE);
             return List.of(new GraphMutation.AddNode(reviewNode));
         }
 
@@ -76,7 +77,7 @@ public class ProvisionEscalationFaultPolicy implements FaultPolicy {
         }
 
         DesiredNode humanNode = new DesiredNode(humanReviewId, PipelineNodeTypes.HUMAN_REVIEW,
-                                                new HumanReviewSpec(event.node(), event.detail(), "AI review could not resolve"), true);
+                                                new HumanReviewSpec(event.node(), event.detail(), "AI review could not resolve"), HumanGating.ALL);
         return List.of(new GraphMutation.AddNode(humanNode));
     }
 }

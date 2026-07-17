@@ -1,6 +1,17 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.CbrEventTypes;
+import io.casehub.desiredstate.api.CbrPath;
+import io.casehub.desiredstate.api.CbrProposal;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.TransitionResult;
 import io.cloudevents.CloudEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,7 +19,9 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,7 +68,7 @@ class ReconciliationLoopCbrOutcomeTest {
     @Test
     void noCbrProposals_noOutcomeEvents() throws Exception {
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
 
         loop.start("t1", graph);
@@ -70,7 +83,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void pendingProposal_matchedOnEmptyPlan_alreadyPresent() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(nodeId, NodeStatus.PRESENT));
 
         cbrTracker.recordProposal("t1", new CbrProposal(
@@ -91,7 +104,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void pendingProposal_matchedAfterExecution_succeeded() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of());
 
         cbrTracker.recordProposal("t1", new CbrProposal(
@@ -113,7 +126,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void pendingProposal_matchedAfterExecution_failed() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of());
         testExecutor.failNodes.add(nodeId);
 
@@ -134,7 +147,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void proposalConsumedAfterMatch_noDoubleEmission() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(nodeId, NodeStatus.PRESENT));
 
         cbrTracker.recordProposal("t1", new CbrProposal(
@@ -161,7 +174,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void tenantStop_clearsPendingProposals() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(nodeId, NodeStatus.PRESENT));
 
         cbrTracker.recordProposal("t1", new CbrProposal(

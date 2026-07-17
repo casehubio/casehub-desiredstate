@@ -40,7 +40,7 @@ class ExpansionDomainTest {
     @Test
     void provisionProbe_worldShowsBuilt_adapterReturnsPresent() {
         var probeNode = new DesiredNode(NodeId.of("probe-1"), ExpansionNodeTypes.PROBE,
-            new ProbeSpec("loc-1"), false);
+            new ProbeSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(probeNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -56,7 +56,7 @@ class ExpansionDomainTest {
     @Test
     void provisionNexus_worldShowsBuilt() {
         var nexusNode = new DesiredNode(NodeId.of("nexus-1"), ExpansionNodeTypes.NEXUS,
-            new NexusSpec("loc-1"), false);
+            new NexusSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(nexusNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -68,7 +68,7 @@ class ExpansionDomainTest {
     @Test
     void provisionPylon_worldShowsBuilt() {
         var pylonNode = new DesiredNode(NodeId.of("pylon-1"), ExpansionNodeTypes.PYLON,
-            new PylonSpec("loc-1"), false);
+            new PylonSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(pylonNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -80,7 +80,7 @@ class ExpansionDomainTest {
     @Test
     void provisionCannon_worldShowsBuilt() {
         var cannonNode = new DesiredNode(NodeId.of("cannon-1"), ExpansionNodeTypes.CANNON,
-            new CannonSpec("loc-1"), false);
+            new CannonSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(cannonNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -92,7 +92,7 @@ class ExpansionDomainTest {
     @Test
     void provisionPatrol_worldShowsPatrolling() {
         var patrolNode = new DesiredNode(NodeId.of("patrol-1"), ExpansionNodeTypes.PATROL,
-            new PatrolSpec("loc-1"), false);
+            new PatrolSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(patrolNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -107,7 +107,7 @@ class ExpansionDomainTest {
     @Test
     void provisionMonitor_worldShowsMonitoring() {
         var monitorNode = new DesiredNode(NodeId.of("monitor-1"), ExpansionNodeTypes.MONITOR,
-            new MonitorSpec("loc-1"), false);
+            new MonitorSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(monitorNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -122,7 +122,7 @@ class ExpansionDomainTest {
     @Test
     void provisionResponse_worldShowsResponding() {
         var responseNode = new DesiredNode(NodeId.of("response-1"), ExpansionNodeTypes.RESPONSE,
-            new ResponseSpec("loc-1", DefensePosture.FORTIFY), false);
+            new ResponseSpec("loc-1", DefensePosture.FORTIFY), HumanGating.NONE);
         var graph = factory.of(List.of(responseNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -137,7 +137,7 @@ class ExpansionDomainTest {
     @Test
     void deprovisionNexus_worldShowsDestroyed_adapterReturnsAbsent() {
         var nexusNode = new DesiredNode(NodeId.of("nexus-1"), ExpansionNodeTypes.NEXUS,
-            new NexusSpec("loc-1"), false);
+            new NexusSpec("loc-1"), HumanGating.NONE);
         var graph = factory.of(List.of(nexusNode), List.of());
         var ctx = new ProvisionContext("test", graph);
         var dctx = new DeprovisionContext("test", graph);

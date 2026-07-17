@@ -1,6 +1,13 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.testing.MockNodeProvisioner;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,8 +20,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReconciliationLoopSchedulingTest {
 
@@ -62,8 +69,8 @@ class ReconciliationLoopSchedulingTest {
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), false),
-                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), false)
+                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), HumanGating.NONE)
             ),
             List.of()
         );
@@ -117,8 +124,8 @@ class ReconciliationLoopSchedulingTest {
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), false),
-                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), false)
+                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), HumanGating.NONE)
             ),
             List.of()
         );
@@ -175,7 +182,7 @@ class ReconciliationLoopSchedulingTest {
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
         var factory = new DefaultDesiredStateGraphFactory();
         var initialGraph = factory.of(
-            List.of(new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), false)),
+            List.of(new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE)),
             List.of()
         );
 
@@ -193,8 +200,8 @@ class ReconciliationLoopSchedulingTest {
 
         var updatedGraph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), false),
-                new DesiredNode(NodeId.of("n1"), newType, new TestSpec("n"), false)
+                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("n1"), newType, new TestSpec("n"), HumanGating.NONE)
             ),
             List.of()
         );
