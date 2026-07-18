@@ -13,8 +13,8 @@
     <artifactId>casehub-desiredstate-work</artifactId>
 
     <name>CaseHub Desired State :: Work Adapter</name>
-    <description>WorkItem-backed HumanNodeHandler — creates WorkItems for requiresHuman
-        nodes via the WorkItemCreator SPI. Displaces NoOpHumanNodeHandler by classpath
+    <description>WorkItem-backed PendingApprovalHandler — creates approval WorkItems via
+        the WorkItemCreator SPI. Displaces NoOpPendingApprovalHandler by classpath
         presence when casehub-work is deployed.</description>
 
     <dependencies>

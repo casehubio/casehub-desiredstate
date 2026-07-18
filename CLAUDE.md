@@ -38,7 +38,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, ImmutableDesiredStateGraph, SimpleTransitionExecutor, DefaultNodeProvisionerRouter, CdiNodeProvisionerRouter, DesiredStatePreferenceKeys, SituationRecompilerEngine, CbrFaultPolicy, CbrSituationRecompiler, GraphDiff. Multi-provisioner dispatch, per-type reconciliation scheduling, and CBR chain. Quarkus library. |
 | `testing/` | `casehub-desiredstate-testing` | `io.casehub.desiredstate.testing` | Mock SPIs and test fixtures. **Test scope only.** |
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | CaseTransitionExecutor — orchestration-tier bridge. Generates cases with Worker(Workflow) phases. DesiredStateDispatch registers `desiredstate:dispatch` via CallableDispatchRegistry (engine-flow) for workflow step execution with full PendingApproval lifecycle. DesiredStateReplanDispatch registers `desiredstate:replan` for RAS-triggered situation response via SituationRecompilerEngine (reads ActualState via ActualStateAdapterRouter). CTE pre-filters approval-gated nodes before case creation. |
-| `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | Future home of WorkItemPendingApprovalHandler (issue #81). WorkItemHumanNodeHandler removed (#72) — human nodes require case-backed orchestration via engine-adapter. |
+| `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | WorkItemPendingApprovalHandler — WorkItem-backed approval lifecycle via WorkItemCreator SPI. Classpath-activated, displaces NoOpPendingApprovalHandler. |
 | `examples/dungeon/` | `casehub-desiredstate-example-dungeon` | `io.casehub.desiredstate.example.dungeon` | Nefarious Dungeons — teaching example implementing all SPIs with 2D tile visualizer. |
 | `examples/pipeline/` | `casehub-desiredstate-example-pipeline` | `io.casehub.desiredstate.example.pipeline` | Data Pipeline — teaching example with medallion architecture (Bronze/Silver/Gold), schema validation, three-tier fault escalation (retry → AI → human), pluggable `ExecutionBackend` strategy per processing stage. PendingApproval gates on Gold-tier nodes. |
 | `examples/spatial/` | `casehub-desiredstate-example-spatial` | `io.casehub.desiredstate.example.spatial` | Spatial/vector POC — 10x10 terrain grid, fog of war, three scenarios evaluating graph model with spatial state. Defense posture, attack waypoints, force distribution. |
@@ -155,8 +155,8 @@ is not a valid deployment option.
 
 **Approval-gated nodes:** `NodeProvisioner.provision()` may return `PendingApproval(nodeId, planReference)` →
 `SimpleTransitionExecutor` delegates to `PendingApprovalHandler` SPI. `NoOpPendingApprovalHandler` (`@DefaultBean`)
-returns Failed (misconfiguration signal). `WorkItemPendingApprovalHandler` (work-adapter, classpath-activated,
-BLOCKED on work#281/282) creates a WorkItem and polls each cycle; on approval, re-calls the provisioner with
+returns Failed (misconfiguration signal). `WorkItemPendingApprovalHandler` (work-adapter, classpath-activated)
+creates a WorkItem and polls each cycle; on approval, re-calls the provisioner with
 `PlanApproval` in `ProvisionContext`. On rejection, fires `FaultType.APPROVAL_REJECTED` via `StepOutcome.Rejected`.
 Same pattern applies to deprovision via `DeprovisionContext`.
 

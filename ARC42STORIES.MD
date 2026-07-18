@@ -498,7 +498,7 @@ This extends the HITL model established in C5 with a second, complementary patte
 - ✅ No rejection fault type — `FaultType.APPROVAL_REJECTED` + `StepOutcome.Rejected`
 - ✅ SimpleTransitionExecutor had no approval awareness — full check/provision/record/acknowledge lifecycle integrated
 - ✅ CaseTransitionExecutor PendingApproval integration (#47) — CTE pre-filters approval-gated nodes, DesiredStateDispatch handles full lifecycle within workflow steps
-- 🔲 WorkItem-backed approval handler (work-adapter) — blocked on work#281/282
+- ✅ WorkItem-backed approval handler (work-adapter)
 
 **Layer Impact**
 
@@ -508,7 +508,7 @@ This extends the HITL model established in C5 with a second, complementary patte
 | L2 Runtime Engine | Medium — NoOpPendingApprovalHandler @DefaultBean, SimpleTransitionExecutor approval lifecycle |
 | L3 Engine Adapter | Medium — ✅ CTE pre-filtering, DesiredStateDispatch with approval lifecycle (#47) |
 | L5 Testing | Low — MockPendingApprovalHandler |
-| L7 Work Adapter | Medium — 🔲 WorkItemPendingApprovalHandler (blocked on work#281/282) |
+| L7 Work Adapter | Medium — ✅ WorkItemPendingApprovalHandler |
 
 ---
 
@@ -968,7 +968,7 @@ Blueprint builder → GoalCompiler → immutable graph with inferred dependencie
 **Design refs:** `docs/superpowers/specs/2026-06-28-pending-approval-handler-design.md`
 **Issues:** #14
 **Navigation:** `git log --grep="#14" --oneline -- work-adapter/`
-**Completed:** 🔲 (blocked on casehubio/work#281, casehubio/work#282)
+**Completed:** ✅
 
 #### What it adds
 
@@ -976,15 +976,13 @@ Blueprint builder → GoalCompiler → immutable graph with inferred dependencie
 **After:** WorkItem-backed implementations that create and track WorkItems for approval-gated and human-flagged nodes.
 
 What this layer adds:
-- 🔲 **WorkItemPendingApprovalHandler** — creates a WorkItem via `WorkItemCreator` SPI when provisioner returns PendingApproval; polls `findByCallerRef()` each cycle; maps COMPLETED→Approved, REJECTED→Rejected (with `obsoleteByCallerRef` cleanup — GE-20260629-45f4be); displaces `NoOpPendingApprovalHandler` by classpath presence
+- ✅ **WorkItemPendingApprovalHandler** — creates a WorkItem via `WorkItemCreator` SPI when provisioner returns PendingApproval; polls `findByCallerRef()` each cycle; maps COMPLETED→Approved, REJECTED→Rejected (with `obsoleteByCallerRef` cleanup); displaces `NoOpPendingApprovalHandler` by classpath presence
 - **WorkItemHumanNodeHandler** — creates WorkItems for `requiresHuman` nodes (both provision and deprovision); callerRef format: `desiredstate:<tenancyId>:<nodeId>:<action>`; displaces `NoOpHumanNodeHandler` by classpath presence
 
-Not closed here: blocked on casehubio/work#281 (`WorkItemRef.payload` field for data round-trip) and casehubio/work#282 (`WorkItemCreator.obsoleteByCallerRef` for rejection consumption).
 
 #### Key files
 
-- `work-adapter/src/.../WorkItemHumanNodeHandler.java` — existing, creates WorkItems for requiresHuman nodes (provision and deprovision)
-- 🔲 `work-adapter/src/.../WorkItemPendingApprovalHandler.java` — pending implementation
+- ✅ `work-adapter/src/.../WorkItemPendingApprovalHandler.java` — WorkItem-backed approval lifecycle
 
 #### Key wiring
 
