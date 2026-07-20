@@ -481,8 +481,8 @@ Worker primitives extracted from casehub-engine-api to a new foundation-tier `ca
 
 ### Chapter 8 — Approval-Gated Provisioning
 
-**Journey:** Generic DSR | **Sequence:** 8 of 8 | **Status:** 🚧
-**Delivered:** 🔲 | **Issues:** #14, #47, #48 | **Blog:** —
+**Journey:** Generic DSR | **Sequence:** 8 of 8 | **Status:** ✅
+**Delivered:** ✅ | **Issues:** #14, #47, #48 | **Blog:** —
 
 **What this delivers**
 Provisioner-initiated approval gates for automated nodes. Unlike `requiresHuman` (C5), which statically marks nodes for human provisioning, PendingApproval is a runtime response: a provisioner decides during execution that human approval is needed before proceeding. The handler creates an approval WorkItem, tracks its lifecycle across reconciliation cycles, and re-calls the provisioner with `PlanApproval` context on approval. Rejection fires `APPROVAL_REJECTED` through the fault pipeline.
@@ -998,8 +998,8 @@ What this layer adds:
 
 ### Chapter 9 — Lifecycle Management
 
-**Journey:** Generic DSR | **Sequence:** 9 of 9 | **Status:** 🚧
-**Delivered:** 🔲 | **Issues:** #46, #58, #56 | **Blog:** —
+**Journey:** Generic DSR | **Sequence:** 9 of 9 | **Status:** ✅
+**Delivered:** ✅ | **Issues:** #46, #58, #56 | **Blog:** —
 
 **What this delivers**
 Multi-phase desired-state transitions without re-invoking `GoalCompiler`. Domains can declare a sequence of phases — each with a graph and completion condition. `LifecycleManager` orchestrates phase-to-phase transitions via CAS-based graph updates after each phase completes. Fault-triggered replanning via `SituationRecompiler` can return a new `CompilationResult.Lifecycle` — lifecycle state resets to the new sequence.
