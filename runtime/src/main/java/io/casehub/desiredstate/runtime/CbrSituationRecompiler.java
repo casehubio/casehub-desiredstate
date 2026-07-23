@@ -3,16 +3,16 @@ package io.casehub.desiredstate.runtime;
 import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.AdaptedConfiguration;
 import io.casehub.desiredstate.api.CbrConfiguration;
+import io.casehub.desiredstate.api.CbrPath;
+import io.casehub.desiredstate.api.CbrProposal;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.RetrievalContext;
 import io.casehub.desiredstate.api.RetrievedConfiguration;
-import io.casehub.desiredstate.api.CbrPath;
-import io.casehub.desiredstate.api.CbrProposal;
-import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.platform.api.preferences.PreferenceProvider;
 import io.casehub.platform.api.preferences.Preferences;
@@ -26,9 +26,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class CbrSituationRecompiler implements SituationRecompiler {
@@ -60,7 +60,7 @@ public class CbrSituationRecompiler implements SituationRecompiler {
             String tenancyId,
             DesiredStateGraph current, ActualState actual,
             ActiveSituation situation, DesiredStateGraphFactory factory) {
-        CbrConfiguration config = resolveConfiguration();
+        CbrConfiguration config = resolveConfiguration(tenancyId);
 
         RetrievalContext context = RetrievalContext.forSituation(current, actual, situation);
 
@@ -106,11 +106,11 @@ public class CbrSituationRecompiler implements SituationRecompiler {
         return Optional.of(CompilationResult.single(selected.graph()));
     }
 
-    private CbrConfiguration resolveConfiguration() {
-        Preferences prefs = preferenceProvider.resolve(SettingsScope.root());
-        double minRetrieval = prefs.getOrDefault(DesiredStatePreferenceKeys.CBR_MIN_RETRIEVAL_CONFIDENCE).value();
-        double minAdaptation = prefs.getOrDefault(DesiredStatePreferenceKeys.CBR_MIN_ADAPTATION_CONFIDENCE).value();
-        int maxCandidates = prefs.getOrDefault(DesiredStatePreferenceKeys.CBR_MAX_CANDIDATES).value();
+    private CbrConfiguration resolveConfiguration(String tenancyId) {
+        Preferences prefs         = preferenceProvider.resolve(SettingsScope.root(tenancyId));
+        double      minRetrieval  = prefs.getOrDefault(DesiredStatePreferenceKeys.CBR_MIN_RETRIEVAL_CONFIDENCE).value();
+        double      minAdaptation = prefs.getOrDefault(DesiredStatePreferenceKeys.CBR_MIN_ADAPTATION_CONFIDENCE).value();
+        int         maxCandidates = prefs.getOrDefault(DesiredStatePreferenceKeys.CBR_MAX_CANDIDATES).value();
         return new CbrConfiguration(minRetrieval, minAdaptation, maxCandidates);
     }
 }

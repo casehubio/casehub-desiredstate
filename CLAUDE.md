@@ -62,7 +62,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeProvisionerRouter` | `provision(DesiredNode, ProvisionContext) → ProvisionResult` | Route provision calls to the correct provisioner by NodeType |
 | `NodeProvisionerRouter` | `deprovision(DesiredNode, DeprovisionContext) → DeprovisionResult` | Route deprovision calls to the correct provisioner by NodeType |
 | `NodeProvisionerRouter` | `resyncIntervalFor(NodeType) → Duration` | Get effective resync interval for a type (provisioner default or Preferences override) |
-| `FaultPolicy` | `onFault(String tenancyId, FaultEvent, DesiredStateGraph, ActualState) → List<GraphMutation>` | Mutate graph in response to fault (with actual state visibility) |
+| `FaultPolicy` | `onFault(String tenancyId, FaultEvent, DesiredStateGraph, ActualState) → List<GraphMutation>` | Mutate graph in response to fault (with actual state visibility). `addReviewNode(NodeType, ReviewSpecFactory)` static factory for common review-node escalation |
 | `EventSource` | `stream() → Multi<StateEvent>` | Stream actual-state events into reconciliation loop |
 | `TransitionExecutor` | `execute(TransitionPlan, String tenancyId) → Uni<TransitionResult>` | Execute a transition plan (SPI'd — simple or case-backed) |
 | `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle human-gated nodes during provision (called when `requiresHuman(PROVISION)`) |
@@ -92,6 +92,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `ActualState` | Map of `NodeId → NodeStatus` (PRESENT/ABSENT/DEGRADED/UNKNOWN) |
 | `ReconciliationResult` | `resolved`, `drifted`, `faulted` node sets + `mutations` |
 | `FaultEvent` | Node + `FaultType` + detail |
+| `ThresholdFaultPolicy` | Reusable `FaultPolicy` (api module) — counts faults per node, delegates to configured `FaultPolicy` at threshold. Builder: faultTypes, nodeTypes, ignoreTypes, threshold, action. In-memory `ConcurrentHashMap` counts (#85 tracks persistence) |
+| `ReviewSpecFactory` | `(FaultEvent, DesiredStateGraph) → NodeSpec` callback for `FaultPolicy.addReviewNode()` |
 | `GraphMutation` | Sealed interface — AddNode, RemoveNode, UpdateNode(id, adaptedNode), AddDependency, RemoveDependency. UpdateNode carries full adapted DesiredNode |
 | `ProvisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
 | `DeprovisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |

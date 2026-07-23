@@ -11,6 +11,7 @@ import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.platform.api.preferences.DurationPreference;
 import io.casehub.platform.api.preferences.PreferenceProvider;
 import io.casehub.platform.api.preferences.Preferences;
+import io.casehub.platform.api.identity.TenancyConstants;
 import io.casehub.platform.api.preferences.SettingsScope;
 
 import java.time.Duration;
@@ -86,7 +87,7 @@ public class DefaultNodeProvisionerRouter implements NodeProvisionerRouter {
     @Override
     public Duration resyncIntervalFor(NodeType type) {
         if (preferenceProvider != null) {
-            Preferences prefs = preferenceProvider.resolve(SettingsScope.root());
+            Preferences prefs = preferenceProvider.resolve(SettingsScope.root(TenancyConstants.PLATFORM_TENANT_ID));
             DurationPreference override = prefs.get(
                 DesiredStatePreferenceKeys.RESYNC_INTERVAL, type.value());
             if (override != null) {
