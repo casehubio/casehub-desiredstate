@@ -29,7 +29,7 @@ class PersistentDriftGanglionTest {
         SituationContext ctx = SituationContext.initial(
             "test-situation", "unit-1", "tenant-1", Instant.now());
 
-        DetectionResult result = ganglion.detect(event, ctx).await().indefinitely();
+        DetectionResult result = ganglion.detect(event, ctx);
 
         assertThat(result.signal()).isEqualTo(DetectionSignal.DETECTED);
         assertThat(result.confidence()).isEqualTo(1.0);
@@ -41,7 +41,7 @@ class PersistentDriftGanglionTest {
         SituationContext ctx = SituationContext.initial(
             "test-situation", "unit-1", "tenant-1", Instant.now());
 
-        DetectionResult result = ganglion.detect(event, ctx).await().indefinitely();
+        DetectionResult result = ganglion.detect(event, ctx);
 
         assertThat(result.signal()).isEqualTo(DetectionSignal.ANTI);
     }
@@ -52,7 +52,7 @@ class PersistentDriftGanglionTest {
         SituationContext ctx = SituationContext.initial(
             "test-situation", "unit-1", "tenant-1", Instant.now());
 
-        DetectionResult result = ganglion.detect(event, ctx).await().indefinitely();
+        DetectionResult result = ganglion.detect(event, ctx);
 
         assertThat(result.signal()).isEqualTo(DetectionSignal.NOISE);
     }
