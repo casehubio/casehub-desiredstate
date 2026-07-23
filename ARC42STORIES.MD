@@ -460,14 +460,14 @@ The pipeline provisioner's 180-line if-chain is refactored to a hybrid dispatch 
 ### Chapter 7 — Worker Foundation
 
 **Journey:** Generic DSR | **Sequence:** 7 of 7 | **Status:** 🚧
-**Delivered:** 🔲 | **Issues:** #27, #40, #41 | **Blog:** `2026-06-19-mdp01-worker-breaks-free`
+**Delivered:** ✅ (#40, #41 closed) | **Issues:** #27 | **Blog:** `2026-06-19-mdp01-worker-breaks-free`
 
 **What this delivers**
 Worker primitives extracted from casehub-engine-api to a new foundation-tier `casehub-worker` repo. casehub-desiredstate depends on `casehub-worker-api` directly, enabling managed pipeline mode (#27) without crossing tier boundaries. Execution governance types (`ExecutionPolicy`, `RetryPolicy`, `BackoffStrategy`) centralised in `casehub-platform-api`.
 
 **Accountability gaps closed**
-- 🔲 Worker types locked in orchestration tier → foundation-tier Worker enables direct use
-- 🔲 Scattered execution governance → centralised in casehub-platform
+- ✅ Worker types locked in orchestration tier → foundation-tier Worker enables direct use (#40)
+- ✅ Scattered execution governance → centralised in casehub-platform (#41)
 
 **Layer Impact**
 
@@ -870,7 +870,7 @@ Not closed here: no test fixtures for engine-adapter (CaseTransitionExecutor tes
 **Issues:** #1, #2, #28, #29, #31, #56
 **Navigation:** `git log --grep="#1\|#2\|#28\|#29\|#56" --oneline -- examples/`
 **Blog:** `2026-06-16-mdp01-the-pipeline-that-broke-the-runtime`, `2026-06-18-mdp01-the-toolbox-that-wasnt`
-**Completed:** 2026-06-14 (dungeon); 2026-06-18 (pipeline with ExecutionBackend); 🔲 (expansion)
+**Completed:** 2026-06-14 (dungeon); 2026-06-18 (pipeline with ExecutionBackend); 2026-07-07 (expansion)
 
 #### What it adds
 
@@ -908,12 +908,12 @@ Not closed here: managed pipeline mode (#27 — in progress via C7), Camel/Drool
 
 #### Key files — Expansion
 
-- 🔲 `examples/expansion/src/.../ExpansionGoalCompiler.java` — GoalCompiler: returns CompilationResult.Lifecycle with construct + defend phases
-- 🔲 `examples/expansion/src/.../ExpansionWorld.java` — in-memory simulation: territory grid, faction resources, threat detection
-- 🔲 `examples/expansion/src/.../ExpansionProvisioner.java` — provisions territory nodes, defense nodes, resource nodes
-- 🔲 `examples/expansion/src/.../ConstructPhaseStrategy.java` — HTN planner for construct phase: foundations → outposts → resource collectors
-- 🔲 `examples/expansion/src/.../DefensePhaseStrategy.java` — HTN planner for defense phase: turrets → shields → reinforcements
-- 🔲 `examples/expansion/src/.../ThreatResponseSituationRecompiler.java` — SituationRecompiler: triggers replan on aggregate threat detection, returns new CompilationResult.Lifecycle
+- ✅ `examples/expansion/src/.../ExpansionGoalCompiler.java` — GoalCompiler: returns CompilationResult.Lifecycle with construct + defend phases
+- ✅ `examples/expansion/src/.../ExpansionWorld.java` — in-memory simulation: territory grid, faction resources, threat detection
+- ✅ `examples/expansion/src/.../ExpansionProvisioner.java` — provisions territory nodes, defense nodes, resource nodes
+- ✅ `examples/expansion/src/.../ConstructPhaseStrategy.java` — HTN planner for construct phase: foundations → outposts → resource collectors
+- ✅ `examples/expansion/src/.../DefensePhaseStrategy.java` — HTN planner for defense phase: turrets → shields → reinforcements
+- ✅ `examples/expansion/src/.../ThreatResponseSituationRecompiler.java` — SituationRecompiler: triggers replan on aggregate threat detection, returns new CompilationResult.Lifecycle
 
 #### Key wiring
 
@@ -1009,7 +1009,7 @@ Multi-phase desired-state transitions without re-invoking `GoalCompiler`. Domain
 - ✅ No phase completion detection — `CompletionCondition` SPI with `allPresent()` and `never()` built-ins
 - ✅ No lifecycle orchestration — `LifecycleManager @ApplicationScoped` with CAS-based phase advancement
 - ✅ ReconciliationLoop had no completion callback hook — `ReconciliationListener` SPI
-- 🔲 No teaching example validating lifecycle — expansion example with HTN planner, build→defend phases
+- ✅ Teaching example validating lifecycle — expansion example with HTN planner, build→defend phases (#56)
 
 **Layer Impact**
 
