@@ -19,7 +19,6 @@ import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
 import io.cloudevents.CloudEvent;
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.subscription.MultiEmitter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -291,29 +290,27 @@ class ReconciliationLoopCloudEventTest {
         final Set<NodeId> rejectNodes = ConcurrentHashMap.newKeySet();
 
         @Override
-        public Uni<TransitionResult> execute(TransitionPlan plan, String tenancyId) {
-            return Uni.createFrom().item(() -> {
-                executedPlans.add(plan);
+        public TransitionResult execute(TransitionPlan plan, String tenancyId) {
+            executedPlans.add(plan);
 
-                Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-                for (OrderedStep step : plan.removals()) {
-                    if (failDeprovisionNodes.contains(step.node().id())) {
-                        outcomes.put(step.node().id(), new StepOutcome.Failed("test deprovision failure"));
-                    } else {
-                        outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                    }
+            Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
+            for (OrderedStep step : plan.removals()) {
+                if (failDeprovisionNodes.contains(step.node().id())) {
+                    outcomes.put(step.node().id(), new StepOutcome.Failed("test deprovision failure"));
+                } else {
+                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
                 }
-                for (OrderedStep step : plan.additions()) {
-                    if (rejectNodes.contains(step.node().id())) {
-                        outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
-                    } else if (failNodes.contains(step.node().id())) {
-                        outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
-                    } else {
-                        outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                    }
+            }
+            for (OrderedStep step : plan.additions()) {
+                if (rejectNodes.contains(step.node().id())) {
+                    outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
+                } else if (failNodes.contains(step.node().id())) {
+                    outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
+                } else {
+                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
                 }
-                return new TransitionResult(outcomes);
-            });
+            }
+            return new TransitionResult(outcomes);
         }
     }
 

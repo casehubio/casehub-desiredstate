@@ -17,7 +17,6 @@ import io.casehub.engine.flow.FlowWorkerFunction;
 import io.casehub.worker.api.Capability;
 import io.casehub.worker.api.Worker;
 import io.serverlessworkflow.api.types.Workflow;
-import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -66,14 +65,14 @@ public class CaseTransitionExecutor implements TransitionExecutor {
     }
 
     @Override
-    public Uni<TransitionResult> execute(TransitionPlan plan, String tenancyId) {
+    public TransitionResult execute(TransitionPlan plan, String tenancyId) {
         if (plan.isEmpty()) {
-            return Uni.createFrom().item(new TransitionResult(Map.of()));
+            return new TransitionResult(Map.of());
         }
 
         Map<NodeId, StepOutcome> preFilteredOutcomes = new LinkedHashMap<>();
-        List<OrderedStep> runnableRemovals = new ArrayList<>();
-        List<OrderedStep> runnableAdditions = new ArrayList<>();
+        List<OrderedStep>        runnableRemovals    = new ArrayList<>();
+        List<OrderedStep>        runnableAdditions   = new ArrayList<>();
 
         for (OrderedStep step : plan.removals()) {
             StepOutcome filtered = checkApproval(step, tenancyId);
@@ -93,13 +92,12 @@ public class CaseTransitionExecutor implements TransitionExecutor {
             }
         }
 
-        // If everything was filtered, return immediately — no case needed
         if (runnableRemovals.isEmpty() && runnableAdditions.isEmpty()) {
-            return Uni.createFrom().item(new TransitionResult(preFilteredOutcomes));
+            return new TransitionResult(preFilteredOutcomes);
         }
 
         TransitionPlan runnablePlan = new TransitionPlan(
-            runnableRemovals, runnableAdditions, plan.before(), plan.after());
+                runnableRemovals, runnableAdditions, plan.before(), plan.after());
 
         executionRegistry.getActiveCaseId(tenancyId).ifPresent(id -> {
             try {
@@ -112,28 +110,31 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         String executionId = UUID.randomUUID().toString();
         executionRegistry.register(executionId, plan.after(), tenancyId);
 
-        return Uni.createFrom().completionStage(() -> {
-            CaseDefinition caseDefinition = buildCaseDefinition(runnablePlan, executionId);
+        CaseDefinition caseDefinition = buildCaseDefinition(runnablePlan, executionId);
 
-            Map<String, Object> inputData = Map.of(
+        Map<String, Object> inputData = Map.of(
                 "removals", runnablePlan.removals().size(),
                 "additions", runnablePlan.additions().size(),
                 "graphVersion", runnablePlan.after().version()
-            );
+                                              );
 
-            return caseHubRuntime.startCase(caseDefinition, inputData);
-        }).onFailure().invoke(() -> executionRegistry.remove(executionId))
-          .map(caseId -> {
-            LOG.infof("Started desired-state transition case %s (removals=%d, additions=%d)",
-                caseId, runnableRemovals.size(), runnableAdditions.size());
-
+        UUID caseId;
+        try {
+            caseId = caseHubRuntime.startCase(caseDefinition, inputData);
+        } catch (Exception e) {
             executionRegistry.remove(executionId);
-            executionRegistry.setActiveCaseId(tenancyId, caseId);
+            throw e;
+        }
 
-            Map<NodeId, StepOutcome> allOutcomes = new LinkedHashMap<>(preFilteredOutcomes);
-            allOutcomes.putAll(buildOptimisticResult(runnablePlan, caseId).outcomes());
-            return new TransitionResult(allOutcomes);
-        });
+        LOG.infof("Started desired-state transition case %s (removals=%d, additions=%d)",
+                  caseId, runnableRemovals.size(), runnableAdditions.size());
+
+        executionRegistry.remove(executionId);
+        executionRegistry.setActiveCaseId(tenancyId, caseId);
+
+        Map<NodeId, StepOutcome> allOutcomes = new LinkedHashMap<>(preFilteredOutcomes);
+        allOutcomes.putAll(buildOptimisticResult(runnablePlan, caseId).outcomes());
+        return new TransitionResult(allOutcomes);
     }
 
     private StepOutcome checkApproval(OrderedStep step, String tenancyId) {

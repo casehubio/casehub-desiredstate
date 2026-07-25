@@ -179,11 +179,11 @@ class ReconciliationLoopLifecycleTest {
 
     private static class SucceedingExecutor implements TransitionExecutor {
         @Override
-        public io.smallrye.mutiny.Uni<TransitionResult> execute(TransitionPlan plan, String tenancyId) {
+        public TransitionResult execute(TransitionPlan plan, String tenancyId) {
             Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-            for (OrderedStep step : plan.removals()) outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-            for (OrderedStep step : plan.additions()) outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-            return io.smallrye.mutiny.Uni.createFrom().item(new TransitionResult(outcomes));
+            for (OrderedStep step : plan.removals()) {outcomes.put(step.node().id(), new StepOutcome.Succeeded());}
+            for (OrderedStep step : plan.additions()) {outcomes.put(step.node().id(), new StepOutcome.Succeeded());}
+            return new TransitionResult(outcomes);
         }
     }
 }

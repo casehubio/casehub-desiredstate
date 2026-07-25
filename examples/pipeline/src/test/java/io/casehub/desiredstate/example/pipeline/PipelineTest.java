@@ -230,7 +230,7 @@ class PipelineTest {
         // Execute all additions via SimpleTransitionExecutor
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
         SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
-        TransitionResult transitionResult = executor.execute(plan, "default").await().indefinitely();
+        TransitionResult transitionResult = executor.execute(plan, "default");
 
         // All 8 nodes should succeed
         assertThat(transitionResult.outcomes()).hasSize(8);
@@ -291,7 +291,7 @@ class PipelineTest {
         SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
-        executor.execute(plan, "default").await().indefinitely();
+        executor.execute(plan, "default");
 
         // All stages should be RUNNING before deprovision
         assertThat(world.stageState(NodeId.of("click-clean"))).isEqualTo(PipelineWorld.StageState.RUNNING);
@@ -764,7 +764,7 @@ class PipelineTest {
 
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
-        TransitionResult result = executor.execute(plan, "default").await().indefinitely();
+        TransitionResult result = executor.execute(plan, "default");
 
         // Transformer should be skipped (pending approval)
         assertThat(result.outcomes().get(NodeId.of("session-agg")))
@@ -780,7 +780,7 @@ class PipelineTest {
             new ApprovalCheckResult.Approved(approval));
 
         TransitionPlan replan = planner.plan(graph, adapter.readActual(graph, "default"));
-        TransitionResult reResult = executor.execute(replan, "default").await().indefinitely();
+        TransitionResult reResult = executor.execute(replan, "default");
 
         assertThat(reResult.outcomes().get(NodeId.of("session-agg")))
             .isInstanceOf(StepOutcome.Succeeded.class);
@@ -813,7 +813,7 @@ class PipelineTest {
 
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
-        TransitionResult result = executor.execute(plan, "default").await().indefinitely();
+        TransitionResult result = executor.execute(plan, "default");
 
         assertThat(result.outcomes().get(NodeId.of("session-agg")))
             .isInstanceOf(StepOutcome.Rejected.class);
@@ -831,7 +831,7 @@ class PipelineTest {
         SimpleTransitionExecutor executor = new SimpleTransitionExecutor(
             router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         TransitionResult result = executor.execute(planner.plan(graph, new ActualState(Map.of())),
-            "default").await().indefinitely();
+            "default");
 
         // All nodes should succeed — no approval gate
         assertThat(result.outcomes().get(NodeId.of("session-agg")))

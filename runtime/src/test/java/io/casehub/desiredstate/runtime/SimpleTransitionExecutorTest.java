@@ -21,7 +21,6 @@ import io.casehub.desiredstate.api.StepAction;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
-import io.smallrye.mutiny.helpers.test.UniAssertSubscriber;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,9 +29,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SimpleTransitionExecutorTest {
@@ -67,10 +66,7 @@ class SimpleTransitionExecutorTest {
             graph
         );
 
-        TransitionResult result = executor.execute(plan, "default")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem()
-            .getItem();
+        TransitionResult result = executor.execute(plan, "default");
 
         // Both should succeed
         assertEquals(2, result.outcomes().size());
@@ -104,10 +100,7 @@ class SimpleTransitionExecutorTest {
             graph
         );
 
-        TransitionResult result = executor.execute(plan, "default")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem()
-            .getItem();
+        TransitionResult result = executor.execute(plan, "default");
 
         StepOutcome humanOutcome = result.outcomes().get(NodeId.of("h1"));
         assertTrue(humanOutcome instanceof StepOutcome.Skipped);
@@ -138,10 +131,7 @@ class SimpleTransitionExecutorTest {
             graph
         );
 
-        TransitionResult result = executor.execute(plan, "default")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem()
-            .getItem();
+        TransitionResult result = executor.execute(plan, "default");
 
         StepOutcome outcome = result.outcomes().get(NodeId.of("failing"));
         assertTrue(outcome instanceof StepOutcome.Failed);
@@ -166,10 +156,7 @@ class SimpleTransitionExecutorTest {
             graph
         );
 
-        TransitionResult result = executor.execute(plan, "default")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem()
-            .getItem();
+        TransitionResult result = executor.execute(plan, "default");
 
         StepOutcome outcome = result.outcomes().get(NodeId.of("failing"));
         assertTrue(outcome instanceof StepOutcome.Failed);
@@ -203,10 +190,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem()
-            .getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         StepOutcome humanOutcome = result.outcomes().get(NodeId.of("h1"));
         assertInstanceOf(StepOutcome.Skipped.class, humanOutcome);
@@ -245,9 +229,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        capturingExecutor.execute(plan, "my-tenant")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem();
+        capturingExecutor.execute(plan, "my-tenant");
 
         assertEquals("my-tenant", capturedTenancyId[0]);
         assertNotNull(capturedGraph[0]);
@@ -300,9 +282,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = executor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = executor.execute(plan, "tenant1");
 
         StepOutcome outcome = result.outcomes().get(NodeId.of("db-prod"));
         assertInstanceOf(StepOutcome.Failed.class, outcome);
@@ -335,9 +315,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("db-prod")));
         assertTrue(mockProvisioner.callOrder.isEmpty(), "Provisioner should NOT be called when pending");
@@ -385,9 +363,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("db-prod")));
         assertNotNull(capturedContext[0].approval());
@@ -425,9 +401,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Rejected.class, result.outcomes().get(NodeId.of("db-prod")));
         assertEquals("approval rejected: risk too high",
@@ -477,9 +451,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("db-prod")));
         assertEquals("plan-42", recordedPlanRef[0]);
@@ -510,9 +482,7 @@ class SimpleTransitionExecutorTest {
             List.of(), graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("old-db")));
         assertTrue(mockProvisioner.callOrder.isEmpty());
@@ -547,9 +517,7 @@ class SimpleTransitionExecutorTest {
             List.of(), graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Rejected.class, result.outcomes().get(NodeId.of("old-db")));
         assertEquals("approval rejected: resource still in use",
@@ -599,9 +567,7 @@ class SimpleTransitionExecutorTest {
             List.of(), graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("old-db")));
         assertNotNull(capturedContext[0].approval());
@@ -649,9 +615,7 @@ class SimpleTransitionExecutorTest {
             List.of(), graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("old-db")));
         assertEquals("depro-plan-42", recordedPlanRef[0]);
@@ -684,9 +648,7 @@ class SimpleTransitionExecutorTest {
             graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-            .subscribe().withSubscriber(UniAssertSubscriber.create())
-            .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("h1")));
         assertTrue(((StepOutcome.Skipped) result.outcomes().get(NodeId.of("h1"))).reason()
@@ -723,10 +685,7 @@ class SimpleTransitionExecutorTest {
                 graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-                                                 .subscribe().withSubscriber(UniAssertSubscriber.create())
-                                                 .awaitItem()
-                                                 .getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         StepOutcome outcome = result.outcomes().get(NodeId.of("h1"));
         assertInstanceOf(StepOutcome.Skipped.class, outcome);
@@ -772,9 +731,7 @@ class SimpleTransitionExecutorTest {
                 graph, graph
         );
 
-        capturingExecutor.execute(plan, "my-tenant")
-                         .subscribe().withSubscriber(UniAssertSubscriber.create())
-                         .awaitItem();
+        capturingExecutor.execute(plan, "my-tenant");
 
         assertEquals("my-tenant", capturedTenancyId[0]);
         assertNotNull(capturedGraph[0]);
@@ -810,9 +767,7 @@ class SimpleTransitionExecutorTest {
                 graph, graph
         );
 
-        TransitionResult result = handlerExecutor.execute(plan, "tenant1")
-                                                 .subscribe().withSubscriber(UniAssertSubscriber.create())
-                                                 .awaitItem().getItem();
+        TransitionResult result = handlerExecutor.execute(plan, "tenant1");
 
         assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("h1")));
         assertTrue(((StepOutcome.Skipped) result.outcomes().get(NodeId.of("h1"))).reason()
@@ -844,8 +799,7 @@ class SimpleTransitionExecutorTest {
         // Provision → should go to handler
         TransitionPlan provisionPlan = new TransitionPlan(
                 List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
-        TransitionResult provisionResult = exec.execute(provisionPlan, "t1")
-                                               .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        TransitionResult provisionResult = exec.execute(provisionPlan, "t1");
         assertTrue(handlerCalled[0], "Handler should be called for provision");
         assertInstanceOf(StepOutcome.Skipped.class, provisionResult.outcomes().get(NodeId.of("n1")));
 
@@ -853,8 +807,7 @@ class SimpleTransitionExecutorTest {
         mockProvisioner.callOrder.clear();
         TransitionPlan deprovisionPlan = new TransitionPlan(
                 List.of(new OrderedStep(node, StepAction.DEPROVISION)), List.of(), graph, graph);
-        TransitionResult deprovisionResult = exec.execute(deprovisionPlan, "t1")
-                                                 .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        TransitionResult deprovisionResult = exec.execute(deprovisionPlan, "t1");
         assertFalse(mockProvisioner.callOrder.isEmpty(), "Provisioner SHOULD be called for deprovision");
         assertInstanceOf(StepOutcome.Succeeded.class, deprovisionResult.outcomes().get(NodeId.of("n1")));
     }
@@ -887,16 +840,14 @@ class SimpleTransitionExecutorTest {
         // Provision → should go to provisioner
         TransitionPlan provisionPlan = new TransitionPlan(
                 List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
-        TransitionResult provisionResult = exec.execute(provisionPlan, "t1")
-                                               .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        TransitionResult provisionResult = exec.execute(provisionPlan, "t1");
         assertFalse(mockProvisioner.callOrder.isEmpty(), "Provisioner SHOULD be called for provision");
         assertInstanceOf(StepOutcome.Succeeded.class, provisionResult.outcomes().get(NodeId.of("n1")));
 
         // Deprovision → should go to handler
         TransitionPlan deprovisionPlan = new TransitionPlan(
                 List.of(new OrderedStep(node, StepAction.DEPROVISION)), List.of(), graph, graph);
-        TransitionResult deprovisionResult = exec.execute(deprovisionPlan, "t1")
-                                                 .subscribe().withSubscriber(UniAssertSubscriber.create()).awaitItem().getItem();
+        TransitionResult deprovisionResult = exec.execute(deprovisionPlan, "t1");
         assertTrue(handlerDeprovisionCalled[0], "Handler should be called for deprovision");
         assertInstanceOf(StepOutcome.Skipped.class, deprovisionResult.outcomes().get(NodeId.of("n1")));
     }

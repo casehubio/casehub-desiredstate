@@ -9,9 +9,9 @@ import io.casehub.api.model.event.CaseHubEventType;
 import io.casehub.api.model.event.EventStreamType;
 import io.casehub.desiredstate.api.ApprovalCheckResult;
 import io.casehub.desiredstate.api.DesiredNode;
-import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -54,46 +52,71 @@ class CaseTransitionExecutorTest {
     static class StubCaseHubRuntime implements CaseHubRuntime {
         int casesStarted = 0;
 
-        @Override public CompletionStage<UUID> startCase(CaseDefinition definition) {
+        @Override
+        public UUID startCase(CaseDefinition definition) {
             casesStarted++;
-            return CompletableFuture.completedFuture(UUID.randomUUID());
+            return UUID.randomUUID();
         }
-        @Override public CompletionStage<UUID> startCase(CaseDefinition definition, Object inputData) {
+
+        @Override
+        public UUID startCase(CaseDefinition definition, Object inputData) {
             casesStarted++;
-            return CompletableFuture.completedFuture(UUID.randomUUID());
+            return UUID.randomUUID();
         }
-        @Override public CompletionStage<UUID> startCase(CaseDefinition definition, Object inputData, UUID parentCaseId, PropagationContext ctx) {
+
+        @Override
+        public UUID startCase(CaseDefinition definition, Object inputData, UUID parentCaseId, PropagationContext ctx) {
             casesStarted++;
-            return CompletableFuture.completedFuture(UUID.randomUUID());
+            return UUID.randomUUID();
         }
-        @Override public CompletionStage<UUID> startCase(CaseDefinition definition, Object inputData, Map<String, Object> semanticData) {
+
+        @Override
+        public UUID startCase(CaseDefinition definition, Object inputData, Map<String, Object> semanticData) {
             casesStarted++;
-            return CompletableFuture.completedFuture(UUID.randomUUID());
+            return UUID.randomUUID();
         }
-        @Override public CompletionStage<UUID> startCase(CaseDefinition definition, Object inputData, Map<String, Object> semanticData, UUID parentCaseId, PropagationContext ctx) {
+
+        @Override
+        public UUID startCase(CaseDefinition definition, Object inputData, Map<String, Object> semanticData, UUID parentCaseId, PropagationContext ctx) {
             casesStarted++;
-            return CompletableFuture.completedFuture(UUID.randomUUID());
+            return UUID.randomUUID();
         }
-        @Override public CompletionStage<Void> signal(UUID caseId, String path, Object value) {
-            return CompletableFuture.completedFuture(null);
+
+        @Override
+        public void signal(UUID caseId, String path, Object value) {}
+
+        @Override
+        public void cancelCase(UUID caseId)                        {}
+
+        @Override
+        public void suspendCase(UUID caseId)                       {}
+
+        @Override
+        public void resumeCase(UUID caseId)                        {}
+
+        @Override
+        public Object query(UUID caseId, String path) {
+            return null;
         }
-        @Override public void cancelCase(UUID caseId) {}
-        @Override public void suspendCase(UUID caseId) {}
-        @Override public void resumeCase(UUID caseId) {}
-        @Override public CompletionStage<Object> query(UUID caseId, String path) {
-            return CompletableFuture.completedFuture(null);
+
+        @Override
+        public <T> T query(UUID caseId, String path, Class<T> clazz) {
+            return null;
         }
-        @Override public <T> CompletionStage<T> query(UUID caseId, String path, Class<T> clazz) {
-            return CompletableFuture.completedFuture(null);
+
+        @Override
+        public List<CaseEventLogRecord> eventLog(UUID caseId) {
+            return List.of();
         }
-        @Override public CompletionStage<List<CaseEventLogRecord>> eventLog(UUID caseId) {
-            return CompletableFuture.completedFuture(List.of());
+
+        @Override
+        public List<CaseEventLogRecord> eventLog(UUID caseId, Set<CaseHubEventType> eventTypes) {
+            return List.of();
         }
-        @Override public CompletionStage<List<CaseEventLogRecord>> eventLog(UUID caseId, Set<CaseHubEventType> eventTypes) {
-            return CompletableFuture.completedFuture(List.of());
-        }
-        @Override public CompletionStage<List<CaseEventLogRecord>> eventLog(UUID caseId, Set<CaseHubEventType> eventTypes, Set<EventStreamType> streamTypes) {
-            return CompletableFuture.completedFuture(List.of());
+
+        @Override
+        public List<CaseEventLogRecord> eventLog(UUID caseId, Set<CaseHubEventType> eventTypes, Set<EventStreamType> streamTypes) {
+            return List.of();
         }
     }
 
@@ -179,8 +202,7 @@ class CaseTransitionExecutorTest {
                 graph, graph
         );
 
-        TransitionResult result = executor.execute(plan, "default")
-                .await().indefinitely();
+        TransitionResult result = executor.execute(plan, "default");
 
         assertThat(result.outcomes().get(NodeId.of("human-review-app")))
                 .isInstanceOf(StepOutcome.Skipped.class);
@@ -249,8 +271,7 @@ class CaseTransitionExecutorTest {
             List.of(new OrderedStep(node, StepAction.PROVISION)),
             graph, graph);
 
-        TransitionResult result = executor.execute(plan, "tenant-a")
-            .await().indefinitely();
+        TransitionResult result = executor.execute(plan, "tenant-a");
 
         assertThat(result.outcomes().get(NodeId.of("gated")))
             .isInstanceOf(StepOutcome.Skipped.class);
@@ -275,8 +296,7 @@ class CaseTransitionExecutorTest {
             List.of(new OrderedStep(node, StepAction.PROVISION)),
             graph, graph);
 
-        TransitionResult result = executor.execute(plan, "tenant-a")
-            .await().indefinitely();
+        TransitionResult result = executor.execute(plan, "tenant-a");
 
         assertThat(result.outcomes().get(NodeId.of("rejected")))
             .isInstanceOf(StepOutcome.Rejected.class);
@@ -304,8 +324,7 @@ class CaseTransitionExecutorTest {
         CaseTransitionExecutor exec = new CaseTransitionExecutor(
             workflowGenerator, runtime, approvalHandler, executionRegistry);
 
-        TransitionResult result = exec.execute(plan, "tenant-a")
-            .await().indefinitely();
+        TransitionResult result = exec.execute(plan, "tenant-a");
 
         assertThat(result.outcomes()).containsKey(NodeId.of("pending"));
         assertThat(runtime.casesStarted).isZero();
@@ -332,8 +351,7 @@ class CaseTransitionExecutorTest {
                 new OrderedStep(autoNode, StepAction.PROVISION)),
             graph, graph);
 
-        TransitionResult result = executor.execute(plan, "tenant-a")
-            .await().indefinitely();
+        TransitionResult result = executor.execute(plan, "tenant-a");
 
         assertThat(result.outcomes().get(NodeId.of("gated")))
             .isInstanceOf(StepOutcome.Skipped.class);
@@ -416,8 +434,7 @@ class CaseTransitionExecutorTest {
                 graph, graph
         );
 
-        TransitionResult result = executor.execute(plan, "tenant1")
-                                          .await().indefinitely();
+        TransitionResult result = executor.execute(plan, "tenant1");
 
         StepOutcome outcome = result.outcomes().get(NodeId.of("h1"));
         assertThat(outcome).isInstanceOf(StepOutcome.Skipped.class);

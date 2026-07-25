@@ -19,7 +19,6 @@ import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -146,11 +145,11 @@ class LifecycleManagerTest {
 
     private static class ImmediateSuccessExecutor implements TransitionExecutor {
         @Override
-        public Uni<TransitionResult> execute(TransitionPlan plan, String tenancyId) {
+        public TransitionResult execute(TransitionPlan plan, String tenancyId) {
             Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-            for (OrderedStep step : plan.removals()) outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-            for (OrderedStep step : plan.additions()) outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-            return Uni.createFrom().item(new TransitionResult(outcomes));
+            for (OrderedStep step : plan.removals()) {outcomes.put(step.node().id(), new StepOutcome.Succeeded());}
+            for (OrderedStep step : plan.additions()) {outcomes.put(step.node().id(), new StepOutcome.Succeeded());}
+            return new TransitionResult(outcomes);
         }
     }
 }

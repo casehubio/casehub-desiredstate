@@ -1,14 +1,15 @@
 package io.casehub.desiredstate.api;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
+import org.junit.jupiter.api.Test;
+
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class SpiContractTest {
     record TestSpec(String name) implements NodeSpec {}
@@ -89,8 +90,8 @@ class SpiContractTest {
     }
 
     @Test void transitionExecutor_canBeImplemented() {
-        TransitionExecutor executor = (plan, tenancyId) -> Uni.createFrom().item(new TransitionResult(Map.of()));
-        assertThat(executor.execute(null, "test-tenant").await().indefinitely()).isNotNull();
+        TransitionExecutor executor = (plan, tenancyId) -> new TransitionResult(Map.of());
+        assertThat(executor.execute(null, "test-tenant")).isNotNull();
     }
 
     @Test void cyclicDependencyException_carriesCycle() {

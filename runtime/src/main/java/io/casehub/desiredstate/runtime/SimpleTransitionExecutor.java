@@ -23,7 +23,6 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
 import io.quarkus.arc.DefaultBean;
-import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.LinkedHashMap;
@@ -54,24 +53,20 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
     }
 
     @Override
-    public Uni<TransitionResult> execute(TransitionPlan plan, String tenancyId) {
-        return Uni.createFrom().item(() -> {
-            Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
+    public TransitionResult execute(TransitionPlan plan, String tenancyId) {
+        Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
 
-            // Execute removals first
-            for (OrderedStep step : plan.removals()) {
-                StepOutcome outcome = executeDeprovision(step.node(), plan.before(), tenancyId);
-                outcomes.put(step.node().id(), outcome);
-            }
+        for (OrderedStep step : plan.removals()) {
+            StepOutcome outcome = executeDeprovision(step.node(), plan.before(), tenancyId);
+            outcomes.put(step.node().id(), outcome);
+        }
 
-            // Then execute additions
-            for (OrderedStep step : plan.additions()) {
-                StepOutcome outcome = executeProvision(step.node(), plan.after(), tenancyId);
-                outcomes.put(step.node().id(), outcome);
-            }
+        for (OrderedStep step : plan.additions()) {
+            StepOutcome outcome = executeProvision(step.node(), plan.after(), tenancyId);
+            outcomes.put(step.node().id(), outcome);
+        }
 
-            return new TransitionResult(outcomes);
-        });
+        return new TransitionResult(outcomes);
     }
 
     private StepOutcome executeProvision(DesiredNode node, DesiredStateGraph graph, String tenancyId) {

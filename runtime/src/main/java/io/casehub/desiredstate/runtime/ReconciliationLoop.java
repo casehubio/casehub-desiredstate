@@ -731,7 +731,7 @@ public class ReconciliationLoop {
         private TransitionResult execute(TransitionPlan plan, String tenancyId) {
             Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("execute").startSpan();
             try (Scope ignored = span.makeCurrent()) {
-                return executor.execute(plan, tenancyId).await().indefinitely();
+                return executor.execute(plan, tenancyId);
             } finally {
                 span.end();
             }
