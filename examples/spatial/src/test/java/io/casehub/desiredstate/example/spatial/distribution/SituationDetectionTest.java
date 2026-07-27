@@ -143,8 +143,7 @@ class SituationDetectionTest {
         assertThat(caseTrigger.firedCases())
             .as("After 1 fault, no case triggered yet")
             .isEmpty();
-        assertThat(situationStore.find("repeated-node-fault", targetNodeId.value(), TENANCY_ID)
-            .await().indefinitely())
+        assertThat(situationStore.find("repeated-node-fault", targetNodeId.value(), TENANCY_ID))
             .as("Situation context saved with 1 detection")
             .isPresent()
             .get()
@@ -162,8 +161,7 @@ class SituationDetectionTest {
         assertThat(caseTrigger.firedCases())
             .as("After 2 faults, no case triggered yet")
             .isEmpty();
-        assertThat(situationStore.find("repeated-node-fault", targetNodeId.value(), TENANCY_ID)
-            .await().indefinitely())
+        assertThat(situationStore.find("repeated-node-fault", targetNodeId.value(), TENANCY_ID))
             .as("Situation context has 2 detections")
             .isPresent()
             .get()
@@ -244,8 +242,7 @@ class SituationDetectionTest {
             .as("Count mode: 3 total DETECTED signals (faults) triggers case")
             .hasSize(1);
 
-        var ctx = situationStore.find("repeated-node-fault", targetNodeId.value(), TENANCY_ID)
-            .await().indefinitely();
+        var ctx = situationStore.find("repeated-node-fault", targetNodeId.value(), TENANCY_ID);
         assertThat(ctx)
             .as("Situation context contains all signals including ANTI")
             .isPresent()
