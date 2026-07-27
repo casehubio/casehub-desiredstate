@@ -4,9 +4,10 @@ import io.casehub.desiredstate.api.*;
 import io.smallrye.mutiny.Multi;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
 import java.util.List;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
+import static io.casehub.desiredstate.testing.TestTimeouts.MUTINY_AWAIT;
 import static org.assertj.core.api.Assertions.*;
 
 class DefaultMergedEventSourceTest {
@@ -14,7 +15,7 @@ class DefaultMergedEventSourceTest {
     @Test void emptySourcesProducesEmptyStream() {
         var merged = new DefaultMergedEventSource(List.of());
         List<StateEvent> events = merged.stream()
-            .collect().asList().await().atMost(Duration.ofSeconds(1));
+            .collect().asList().await().atMost(MUTINY_AWAIT);
         assertThat(events).isEmpty();
     }
 
@@ -24,7 +25,7 @@ class DefaultMergedEventSourceTest {
 
         var merged = new DefaultMergedEventSource(List.of(source));
         List<StateEvent> events = merged.stream()
-            .collect().asList().await().atMost(Duration.ofSeconds(1));
+            .collect().asList().await().atMost(MUTINY_AWAIT);
         assertThat(events).containsExactly(event);
     }
 
@@ -36,7 +37,7 @@ class DefaultMergedEventSourceTest {
 
         var merged = new DefaultMergedEventSource(List.of(sourceA, sourceB));
         List<StateEvent> events = merged.stream()
-            .collect().asList().await().atMost(Duration.ofSeconds(1));
+            .collect().asList().await().atMost(MUTINY_AWAIT);
         assertThat(events).containsExactlyInAnyOrder(e1, e2);
     }
 
@@ -47,7 +48,7 @@ class DefaultMergedEventSourceTest {
 
         var merged = new DefaultMergedEventSource(List.of(healthy, failing));
         List<StateEvent> events = merged.stream()
-            .collect().asList().await().atMost(Duration.ofSeconds(10));
+            .collect().asList().await().atMost(AWAIT);
         assertThat(events).contains(e1);
     }
 }

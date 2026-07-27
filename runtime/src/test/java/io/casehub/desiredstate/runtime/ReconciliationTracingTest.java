@@ -1,13 +1,10 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.ActualState;
-import io.casehub.desiredstate.api.ActualStateAdapter;
 import io.casehub.desiredstate.api.DeprovisionContext;
 import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
-import io.casehub.desiredstate.api.EventSource;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
@@ -15,14 +12,11 @@ import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
-import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
-import io.casehub.desiredstate.api.StateEvent;
-import io.casehub.desiredstate.api.StepOutcome;
-import io.casehub.desiredstate.api.TransitionExecutor;
-import io.casehub.desiredstate.api.TransitionPlan;
-import io.casehub.desiredstate.api.TransitionResult;
+import io.casehub.desiredstate.testing.CannedEventSource;
+import io.casehub.desiredstate.testing.MockActualStateAdapter;
+import io.casehub.desiredstate.testing.MockTransitionExecutor;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -30,22 +24,17 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
-import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.subscription.MultiEmitter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
@@ -55,11 +44,11 @@ class ReconciliationTracingTest {
     private SdkTracerProvider tracerProvider;
 
     private DesiredStateGraphFactory factory;
-    private TestActualStateAdapter actualAdapter;
-    private TestTransitionExecutor testExecutor;
+    private MockActualStateAdapter actualAdapter;
+    private MockTransitionExecutor testExecutor;
     private TransitionPlanner planner;
     private FaultPolicyEngine faultEngine;
-    private TestEventSource testEventSource;
+    private CannedEventSource testEventSource;
     private ReconciliationLoop loop;
 
     private static final Duration TEST_DEBOUNCE = Duration.ofMillis(50);
@@ -77,11 +66,12 @@ class ReconciliationTracingTest {
                 .buildAndRegisterGlobal();
 
         factory = new DefaultDesiredStateGraphFactory();
-        actualAdapter = new TestActualStateAdapter();
-        testExecutor = new TestTransitionExecutor();
+        actualAdapter = new MockActualStateAdapter();
+        actualAdapter.setHandledTypes(Set.of(NodeType.of("test")));
+        testExecutor = new MockTransitionExecutor();
         planner = new TransitionPlanner();
         faultEngine = new FaultPolicyEngine(List.of());
-        testEventSource = new TestEventSource();
+        testEventSource = new CannedEventSource();
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
         loop = new ReconciliationLoop(
@@ -104,7 +94,7 @@ class ReconciliationTracingTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).extracting(SpanData::getName).contains("reconcile");
@@ -125,7 +115,7 @@ class ReconciliationTracingTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         List<String> spanNames = spans.stream().map(SpanData::getName).toList();
@@ -162,7 +152,7 @@ class ReconciliationTracingTest {
 
         loopWithSimple.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
                 spanExporter.getFinishedSpanItems().stream()
                         .anyMatch(s -> s.getName().equals("provision")));
 
@@ -198,7 +188,7 @@ class ReconciliationTracingTest {
 
         loopWithSimple.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
                 spanExporter.getFinishedSpanItems().stream()
                         .anyMatch(s -> s.getName().equals("provision")));
 
@@ -229,7 +219,7 @@ class ReconciliationTracingTest {
 
         loopWithSimple.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
                 spanExporter.getFinishedSpanItems().stream()
                         .anyMatch(s -> s.getName().equals("deprovision")));
 
@@ -261,7 +251,7 @@ class ReconciliationTracingTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).extracting(SpanData::getName).contains("faultFeedback");
@@ -275,7 +265,7 @@ class ReconciliationTracingTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         List<SpanData> spans = spanExporter.getFinishedSpanItems();
         assertThat(spans).extracting(SpanData::getName).doesNotContain("faultFeedback");
@@ -289,7 +279,7 @@ class ReconciliationTracingTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
                 spanExporter.getFinishedSpanItems().stream()
                         .anyMatch(s -> s.getName().equals("reconcile")));
 
@@ -312,7 +302,7 @@ class ReconciliationTracingTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).pollDelay(Duration.ofMillis(200)).until(() ->
+        await().atMost(AWAIT).pollDelay(Duration.ofMillis(200)).until(() ->
                 spanExporter.getFinishedSpanItems().stream()
                         .anyMatch(s -> s.getName().equals("detectDrift")));
 
@@ -331,65 +321,6 @@ class ReconciliationTracingTest {
     }
 
     record TestSpec(String value) implements NodeSpec {}
-
-    static class TestActualStateAdapter implements ActualStateAdapter {
-        private volatile Map<NodeId, NodeStatus> statuses = Map.of();
-
-        void setStatuses(Map<NodeId, NodeStatus> statuses) {
-            this.statuses = Map.copyOf(statuses);
-        }
-
-        @Override
-        public Set<NodeType> handledTypes() { return Set.of(NodeType.of("test")); }
-
-        @Override
-        public ActualState readActual(DesiredStateGraph desired, String tenancyId) {
-            return new ActualState(statuses);
-        }
-    }
-
-    static class TestTransitionExecutor implements TransitionExecutor {
-        final CopyOnWriteArrayList<TransitionPlan> executedPlans = new CopyOnWriteArrayList<>();
-        final Set<NodeId> failNodes = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public TransitionResult execute(TransitionPlan plan, String tenancyId) {
-            executedPlans.add(plan);
-            Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-            for (OrderedStep step : plan.removals()) {
-                outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-            }
-            for (OrderedStep step : plan.additions()) {
-                if (failNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
-                } else {
-                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                }
-            }
-            return new TransitionResult(outcomes);
-        }
-    }
-
-    static class TestEventSource implements EventSource {
-        private final AtomicReference<MultiEmitter<? super StateEvent>> emitterRef = new AtomicReference<>();
-        private final Multi<StateEvent> multi;
-
-        TestEventSource() {
-            this.multi = Multi.createFrom().emitter(emitter -> emitterRef.set(emitter));
-        }
-
-        void emit(StateEvent event) {
-            MultiEmitter<? super StateEvent> emitter = emitterRef.get();
-            if (emitter != null) {
-                emitter.emit(event);
-            }
-        }
-
-        @Override
-        public Multi<StateEvent> stream() {
-            return multi;
-        }
-    }
 
     static class SucceedingProvisioner implements NodeProvisioner {
         @Override

@@ -12,6 +12,9 @@ import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionResult;
+import io.casehub.desiredstate.testing.CannedEventSource;
+import io.casehub.desiredstate.testing.MockActualStateAdapter;
+import io.casehub.desiredstate.testing.MockTransitionExecutor;
 import io.cloudevents.CloudEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,18 +26,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReconciliationLoopCbrOutcomeTest {
 
     private record TestSpec(String value) implements NodeSpec {}
 
     private DefaultDesiredStateGraphFactory factory;
-    private ReconciliationLoopCloudEventTest.TestActualStateAdapter actualAdapter;
-    private ReconciliationLoopCloudEventTest.TestTransitionExecutor testExecutor;
+    private MockActualStateAdapter actualAdapter;
+    private MockTransitionExecutor testExecutor;
     private TransitionPlanner planner;
-    private ReconciliationLoopCloudEventTest.TestEventSource testEventSource;
+    private CannedEventSource testEventSource;
     private List<CloudEvent> capturedEvents;
     private CbrProposalTracker cbrTracker;
     private ReconciliationLoop loop;
@@ -45,10 +53,11 @@ class ReconciliationLoopCbrOutcomeTest {
     @BeforeEach
     void setUp() {
         factory = new DefaultDesiredStateGraphFactory();
-        actualAdapter = new ReconciliationLoopCloudEventTest.TestActualStateAdapter();
-        testExecutor = new ReconciliationLoopCloudEventTest.TestTransitionExecutor();
+        actualAdapter = new MockActualStateAdapter();
+        actualAdapter.setHandledTypes(Set.of(NodeType.of("t")));
+        testExecutor = new MockTransitionExecutor();
         planner = new TransitionPlanner();
-        testEventSource = new ReconciliationLoopCloudEventTest.TestEventSource();
+        testEventSource = new CannedEventSource();
         capturedEvents = new CopyOnWriteArrayList<>();
         cbrTracker = new CbrProposalTracker();
 
@@ -71,8 +80,9 @@ class ReconciliationLoopCbrOutcomeTest {
             new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
 
-        loop.start("t1", graph);
-        Thread.sleep(200);
+        CountDownLatch cycleLatch = new CountDownLatch(1);
+        loop.start("t1", graph, (tid, d, a) -> cycleLatch.countDown());
+        assertTrue(cycleLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS));
 
         assertThat(capturedEvents.stream()
             .filter(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType()))
@@ -90,7 +100,8 @@ class ReconciliationLoopCbrOutcomeTest {
             "case-42", CbrPath.FAULT, Set.of(nodeId), Instant.now()));
 
         loop.start("t1", graph);
-        Thread.sleep(200);
+        await().atMost(AWAIT).until(() ->
+            capturedEvents.stream().anyMatch(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType())));
 
         List<CloudEvent> cbrEvents = capturedEvents.stream()
             .filter(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType()))
@@ -111,7 +122,8 @@ class ReconciliationLoopCbrOutcomeTest {
             "case-99", CbrPath.SITUATION, Set.of(nodeId), Instant.now()));
 
         loop.start("t1", graph);
-        Thread.sleep(200);
+        await().atMost(AWAIT).until(() ->
+            capturedEvents.stream().anyMatch(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType())));
 
         List<CloudEvent> cbrEvents = capturedEvents.stream()
             .filter(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType()))
@@ -134,7 +146,8 @@ class ReconciliationLoopCbrOutcomeTest {
             "case-fail", CbrPath.FAULT, Set.of(nodeId), Instant.now()));
 
         loop.start("t1", graph);
-        Thread.sleep(200);
+        await().atMost(AWAIT).until(() ->
+            capturedEvents.stream().anyMatch(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType())));
 
         List<CloudEvent> cbrEvents = capturedEvents.stream()
             .filter(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType()))
@@ -154,15 +167,18 @@ class ReconciliationLoopCbrOutcomeTest {
             "case-once", CbrPath.FAULT, Set.of(nodeId), Instant.now()));
 
         loop.start("t1", graph);
-        Thread.sleep(200);
+        await().atMost(AWAIT).until(() ->
+            capturedEvents.stream().anyMatch(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType())));
 
         long count = capturedEvents.stream()
             .filter(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType()))
             .count();
         assertThat(count).isEqualTo(1);
 
+        CountDownLatch secondCycleLatch = new CountDownLatch(1);
+        loop.setListener("t1", (tid, d, a) -> secondCycleLatch.countDown());
         loop.requestReconciliation("t1");
-        Thread.sleep(200);
+        assertTrue(secondCycleLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS));
 
         long countAfter = capturedEvents.stream()
             .filter(e -> CbrEventTypes.CBR_OUTCOME.equals(e.getType()))

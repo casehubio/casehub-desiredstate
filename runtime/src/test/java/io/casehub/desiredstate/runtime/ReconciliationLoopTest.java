@@ -1,11 +1,8 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.ActualState;
-import io.casehub.desiredstate.api.ActualStateAdapter;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
-import io.casehub.desiredstate.api.EventSource;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.FaultType;
@@ -18,25 +15,23 @@ import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.StateEvent;
 import io.casehub.desiredstate.api.StepOutcome;
-import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.desiredstate.api.TransitionPlan;
-import io.casehub.desiredstate.api.TransitionResult;
-import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.subscription.MultiEmitter;
+import io.casehub.desiredstate.testing.CannedEventSource;
+import io.casehub.desiredstate.testing.MockActualStateAdapter;
+import io.casehub.desiredstate.testing.MockTransitionExecutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -45,25 +40,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ReconciliationLoopTest {
 
     private DesiredStateGraphFactory factory;
-    private TestActualStateAdapter actualAdapter;
-    private TestTransitionExecutor testExecutor;
+    private MockActualStateAdapter actualAdapter;
+    private MockTransitionExecutor testExecutor;
     private TransitionPlanner planner;
     private FaultPolicyEngine faultEngine;
-    private TestEventSource testEventSource;
+    private CannedEventSource testEventSource;
     private ReconciliationLoop loop;
 
-    // Short timers for testing: 50ms debounce, 1 hour resync (avoid interference)
     private static final Duration TEST_DEBOUNCE = Duration.ofMillis(50);
     private static final Duration TEST_RESYNC = Duration.ofHours(1);
 
     @BeforeEach
     void setUp() {
         factory = new DefaultDesiredStateGraphFactory();
-        actualAdapter = new TestActualStateAdapter();
-        testExecutor = new TestTransitionExecutor();
+        actualAdapter = new MockActualStateAdapter();
+        actualAdapter.setHandledTypes(Set.of(NodeType.of("test")));
+        testExecutor = new MockTransitionExecutor();
         planner = new TransitionPlanner();
         faultEngine = new FaultPolicyEngine(List.of());
-        testEventSource = new TestEventSource();
+        testEventSource = new CannedEventSource();
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
         loop = new ReconciliationLoop(
@@ -90,7 +85,7 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Wait for the initial reconciliation to produce an executed plan
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         TransitionPlan plan = testExecutor.executedPlans.get(0);
         assertFalse(plan.isEmpty(), "Plan should have additions for unknown nodes");
@@ -110,7 +105,7 @@ class ReconciliationLoopTest {
         // Initial reconciliation should produce an empty plan (no diff), which is not executed
         // because TransitionPlanner produces it but ReconciliationLoop skips empty plans.
         // Wait a beat for the initial cycle to complete.
-        await().atMost(Duration.ofSeconds(1)).pollDelay(Duration.ofMillis(100)).until(() -> true);
+        await().atMost(AWAIT).until(() -> loop.getDesired("test-tenant") != null);
 
         // Clear any executed plans from the initial cycle
         testExecutor.executedPlans.clear();
@@ -122,7 +117,7 @@ class ReconciliationLoopTest {
         testEventSource.emit(new StateEvent(NodeId.of("a"), NodeStatus.ABSENT, "node lost"));
 
         // Wait for the debounced event-driven reconciliation
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         TransitionPlan plan = testExecutor.executedPlans.get(0);
         assertFalse(plan.isEmpty());
@@ -140,7 +135,7 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Wait for initial reconciliation
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         // Clear plans from initial reconciliation
         testExecutor.executedPlans.clear();
@@ -157,7 +152,7 @@ class ReconciliationLoopTest {
         testEventSource.emit(new StateEvent(NodeId.of("b"), NodeStatus.ABSENT, "new node"));
 
         // Wait for the event-driven reconciliation
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         TransitionPlan plan = testExecutor.executedPlans.get(0);
         assertFalse(plan.isEmpty());
@@ -175,20 +170,15 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Wait for initial reconciliation
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         // Stop the loop
         loop.stop("test-tenant");
 
-        // Clear executed plans
+        // Subscription cancelled by stop() — structural guarantee, no timing needed
         int planCountAfterStop = testExecutor.executedPlans.size();
-
-        // Push events — they should be ignored because the subscription is cancelled
         testEventSource.emit(new StateEvent(NodeId.of("a"), NodeStatus.ABSENT, "ignored"));
-
-        // Wait briefly and verify no new plans were executed
-        await().during(Duration.ofMillis(200)).atMost(Duration.ofMillis(500))
-            .until(() -> testExecutor.executedPlans.size() == planCountAfterStop);
+        assertThat(testExecutor.executedPlans).hasSize(planCountAfterStop);
     }
 
     @Test
@@ -219,7 +209,7 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Wait for the initial reconciliation (which will fail node "a")
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         // The fault feedback should have added "a-replacement" to the desired graph.
         // Trigger another reconciliation to see the mutation take effect.
@@ -229,7 +219,7 @@ class ReconciliationLoopTest {
         testExecutor.executedPlans.clear();
         testEventSource.emit(new StateEvent(NodeId.of("a"), NodeStatus.ABSENT, "still absent"));
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         TransitionPlan secondPlan = testExecutor.executedPlans.get(0);
         // The second plan should include the replacement node
@@ -264,7 +254,7 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Wait for the initial reconciliation to process the DRIFTED node
-        await().atMost(Duration.ofSeconds(2)).until(() -> !capturedEvents.isEmpty());
+        await().atMost(AWAIT).until(() -> !capturedEvents.isEmpty());
 
         // Should have exactly one NODE_DEGRADED event for node "a"
         assertEquals(1, capturedEvents.size(), "Expected one fault event for drifted node");
@@ -303,7 +293,7 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Both "a" (re-provisioned) and "a-fix" (fault-policy-injected) appear in additions
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             testExecutor.executedPlans.stream().anyMatch(plan -> {
                 var addedIds = plan.additions().stream()
                     .map(step -> step.node().id())
@@ -335,7 +325,7 @@ class ReconciliationLoopTest {
 
         loop.start("test-tenant", desired);
 
-        await().atMost(Duration.ofSeconds(2)).until(() -> !capturedEvents.isEmpty());
+        await().atMost(AWAIT).until(() -> !capturedEvents.isEmpty());
 
         assertEquals(1, capturedEvents.size());
         FaultEvent event = capturedEvents.get(0);
@@ -372,7 +362,7 @@ class ReconciliationLoopTest {
         loop.start("test-tenant", desired);
 
         // Wait for the fault event to be captured
-        await().atMost(Duration.ofSeconds(2)).until(() -> !capturedEvents.isEmpty());
+        await().atMost(AWAIT).until(() -> !capturedEvents.isEmpty());
 
         // Should have exactly one fault event for the failed deprovision of "b"
         assertEquals(1, capturedEvents.size(), "Expected one fault event for failed deprovision");
@@ -391,88 +381,5 @@ class ReconciliationLoopTest {
 
     record TestSpec(String value) implements NodeSpec {}
 
-    /**
-     * Test double for ActualStateAdapter. Returns configurable statuses.
-     */
-    static class TestActualStateAdapter implements ActualStateAdapter {
-        private volatile Map<NodeId, NodeStatus> statuses = Map.of();
-        private Set<NodeType> handledTypes = Set.of(NodeType.of("test"));
 
-        void setStatuses(Map<NodeId, NodeStatus> statuses) {
-            this.statuses = Map.copyOf(statuses);
-        }
-
-        void setHandledTypes(Set<NodeType> types) {
-            this.handledTypes = Set.copyOf(types);
-        }
-
-        @Override
-        public Set<NodeType> handledTypes() {
-            return handledTypes;
-        }
-
-        @Override
-        public ActualState readActual(DesiredStateGraph desired, String tenancyId) {
-            return new ActualState(statuses);
-        }
-    }
-
-    /**
-     * Test double for TransitionExecutor. Records executed plans and returns success
-     * (or failure for configured nodes).
-     */
-    static class TestTransitionExecutor implements TransitionExecutor {
-        final CopyOnWriteArrayList<TransitionPlan> executedPlans = new CopyOnWriteArrayList<>();
-        final Set<NodeId> failNodes = ConcurrentHashMap.newKeySet();
-        final Set<NodeId> failDeprovisionNodes = ConcurrentHashMap.newKeySet();
-        final Set<NodeId> rejectNodes = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public TransitionResult execute(TransitionPlan plan, String tenancyId) {
-            executedPlans.add(plan);
-
-            Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-            for (OrderedStep step : plan.removals()) {
-                if (failDeprovisionNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Failed("test deprovision failure"));
-                } else {
-                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                }
-            }
-            for (OrderedStep step : plan.additions()) {
-                if (rejectNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
-                } else if (failNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
-                } else {
-                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                }
-            }
-            return new TransitionResult(outcomes);
-        }
-    }
-
-    /**
-     * Test double for EventSource. Wraps a Multi with an emitter for pushing events.
-     */
-    static class TestEventSource implements EventSource {
-        private final AtomicReference<MultiEmitter<? super StateEvent>> emitterRef = new AtomicReference<>();
-        private final Multi<StateEvent> multi;
-
-        TestEventSource() {
-            this.multi = Multi.createFrom().emitter(emitter -> emitterRef.set(emitter));
-        }
-
-        void emit(StateEvent event) {
-            MultiEmitter<? super StateEvent> emitter = emitterRef.get();
-            if (emitter != null) {
-                emitter.emit(event);
-            }
-        }
-
-        @Override
-        public Multi<StateEvent> stream() {
-            return multi;
-        }
-    }
 }

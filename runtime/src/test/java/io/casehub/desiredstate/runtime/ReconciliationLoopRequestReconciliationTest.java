@@ -7,6 +7,8 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.testing.CannedEventSource;
+import io.casehub.desiredstate.testing.MockTransitionExecutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,26 +55,26 @@ class ReconciliationLoopRequestReconciliationTest {
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
         loop = new ReconciliationLoop(
             new TransitionPlanner(),
-            new ReconciliationLoopTest.TestTransitionExecutor(),
+            new MockTransitionExecutor(),
             adapterRouter,
             new FaultPolicyEngine(List.of()),
-            new ReconciliationLoopTest.TestEventSource()::stream,
+            new CannedEventSource()::stream,
             java.time.Duration.ofMillis(50),
             java.time.Duration.ofHours(1)
         );
 
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new ReconciliationLoopTest.TestSpec("x"), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("x"), HumanGating.NONE));
         loop.start("tenant-1", graph);
 
-        assertTrue(initialLatch.await(2, TimeUnit.SECONDS), "Initial reconciliation did not occur");
+        assertTrue(initialLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS), "Initial reconciliation did not occur");
         int baseline = readActualCount.get();
         baselineSet.set(baseline);
 
         loop.requestReconciliation("tenant-1");
 
-        assertTrue(requestLatch.await(2, TimeUnit.SECONDS),
+        assertTrue(requestLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS),
             "Reconciliation not triggered by request. Baseline: " + baseline + ", current: " + readActualCount.get());
 
         assertTrue(readActualCount.get() > baseline,
@@ -90,11 +93,13 @@ class ReconciliationLoopRequestReconciliationTest {
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
         loop = new ReconciliationLoop(
             new TransitionPlanner(),
-            new ReconciliationLoopTest.TestTransitionExecutor(),
+            new MockTransitionExecutor(),
             adapterRouter,
             new FaultPolicyEngine(List.of()),
-            new ReconciliationLoopTest.TestEventSource()::stream
+            new CannedEventSource()::stream
         );
         assertDoesNotThrow(() -> loop.requestReconciliation("nonexistent"));
     }
+
+    private record TestSpec(String value) implements io.casehub.desiredstate.api.NodeSpec {}
 }

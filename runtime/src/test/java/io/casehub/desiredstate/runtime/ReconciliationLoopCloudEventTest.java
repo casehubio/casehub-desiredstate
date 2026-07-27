@@ -1,39 +1,30 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.ActualState;
-import io.casehub.desiredstate.api.ActualStateAdapter;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateEventTypes;
 import io.casehub.desiredstate.api.DesiredStateGraph;
-import io.casehub.desiredstate.api.EventSource;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
-import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.StateEvent;
-import io.casehub.desiredstate.api.StepOutcome;
-import io.casehub.desiredstate.api.TransitionExecutor;
-import io.casehub.desiredstate.api.TransitionPlan;
-import io.casehub.desiredstate.api.TransitionResult;
+import io.casehub.desiredstate.testing.CannedEventSource;
+import io.casehub.desiredstate.testing.MockActualStateAdapter;
+import io.casehub.desiredstate.testing.MockTransitionExecutor;
 import io.cloudevents.CloudEvent;
-import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.subscription.MultiEmitter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
@@ -41,11 +32,11 @@ import static org.awaitility.Awaitility.await;
 class ReconciliationLoopCloudEventTest {
 
     private DefaultDesiredStateGraphFactory factory;
-    private TestActualStateAdapter actualAdapter;
-    private TestTransitionExecutor testExecutor;
+    private MockActualStateAdapter actualAdapter;
+    private MockTransitionExecutor testExecutor;
     private TransitionPlanner planner;
     private FaultPolicyEngine faultEngine;
-    private TestEventSource testEventSource;
+    private CannedEventSource testEventSource;
     private List<CloudEvent> capturedEvents;
     private ReconciliationLoop loop;
 
@@ -55,11 +46,12 @@ class ReconciliationLoopCloudEventTest {
     @BeforeEach
     void setUp() {
         factory = new DefaultDesiredStateGraphFactory();
-        actualAdapter = new TestActualStateAdapter();
-        testExecutor = new TestTransitionExecutor();
+        actualAdapter = new MockActualStateAdapter();
+        actualAdapter.setHandledTypes(Set.of(NodeType.of("test")));
+        testExecutor = new MockTransitionExecutor();
         planner = new TransitionPlanner();
         faultEngine = new FaultPolicyEngine(List.of());
-        testEventSource = new TestEventSource();
+        testEventSource = new CannedEventSource();
         capturedEvents = new CopyOnWriteArrayList<>();
 
         Consumer<CloudEvent> eventSink = capturedEvents::add;
@@ -85,7 +77,7 @@ class ReconciliationLoopCloudEventTest {
 
         loop.start("test-tenant", graph);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.NODE_FAULTED)
                 && "n1".equals(e.getSubject())));
@@ -111,7 +103,7 @@ class ReconciliationLoopCloudEventTest {
 
         loop.start("test-tenant", graph);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.NODE_DRIFTED)
                 && "n1".equals(e.getSubject())));
@@ -130,7 +122,7 @@ class ReconciliationLoopCloudEventTest {
         loop.start("test-tenant", graph);
 
         // Wait for the fault event
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.NODE_FAULTED)));
 
@@ -143,7 +135,7 @@ class ReconciliationLoopCloudEventTest {
         testEventSource.emit(new StateEvent(NodeId.of("n1"), NodeStatus.PRESENT, "recovered"));
 
         // Wait for the recovery event
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.NODE_RECOVERED)
                 && "n1".equals(e.getSubject())));
@@ -159,7 +151,7 @@ class ReconciliationLoopCloudEventTest {
 
         loop.start("test-tenant", graph);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED)));
 
@@ -183,7 +175,7 @@ class ReconciliationLoopCloudEventTest {
         loop.start("test-tenant", graph);
 
         // Wait for the initial reconciliation to complete
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
 
         DesiredStateGraph retrieved = loop.getDesired("test-tenant");
         assertThat(retrieved).isNotNull();
@@ -208,7 +200,7 @@ class ReconciliationLoopCloudEventTest {
         loop.start("test-tenant", graph);
 
         // Wait for initial provision
-        await().atMost(Duration.ofSeconds(2)).until(() -> !testExecutor.executedPlans.isEmpty());
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
         capturedEvents.clear();
 
         // Second cycle: node is present, but mark for deprovision failure
@@ -220,7 +212,7 @@ class ReconciliationLoopCloudEventTest {
         loop.updateDesired("test-tenant", emptyGraph);
         loop.requestReconciliation("test-tenant");
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.NODE_FAULTED)
                 && "n1".equals(e.getSubject())
@@ -247,7 +239,7 @@ class ReconciliationLoopCloudEventTest {
 
         loop.start("test-tenant", graph);
 
-        await().atMost(Duration.ofSeconds(2)).until(() ->
+        await().atMost(AWAIT).until(() ->
             capturedEvents.stream().anyMatch(e ->
                 e.getType().equals(DesiredStateEventTypes.NODE_FAULTED)
                 && "n1".equals(e.getSubject())
@@ -264,74 +256,4 @@ class ReconciliationLoopCloudEventTest {
     }
 
     record TestSpec(String value) implements NodeSpec {}
-
-    static class TestActualStateAdapter implements ActualStateAdapter {
-        private volatile Map<NodeId, NodeStatus> statuses = Map.of();
-
-        void setStatuses(Map<NodeId, NodeStatus> statuses) {
-            this.statuses = Map.copyOf(statuses);
-        }
-
-        @Override
-        public Set<NodeType> handledTypes() {
-            return Set.of(NodeType.of("test"));
-        }
-
-        @Override
-        public ActualState readActual(DesiredStateGraph desired, String tenancyId) {
-            return new ActualState(statuses);
-        }
-    }
-
-    static class TestTransitionExecutor implements TransitionExecutor {
-        final CopyOnWriteArrayList<TransitionPlan> executedPlans = new CopyOnWriteArrayList<>();
-        final Set<NodeId> failNodes = ConcurrentHashMap.newKeySet();
-        final Set<NodeId> failDeprovisionNodes = ConcurrentHashMap.newKeySet();
-        final Set<NodeId> rejectNodes = ConcurrentHashMap.newKeySet();
-
-        @Override
-        public TransitionResult execute(TransitionPlan plan, String tenancyId) {
-            executedPlans.add(plan);
-
-            Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-            for (OrderedStep step : plan.removals()) {
-                if (failDeprovisionNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Failed("test deprovision failure"));
-                } else {
-                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                }
-            }
-            for (OrderedStep step : plan.additions()) {
-                if (rejectNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
-                } else if (failNodes.contains(step.node().id())) {
-                    outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
-                } else {
-                    outcomes.put(step.node().id(), new StepOutcome.Succeeded());
-                }
-            }
-            return new TransitionResult(outcomes);
-        }
-    }
-
-    static class TestEventSource implements EventSource {
-        private final AtomicReference<MultiEmitter<? super StateEvent>> emitterRef = new AtomicReference<>();
-        private final Multi<StateEvent> multi;
-
-        TestEventSource() {
-            this.multi = Multi.createFrom().emitter(emitter -> emitterRef.set(emitter));
-        }
-
-        void emit(StateEvent event) {
-            MultiEmitter<? super StateEvent> emitter = emitterRef.get();
-            if (emitter != null) {
-                emitter.emit(event);
-            }
-        }
-
-        @Override
-        public Multi<StateEvent> stream() {
-            return multi;
-        }
-    }
 }

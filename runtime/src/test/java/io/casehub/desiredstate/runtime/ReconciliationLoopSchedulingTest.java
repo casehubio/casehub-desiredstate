@@ -8,7 +8,9 @@ import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.testing.CannedEventSource;
 import io.casehub.desiredstate.testing.MockNodeProvisioner;
+import io.casehub.desiredstate.testing.MockTransitionExecutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -77,17 +80,17 @@ class ReconciliationLoopSchedulingTest {
 
         loop = new ReconciliationLoop(
             new TransitionPlanner(),
-            new ReconciliationLoopTest.TestTransitionExecutor(),
+            new MockTransitionExecutor(),
             adapterRouter,
             new FaultPolicyEngine(List.of()),
-            new ReconciliationLoopTest.TestEventSource()::stream,
+            new CannedEventSource()::stream,
             router,
             Duration.ofMillis(50)
         );
 
         loop.start("tenant-1", graph);
 
-        assertTrue(fastLatch.await(6, TimeUnit.SECONDS),
+        assertTrue(fastLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS),
             "Fast type should reconcile at least 3 times within 6 seconds");
         assertThat(fastCount.get()).isGreaterThan(slowCount.get());
     }
@@ -132,17 +135,17 @@ class ReconciliationLoopSchedulingTest {
 
         loop = new ReconciliationLoop(
             new TransitionPlanner(),
-            new ReconciliationLoopTest.TestTransitionExecutor(),
+            new MockTransitionExecutor(),
             adapterRouter,
             new FaultPolicyEngine(List.of()),
-            new ReconciliationLoopTest.TestEventSource()::stream,
+            new CannedEventSource()::stream,
             router,
             Duration.ofMillis(50)
         );
 
         loop.start("tenant-1", graph);
 
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertTrue(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS));
 
         boolean hasFilteredCycle = nodesSeenByAdapter.stream()
             .anyMatch(types -> types.equals(Set.of(FAST_TYPE)));
@@ -188,10 +191,10 @@ class ReconciliationLoopSchedulingTest {
 
         loop = new ReconciliationLoop(
             new TransitionPlanner(),
-            new ReconciliationLoopTest.TestTransitionExecutor(),
+            new MockTransitionExecutor(),
             adapterRouter,
             new FaultPolicyEngine(List.of()),
-            new ReconciliationLoopTest.TestEventSource()::stream,
+            new CannedEventSource()::stream,
             router,
             Duration.ofMillis(50)
         );
@@ -207,7 +210,7 @@ class ReconciliationLoopSchedulingTest {
         );
         loop.updateDesired("tenant-1", updatedGraph);
 
-        assertTrue(newTypeLatch.await(5, TimeUnit.SECONDS),
+        assertTrue(newTypeLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS),
             "New type should be reconciled after updateDesired recomputes interval groups");
     }
 
