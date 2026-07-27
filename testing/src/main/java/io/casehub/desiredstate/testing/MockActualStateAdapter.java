@@ -12,13 +12,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Mock ActualStateAdapter for testing. Maintains an in-memory map of NodeId → NodeStatus.
- */
 public class MockActualStateAdapter implements ActualStateAdapter {
 
     private final ConcurrentHashMap<NodeId, NodeStatus> statuses = new ConcurrentHashMap<>();
-    private Set<NodeType> handledTypes = Set.of();
+    private volatile Set<NodeType> handledTypes = Set.of();
 
     @Override
     public Set<NodeType> handledTypes() {
@@ -31,35 +28,35 @@ public class MockActualStateAdapter implements ActualStateAdapter {
 
     @Override
     public ActualState readActual(DesiredStateGraph desired, String tenancyId) {
-        // Return snapshot of current statuses
         return new ActualState(new HashMap<>(statuses));
     }
 
-    /**
-     * Set the status of a specific node.
-     */
     public void setStatus(NodeId nodeId, NodeStatus status) {
         statuses.put(nodeId, status);
     }
 
-    /**
-     * Mark all nodes in the desired graph as PRESENT.
-     */
+    public void setStatuses(Map<NodeId, NodeStatus> newStatuses) {
+        statuses.clear();
+        statuses.putAll(newStatuses);
+    }
+
+    public void makePresent(NodeId id) {
+        setStatus(id, NodeStatus.PRESENT);
+    }
+
+    public void makeAbsent(NodeId id) {
+        setStatus(id, NodeStatus.ABSENT);
+    }
+
     public void setAllPresent(DesiredStateGraph desired) {
         desired.nodes().keySet().forEach(nodeId -> statuses.put(nodeId, NodeStatus.PRESENT));
     }
 
-    /**
-     * Clear all recorded statuses.
-     */
     public void clear() {
         statuses.clear();
         handledTypes = Set.of();
     }
 
-    /**
-     * Direct access to the status map for test assertions.
-     */
     public Map<NodeId, NodeStatus> statuses() {
         return Map.copyOf(statuses);
     }
