@@ -12,7 +12,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
+import static io.casehub.desiredstate.testing.TestTimeouts.AWAIT;
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 class ExpansionLifecycleTest {
 
@@ -65,16 +67,13 @@ class ExpansionLifecycleTest {
 
         manager.start("t1", result);
 
-        // Wait for build phase to complete and defend phase to start
-        Thread.sleep(1000);
-
-        DesiredStateGraph current = loop.getDesired("t1");
-        // Defend phase should be active — contains defense node types
-        boolean hasDefenseNodes = current.nodes().values().stream()
-            .anyMatch(n -> n.type().equals(ExpansionNodeTypes.PATROL)
-                        || n.type().equals(ExpansionNodeTypes.MONITOR)
-                        || n.type().equals(ExpansionNodeTypes.RESPONSE));
-        assertThat(hasDefenseNodes).isTrue();
+        await().atMost(AWAIT).until(() -> {
+            DesiredStateGraph g = loop.getDesired("t1");
+            return g != null && g.nodes().values().stream()
+                .anyMatch(n -> n.type().equals(ExpansionNodeTypes.PATROL)
+                            || n.type().equals(ExpansionNodeTypes.MONITOR)
+                            || n.type().equals(ExpansionNodeTypes.RESPONSE));
+        });
     }
 
     @Test
@@ -83,16 +82,23 @@ class ExpansionLifecycleTest {
             List.of("nexus"), DefensePosture.PATROL);
 
         manager.start("t1", compiler.compile(goal, factory));
-        Thread.sleep(500);
+        await().atMost(AWAIT).until(() -> {
+            DesiredStateGraph g = loop.getDesired("t1");
+            if (g == null) return false;
+            ActualState a = adapter.readActual(g, "t1");
+            return g.nodes().values().stream()
+                .filter(n -> n.type().equals(ExpansionNodeTypes.PATROL))
+                .anyMatch(n -> a.statusOf(n.id()).orElse(NodeStatus.ABSENT) == NodeStatus.PRESENT);
+        });
 
-        // Destroy a defense node — reconciliation should re-provision
         NodeId patrolId = loop.getDesired("t1").nodes().keySet().stream()
             .filter(id -> loop.getDesired("t1").nodes().get(id).type().equals(ExpansionNodeTypes.PATROL))
             .findFirst().orElseThrow();
         world.destroy(patrolId);
 
-        Thread.sleep(500);
-        // Patrol provisioning sets PATROLLING state — check via adapter for PRESENT
+        await().atMost(AWAIT).until(() ->
+            adapter.readActual(loop.getDesired("t1"), "t1")
+                .statusOf(patrolId).orElse(NodeStatus.ABSENT) == NodeStatus.PRESENT);
         ActualState actual = adapter.readActual(loop.getDesired("t1"), "t1");
         assertThat(actual.statusOf(patrolId).orElseThrow()).isEqualTo(NodeStatus.PRESENT);
     }
@@ -103,7 +109,14 @@ class ExpansionLifecycleTest {
             List.of("nexus"), DefensePosture.PATROL);
 
         manager.start("t1", compiler.compile(goal, factory));
-        Thread.sleep(500);
+        await().atMost(AWAIT).until(() -> {
+            DesiredStateGraph g = loop.getDesired("t1");
+            if (g == null) return false;
+            ActualState a = adapter.readActual(g, "t1");
+            return g.nodes().values().stream()
+                .filter(n -> n.type().equals(ExpansionNodeTypes.PATROL))
+                .anyMatch(n -> a.statusOf(n.id()).orElse(NodeStatus.ABSENT) == NodeStatus.PRESENT);
+        });
 
         // Verify nexus is in defend phase graph (carry-forward)
         DesiredStateGraph current = loop.getDesired("t1");
@@ -117,8 +130,7 @@ class ExpansionLifecycleTest {
             .findFirst().orElseThrow();
         world.destroy(nexusId);
 
-        Thread.sleep(500);
-        assertThat(world.isBuilt(nexusId)).isTrue();
+        await().atMost(AWAIT).until(() -> world.isBuilt(nexusId));
     }
 
     @Test
@@ -154,9 +166,8 @@ class ExpansionLifecycleTest {
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         manager.start("t1", CompilationResult.single(graph));
-        Thread.sleep(300);
 
+        await().atMost(AWAIT).until(() -> world.isBuilt(NodeId.of("standalone")));
         assertThat(loop.getDesired("t1").nodes()).containsKey(NodeId.of("standalone"));
-        assertThat(world.isBuilt(NodeId.of("standalone"))).isTrue();
     }
 }
