@@ -63,6 +63,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeProvisionerRouter` | `deprovision(DesiredNode, DeprovisionContext) → DeprovisionResult` | Route deprovision calls to the correct provisioner by NodeType |
 | `NodeProvisionerRouter` | `resyncIntervalFor(NodeType) → Duration` | Get effective resync interval for a type (provisioner default or Preferences override) |
 | `FaultPolicy` | `onFault(String tenancyId, FaultEvent, DesiredStateGraph, ActualState) → List<GraphMutation>` | Mutate graph in response to fault (with actual state visibility). `addReviewNode(NodeType, ReviewSpecFactory)` static factory for common review-node escalation |
+| `FaultCountStore` | `incrementAndGet(namespace, tenancyId, nodeId) → int`, `getCount(...)`, `reset(...)`, `remove(...)`, `evict(namespace, tenancyId, retainedNodes)` | Pluggable fault count storage — namespace-scoped, tenant-isolated |
 | `EventSource` | `stream() → Multi<StateEvent>` | Stream actual-state events into reconciliation loop |
 | `TransitionExecutor` | `execute(TransitionPlan, String tenancyId) → TransitionResult` | Execute a transition plan (SPI'd — simple or case-backed) |
 | `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle human-gated nodes during provision (called when `requiresHuman(PROVISION)`) |
@@ -92,7 +93,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `ActualState` | Map of `NodeId → NodeStatus` (PRESENT/ABSENT/DEGRADED/UNKNOWN) |
 | `ReconciliationResult` | `resolved`, `drifted`, `faulted` node sets + `mutations` |
 | `FaultEvent` | Node + `FaultType` + detail |
-| `ThresholdFaultPolicy` | Reusable `FaultPolicy` (api module) — counts faults per node, delegates to configured `FaultPolicy` at threshold. Builder: faultTypes, nodeTypes, ignoreTypes, threshold, action. In-memory `ConcurrentHashMap` counts (#85 tracks persistence) |
+| `ThresholdFaultPolicy` | Reusable `FaultPolicy` (api module) — counts faults per node via pluggable `FaultCountStore` SPI, delegates to configured `FaultPolicy` at threshold. Builder: faultTypes, nodeTypes, ignoreTypes, threshold, action, faultCountStore, namespace. `resetCount(tenancyId, nodeId)` for external recovery-reset. Lazy eviction on fault for removed nodes. Default `InMemoryFaultCountStore` |
+| `InMemoryFaultCountStore` | Default `FaultCountStore` — `ConcurrentHashMap` with `(namespace, tenancyId, nodeId)` composite key. Thread-safe. In `api/` (builder default, not CDI-managed) |
 | `ReviewSpecFactory` | `(FaultEvent, DesiredStateGraph) → NodeSpec` callback for `FaultPolicy.addReviewNode()` |
 | `GraphMutation` | Sealed interface — AddNode, RemoveNode, UpdateNode(id, adaptedNode), AddDependency, RemoveDependency. UpdateNode carries full adapted DesiredNode |
 | `ProvisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |

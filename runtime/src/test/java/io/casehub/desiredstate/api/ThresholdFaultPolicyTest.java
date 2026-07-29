@@ -201,4 +201,109 @@ class ThresholdFaultPolicyTest {
 
         assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).isEmpty();
     }
+
+    @Test
+    void tenantIsolation_sameFaultCountedIndependently() {
+        var policy = policyWithThreshold(2);
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        policy.onFault("tenant-a", event, graph, EMPTY_ACTUAL);
+        assertThat(policy.onFault("tenant-b", event, graph, EMPTY_ACTUAL)).isEmpty();
+        assertThat(policy.onFault("tenant-a", event, graph, EMPTY_ACTUAL)).hasSize(1);
+    }
+
+    @Test
+    void customStore_receivesIncrementCalls() {
+        var store = new InMemoryFaultCountStore();
+        var policy = ThresholdFaultPolicy.builder()
+                                         .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                                         .threshold(2)
+                                         .action(FaultPolicy.addReviewNode(REVIEW,
+                                                                           (event, current) -> new TestReviewSpec(event.node(), event.detail())))
+                                         .faultCountStore(store)
+                                         .namespace("test-policy")
+                                         .build();
+        var graph = graphWith("n1", TARGET);
+        var event = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+
+        assertThat(store.getCount("test-policy", "t1", NodeId.of("n1"))).isEqualTo(1);
+    }
+
+    @Test
+    void lazyEviction_matchingFaultType_removesCount() {
+        var store = new InMemoryFaultCountStore();
+        var policy = ThresholdFaultPolicy.builder()
+                                         .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                                         .threshold(3)
+                                         .action((t, e, g, a) -> List.of())
+                                         .faultCountStore(store)
+                                         .namespace("test")
+                                         .build();
+        var graph = graphWith("n1", TARGET);
+        var event = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        assertThat(store.getCount("test", "t1", NodeId.of("n1"))).isEqualTo(1);
+
+        var emptyGraph = graphFactory.of(List.of(), List.of());
+        policy.onFault("t1", event, emptyGraph, EMPTY_ACTUAL);
+
+        assertThat(store.getCount("test", "t1", NodeId.of("n1"))).isEqualTo(0);
+    }
+
+    @Test
+    void lazyEviction_nonMatchingFaultType_stillRemovesCount() {
+        var store = new InMemoryFaultCountStore();
+        var policy = ThresholdFaultPolicy.builder()
+                                         .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                                         .threshold(3)
+                                         .action((t, e, g, a) -> List.of())
+                                         .faultCountStore(store)
+                                         .namespace("test")
+                                         .build();
+        var graph          = graphWith("n1", TARGET);
+        var provisionEvent = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        policy.onFault("t1", provisionEvent, graph, EMPTY_ACTUAL);
+        assertThat(store.getCount("test", "t1", NodeId.of("n1"))).isEqualTo(1);
+
+        var emptyGraph    = graphFactory.of(List.of(), List.of());
+        var degradedEvent = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DEGRADED, "drift");
+        policy.onFault("t1", degradedEvent, emptyGraph, EMPTY_ACTUAL);
+
+        assertThat(store.getCount("test", "t1", NodeId.of("n1"))).isEqualTo(0);
+    }
+
+    @Test
+    void resetCount_resetsAndNextFaultsStartFromOne() {
+        var policy = policyWithThreshold(3);
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        policy.resetCount("t1", NodeId.of("n1"));
+
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL))
+                .as("Third fault after reset triggers action")
+                .hasSize(1);
+    }
+
+    @Test
+    void builder_requiresNamespaceForCustomStore() {
+        assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
+                                                     .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                                                     .threshold(1)
+                                                     .action((t, e, g, a) -> List.of())
+                                                     .faultCountStore(new InMemoryFaultCountStore())
+                                                     .build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("namespace");
+    }
+
 }
