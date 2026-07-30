@@ -501,6 +501,14 @@ public class ReconciliationLoop {
             if (eventSubscription != null) {
                 eventSubscription.cancel();
             }
+            for (GlobalReconciliationListener gl : globalListeners) {
+                try {
+                    gl.onTenantStopped(tenancyId);
+                } catch (Exception e) {
+                    LOG.log(Level.WARNING,
+                            "Global listener onTenantStopped failed for tenant " + tenancyId, e);
+                }
+            }
             if (resyncFuture != null) {
                 resyncFuture.cancel(false);
             }
@@ -552,7 +560,7 @@ public class ReconciliationLoop {
             }
         }
 
-        private void fireListener(DesiredStateGraph desired, ActualState actual) {
+        private void fireGlobalListeners(DesiredStateGraph desired, ActualState actual) {
             for (GlobalReconciliationListener gl : globalListeners) {
                 try {
                     gl.onReconciliationCycleCompleted(tenancyId, desired, actual);
@@ -561,6 +569,9 @@ public class ReconciliationLoop {
                             "Global reconciliation listener failed for tenant " + tenancyId, e);
                 }
             }
+        }
+
+        private void firePerTenantListener(DesiredStateGraph desired, ActualState actual) {
             ReconciliationListener l = listener;
             if (l != null) {
                 try {
@@ -569,7 +580,8 @@ public class ReconciliationLoop {
                     LOG.log(Level.WARNING,
                             "Reconciliation listener failed for tenant " + tenancyId, e);
                 }
-            }}
+            }
+        }
 
         private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
@@ -587,7 +599,8 @@ public class ReconciliationLoop {
                 ActualState actual = readActual(desired, tenancyId);
 
                 // Listener fires unconditionally — including empty-plan cycles
-                fireListener(desired, actual);
+                fireGlobalListeners(desired, actual);
+                firePerTenantListener(desired, actual);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
                 desired = detectDrift(desired, actual, driftedNodes);
@@ -643,9 +656,6 @@ public class ReconciliationLoop {
                 }
 
                 ActualState actual = readActual(filteredDesired, tenancyId);
-
-                // Listener fires unconditionally — pass full desired graph, not filtered
-                fireListener(fullDesired, actual);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
                 filteredDesired = detectDrift(filteredDesired, actual, driftedNodes);
