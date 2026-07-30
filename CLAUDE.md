@@ -35,7 +35,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | Module | Artifact | Root package | Purpose |
 |--------|----------|-------------|---------|
 | `api/` | `casehub-desiredstate-api` | `io.casehub.desiredstate.api` | Core SPIs + domain types. Pure Java, Mutiny provided, CDI annotations provided. |
-| `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, ImmutableDesiredStateGraph, SimpleTransitionExecutor, DefaultNodeProvisionerRouter, CdiNodeProvisionerRouter, DefaultFaultCountStore, DesiredStatePreferenceKeys, SituationRecompilerEngine, CbrFaultPolicy, CbrSituationRecompiler, GraphDiff. Multi-provisioner dispatch, per-type reconciliation scheduling, CDI priority ladder fallbacks, and CBR chain. Quarkus library. |
+| `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, ImmutableDesiredStateGraph, SimpleTransitionExecutor, DefaultNodeProvisionerRouter, CdiNodeProvisionerRouter, DefaultFaultCountStore, FaultCountEvictionListener, DesiredStatePreferenceKeys, SituationRecompilerEngine, CbrFaultPolicy, CbrSituationRecompiler, GraphDiff. Multi-provisioner dispatch, per-type reconciliation scheduling, CDI priority ladder fallbacks, fault count eviction, and CBR chain. Quarkus library. |
 | `testing/` | `casehub-desiredstate-testing` | `io.casehub.desiredstate.testing` | Mock SPIs and test fixtures. **Test scope only.** |
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | CaseTransitionExecutor — orchestration-tier bridge. Generates cases with Worker(Workflow) phases. DesiredStateDispatch registers `desiredstate:dispatch` via CallableDispatchRegistry (engine-flow) for workflow step execution with full PendingApproval lifecycle. DesiredStateReplanDispatch registers `desiredstate:replan` for RAS-triggered situation response via SituationRecompilerEngine (reads ActualState via ActualStateAdapterRouter). CTE pre-filters approval-gated nodes before case creation. |
 | `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | WorkItemPendingApprovalHandler — WorkItem-backed approval lifecycle via WorkItemCreator SPI. Classpath-activated, displaces NoOpPendingApprovalHandler. |
@@ -64,7 +64,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeProvisionerRouter` | `deprovision(DesiredNode, DeprovisionContext) → DeprovisionResult` | Route deprovision calls to the correct provisioner by NodeType |
 | `NodeProvisionerRouter` | `resyncIntervalFor(NodeType) → Duration` | Get effective resync interval for a type (provisioner default or Preferences override) |
 | `FaultPolicy` | `onFault(String tenancyId, FaultEvent, DesiredStateGraph, ActualState) → List<GraphMutation>` | Mutate graph in response to fault (with actual state visibility). `addReviewNode(NodeType, ReviewSpecFactory)` static factory for common review-node escalation |
-| `FaultCountStore` | `incrementAndGet(namespace, tenancyId, nodeId) → int`, `getCount(...)`, `reset(...)`, `remove(...)`, `evict(namespace, tenancyId, retainedNodes)` | Pluggable fault count storage — namespace-scoped, tenant-isolated |
+| `FaultCountStore` | `incrementAndGet(namespace, tenancyId, nodeId) → int`, `getCount(...)`, `reset(...)`, `remove(...)`, `evict(namespace, tenancyId, retainedNodes)`, `evictAcrossNamespaces(tenancyId, retainedNodes)` | Pluggable fault count storage — namespace-scoped, tenant-isolated. `evictAcrossNamespaces` for cross-namespace bulk eviction of removed nodes |
 | `EventSource` | `stream() → Multi<StateEvent>` | Stream actual-state events into reconciliation loop |
 | `TransitionExecutor` | `execute(TransitionPlan, String tenancyId) → TransitionResult` | Execute a transition plan (SPI'd — simple or case-backed) |
 | `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle human-gated nodes during provision (called when `requiresHuman(PROVISION)`) |
@@ -74,7 +74,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `ConfigurationRetriever` | `retrieve(RetrievalContext, int maxResults) → List<RetrievedConfiguration>` | CBR Retrieve — find similar past configurations by fault/situation context |
 | `ConfigurationAdapter` | `adapt(RetrievedConfiguration, RetrievalContext) → Optional<AdaptedConfiguration>` | CBR Reuse — adapt retrieved configuration to current context |
 | `ReconciliationListener` | `onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph, ActualState)` | Per-tenant post-cycle callback for lifecycle phase completion checks |
-| `GlobalReconciliationListener` | `onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph, ActualState)` | Application-scoped post-cycle callback — CDI-discovered, fires for all tenants. Bulk eviction, metrics |
+| `GlobalReconciliationListener` | `onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph, ActualState)`, `default onTenantStopped(String tenancyId)` | Application-scoped post-cycle callback — CDI-discovered, fires for all tenants. `onTenantStopped` fires during stop for cleanup. Fires only from full `reconcile()`, not from type-filtered `reconcileTypes()` |
 | `CompletionCondition` | `isComplete(DesiredStateGraph, ActualState) → boolean` | Predicate for lifecycle phase completion |
 | `DesiredStateGraph` | query + mutation + `filterByTypes(Set<NodeType>)` methods | SPI interface — graph backing store is pluggable. `filterByTypes` is a default method using subtractive approach via `withoutNode()` |
 | `DesiredStateGraphFactory` | `empty()`, `of(nodes, deps)` | Creates graph instances |
@@ -109,7 +109,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `CdiNodeProvisionerRouter` | CDI-wired subclass injecting `Instance<NodeProvisioner>` and `PreferenceProvider` |
 | `DefaultActualStateAdapterRouter` | Runtime implementation of ActualStateAdapterRouter — builds routing table from all adapters, dispatches readActual by NodeType, merges results |
 | `CdiActualStateAdapterRouter` | CDI-wired subclass injecting `Instance<ActualStateAdapter>` |
-| `DefaultFaultCountStore` | `@DefaultBean @ApplicationScoped` — CDI fallback wrapping `InMemoryFaultCountStore`. Yields to `JpaFaultCountStore` when `persistence-jpa` is on classpath |
+| `DefaultFaultCountStore` | `@DefaultBean @ApplicationScoped` — CDI fallback wrapping `InMemoryFaultCountStore`. Yields to `JpaFaultCountStore` when `persistence-jpa` is on classpath. Tier 1a functional fallback |
+| `FaultCountEvictionListener` | `@ApplicationScoped` GlobalReconciliationListener — calls `evictAcrossNamespaces` after each cycle and on tenant stop. CDI-discovered. No namespace registry needed |
 | `JpaFaultCountStore` | `@ApplicationScoped` (persistence-jpa/) — JPA-backed FaultCountStore. Portable SQL (H2 MODE=PostgreSQL + PostgreSQL). Flyway migration V1 at `db/desiredstate/migration/` |
 | `FaultCountEntity` | JPA entity for `ds_fault_count` table — composite key `(namespace, tenancy_id, node_id)`, count field. `@IdClass(Key.class)` |
 | `DefaultMergedEventSource` | Runtime implementation of MergedEventSource — merges multiple EventSource streams with per-stream error isolation |
