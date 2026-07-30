@@ -122,9 +122,10 @@ public class ReconciliationLoop {
             MergedEventSource mergedEventSource,
             NodeProvisionerRouter router,
             Event<CloudEvent> cloudEventSink,
-            Instance<GlobalReconciliationListener> globalListeners) {
+            Instance<GlobalReconciliationListener> globalListeners,
+            CbrProposalTracker cbrTracker) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             router, DEFAULT_DEBOUNCE, null, cloudEventSink::fire, null,
+             router, DEFAULT_DEBOUNCE, null, cloudEventSink::fire, cbrTracker,
              globalListeners.stream().toList());
     }
 
@@ -250,6 +251,76 @@ public class ReconciliationLoop {
         int groups = Math.max(1, distinctIntervals.size());
         return Math.min(groups, Runtime.getRuntime().availableProcessors());
     }
+
+    public static Builder builder(TransitionPlanner planner,
+                                  TransitionExecutor executor,
+                                  ActualStateAdapterRouter actualStateAdapterRouter,
+                                  FaultPolicyEngine faultPolicyEngine,
+                                  MergedEventSource mergedEventSource) {
+        return new Builder(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource);
+    }
+
+    public static class Builder {
+        private final TransitionPlanner                  planner;
+        private final TransitionExecutor                 executor;
+        private final ActualStateAdapterRouter           actualStateAdapterRouter;
+        private final FaultPolicyEngine                  faultPolicyEngine;
+        private final MergedEventSource                  mergedEventSource;
+        private       NodeProvisionerRouter              router;
+        private       Duration                           debounceWindow  = DEFAULT_DEBOUNCE;
+        private       Duration                           resyncInterval;
+        private       Consumer<CloudEvent>               cloudEventSink;
+        private       CbrProposalTracker                 cbrTracker;
+        private       List<GlobalReconciliationListener> globalListeners = List.of();
+
+        private Builder(TransitionPlanner planner, TransitionExecutor executor,
+                        ActualStateAdapterRouter actualStateAdapterRouter,
+                        FaultPolicyEngine faultPolicyEngine,
+                        MergedEventSource mergedEventSource) {
+            this.planner                  = planner;
+            this.executor                 = executor;
+            this.actualStateAdapterRouter = actualStateAdapterRouter;
+            this.faultPolicyEngine        = faultPolicyEngine;
+            this.mergedEventSource        = mergedEventSource;
+        }
+
+        public Builder router(NodeProvisionerRouter router)                                {
+                                                                                               this.router = router;
+                                                                                               return this;
+                                                                                           }
+
+        public Builder debounceWindow(Duration debounceWindow)                             {
+                                                                                               this.debounceWindow = debounceWindow;
+                                                                                               return this;
+                                                                                           }
+
+        public Builder resyncInterval(Duration resyncInterval)                             {
+                                                                                               this.resyncInterval = resyncInterval;
+                                                                                               return this;
+                                                                                           }
+
+        public Builder cloudEventSink(Consumer<CloudEvent> cloudEventSink)                 {
+                                                                                               this.cloudEventSink = cloudEventSink;
+                                                                                               return this;
+                                                                                           }
+
+        public Builder cbrTracker(CbrProposalTracker cbrTracker)                           {
+                                                                                               this.cbrTracker = cbrTracker;
+                                                                                               return this;
+                                                                                           }
+
+        public Builder globalListeners(List<GlobalReconciliationListener> globalListeners) {
+                                                                                               this.globalListeners = globalListeners;
+                                                                                               return this;
+                                                                                           }
+
+        public ReconciliationLoop build() {
+            return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
+                                          faultPolicyEngine, mergedEventSource, router, debounceWindow,
+                                          resyncInterval, cloudEventSink, cbrTracker, globalListeners);
+        }
+    }
+
 
     /**
      * Starts a reconciliation loop for the given tenant. Triggers an immediate initial
