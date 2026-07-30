@@ -7,6 +7,7 @@ import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultType;
+import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.MergedEventSource;
 import io.casehub.desiredstate.api.NodeDriftedData;
@@ -34,6 +35,7 @@ import io.smallrye.mutiny.subscription.Cancellable;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
 import java.time.Duration;
@@ -105,13 +107,12 @@ public class ReconciliationLoop {
     private final Consumer<CloudEvent> cloudEventSink;
     private final ReconciliationEventEmitter eventEmitter;
     private final CbrProposalTracker cbrTracker;
+    private final List<GlobalReconciliationListener> globalListeners;
+
 
     private final ConcurrentHashMap<String, TenantLoop> loops = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler;
 
-    /**
-     * CDI constructor with router-driven interval-grouped scheduling.
-     */
     @Inject
     public ReconciliationLoop(
             TransitionPlanner planner,
@@ -120,15 +121,13 @@ public class ReconciliationLoop {
             FaultPolicyEngine faultPolicyEngine,
             MergedEventSource mergedEventSource,
             NodeProvisionerRouter router,
-            Event<CloudEvent> cloudEventSink) {
+            Event<CloudEvent> cloudEventSink,
+            Instance<GlobalReconciliationListener> globalListeners) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             router, DEFAULT_DEBOUNCE, null, cloudEventSink::fire, null);
+             router, DEFAULT_DEBOUNCE, null, cloudEventSink::fire, null,
+             globalListeners.stream().toList());
     }
 
-    /**
-     * Test-friendly constructor with router and debounce control, using interval-grouped
-     * scheduling derived from the router.
-     */
     public ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
@@ -138,14 +137,9 @@ public class ReconciliationLoop {
             NodeProvisionerRouter router,
             Duration debounceWindow) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             router, debounceWindow, null, null, null);
+             router, debounceWindow, null, null, null, List.of());
     }
 
-    /**
-     * Test-friendly constructor accepting configurable durations.
-     * Uses a single resync timer at the given interval, bypassing interval-grouped scheduling.
-     * Pass {@code null} for the router when using this constructor.
-     */
     public ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
@@ -155,12 +149,9 @@ public class ReconciliationLoop {
             Duration debounceWindow,
             Duration resyncInterval) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, null, null);
+             null, debounceWindow, resyncInterval, null, null, List.of());
     }
 
-    /**
-     * Test-friendly constructor with event sink for CloudEvent capture.
-     */
     public ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
@@ -171,7 +162,7 @@ public class ReconciliationLoop {
             Duration resyncInterval,
             Consumer<CloudEvent> cloudEventSink) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, cloudEventSink, null);
+             null, debounceWindow, resyncInterval, cloudEventSink, null, List.of());
     }
 
     public ReconciliationLoop(
@@ -185,7 +176,23 @@ public class ReconciliationLoop {
             Consumer<CloudEvent> cloudEventSink,
             CbrProposalTracker cbrTracker) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, cloudEventSink, cbrTracker);
+             null, debounceWindow, resyncInterval, cloudEventSink, cbrTracker, List.of());
+    }
+
+
+    public ReconciliationLoop(
+            TransitionPlanner planner,
+            TransitionExecutor executor,
+            ActualStateAdapterRouter actualStateAdapterRouter,
+            FaultPolicyEngine faultPolicyEngine,
+            MergedEventSource mergedEventSource,
+            Duration debounceWindow,
+            Duration resyncInterval,
+            Consumer<CloudEvent> cloudEventSink,
+            CbrProposalTracker cbrTracker,
+            List<GlobalReconciliationListener> globalListeners) {
+        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
+             null, debounceWindow, resyncInterval, cloudEventSink, cbrTracker, globalListeners);
     }
 
     public ReconciliationLoop(
@@ -195,17 +202,9 @@ public class ReconciliationLoop {
             FaultPolicyEngine faultPolicyEngine,
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null);
+             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of());
     }
 
-    /**
-     * Internal master constructor.
-     *
-     * @param router          provisioner router for interval-grouped scheduling (may be null)
-     * @param debounceWindow  debounce window for event-driven and requested reconciliation
-     * @param resyncOverride  if non-null, bypasses interval-grouped scheduling with a single timer
-     * @param cloudEventSink  consumer for CloudEvents (may be null — events discarded)
-     */
     private ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
@@ -216,18 +215,20 @@ public class ReconciliationLoop {
             Duration debounceWindow,
             Duration resyncOverride,
             Consumer<CloudEvent> cloudEventSink,
-            CbrProposalTracker cbrTracker) {
-        this.planner = planner;
-        this.executor = executor;
+            CbrProposalTracker cbrTracker,
+            List<GlobalReconciliationListener> globalListeners) {
+        this.planner                  = planner;
+        this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
-        this.faultPolicyEngine = faultPolicyEngine;
-        this.mergedEventSource = mergedEventSource;
-        this.router = router;
-        this.debounceWindow = debounceWindow;
-        this.resyncOverride = resyncOverride;
-        this.cloudEventSink = cloudEventSink != null ? cloudEventSink : event -> {};
-        this.eventEmitter = new ReconciliationEventEmitter();
-        this.cbrTracker = cbrTracker != null ? cbrTracker : new CbrProposalTracker();
+        this.faultPolicyEngine        = faultPolicyEngine;
+        this.mergedEventSource        = mergedEventSource;
+        this.router                   = router;
+        this.debounceWindow           = debounceWindow;
+        this.resyncOverride           = resyncOverride;
+        this.cloudEventSink           = cloudEventSink != null ? cloudEventSink : event -> {};
+        this.eventEmitter             = new ReconciliationEventEmitter();
+        this.cbrTracker               = cbrTracker != null ? cbrTracker : new CbrProposalTracker();
+        this.globalListeners          = globalListeners != null ? List.copyOf(globalListeners) : List.of();
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -548,16 +549,23 @@ public class ReconciliationLoop {
         }
 
         private void fireListener(DesiredStateGraph desired, ActualState actual) {
+            for (GlobalReconciliationListener gl : globalListeners) {
+                try {
+                    gl.onReconciliationCycleCompleted(tenancyId, desired, actual);
+                } catch (Exception e) {
+                    LOG.log(Level.WARNING,
+                            "Global reconciliation listener failed for tenant " + tenancyId, e);
+                }
+            }
             ReconciliationListener l = listener;
             if (l != null) {
                 try {
                     l.onReconciliationCycleCompleted(tenancyId, desired, actual);
                 } catch (Exception e) {
                     LOG.log(Level.WARNING,
-                        "Reconciliation listener failed for tenant " + tenancyId, e);
+                            "Reconciliation listener failed for tenant " + tenancyId, e);
                 }
-            }
-        }
+            }}
 
         private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
