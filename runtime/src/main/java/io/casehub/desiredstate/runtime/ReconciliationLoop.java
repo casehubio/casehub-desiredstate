@@ -129,74 +129,7 @@ public class ReconciliationLoop {
              globalListeners.stream().toList());
     }
 
-    public ReconciliationLoop(
-            TransitionPlanner planner,
-            TransitionExecutor executor,
-            ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
-            MergedEventSource mergedEventSource,
-            NodeProvisionerRouter router,
-            Duration debounceWindow) {
-        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             router, debounceWindow, null, null, null, List.of());
-    }
-
-    public ReconciliationLoop(
-            TransitionPlanner planner,
-            TransitionExecutor executor,
-            ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
-            MergedEventSource mergedEventSource,
-            Duration debounceWindow,
-            Duration resyncInterval) {
-        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, null, null, List.of());
-    }
-
-    public ReconciliationLoop(
-            TransitionPlanner planner,
-            TransitionExecutor executor,
-            ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
-            MergedEventSource mergedEventSource,
-            Duration debounceWindow,
-            Duration resyncInterval,
-            Consumer<CloudEvent> cloudEventSink) {
-        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, cloudEventSink, null, List.of());
-    }
-
-    public ReconciliationLoop(
-            TransitionPlanner planner,
-            TransitionExecutor executor,
-            ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
-            MergedEventSource mergedEventSource,
-            Duration debounceWindow,
-            Duration resyncInterval,
-            Consumer<CloudEvent> cloudEventSink,
-            CbrProposalTracker cbrTracker) {
-        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, cloudEventSink, cbrTracker, List.of());
-    }
-
-
-    public ReconciliationLoop(
-            TransitionPlanner planner,
-            TransitionExecutor executor,
-            ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
-            MergedEventSource mergedEventSource,
-            Duration debounceWindow,
-            Duration resyncInterval,
-            Consumer<CloudEvent> cloudEventSink,
-            CbrProposalTracker cbrTracker,
-            List<GlobalReconciliationListener> globalListeners) {
-        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, debounceWindow, resyncInterval, cloudEventSink, cbrTracker, globalListeners);
-    }
-
-    public ReconciliationLoop(
+    protected ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapterRouter actualStateAdapterRouter,

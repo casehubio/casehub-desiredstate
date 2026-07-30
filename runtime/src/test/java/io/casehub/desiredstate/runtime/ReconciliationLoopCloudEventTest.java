@@ -56,9 +56,8 @@ class ReconciliationLoopCloudEventTest {
 
         Consumer<CloudEvent> eventSink = capturedEvents::add;
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC, eventSink);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).cloudEventSink(eventSink).build();
     }
 
     @AfterEach

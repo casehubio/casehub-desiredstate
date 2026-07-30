@@ -59,10 +59,9 @@ class ReconciliationLoopLifecycleTest {
             latch.countDown();
         };
 
-        loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60));
+        loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60)).build();
         loop.start("t1", graph, listener);
 
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
@@ -83,10 +82,9 @@ class ReconciliationLoopLifecycleTest {
             latch.countDown();
         };
 
-        loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60));
+        loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60)).build();
         loop.start("t1", graph, listener);
 
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
@@ -101,10 +99,9 @@ class ReconciliationLoopLifecycleTest {
         DesiredStateGraph graph2 = ImmutableDesiredStateGraph.empty()
             .withNode(new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
 
-        loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60));
+        loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60)).build();
         loop.start("t1", graph1);
 
         boolean swapped = loop.compareAndSetDesired("t1", graph1, graph2);
@@ -122,10 +119,9 @@ class ReconciliationLoopLifecycleTest {
         DesiredStateGraph graph3 = ImmutableDesiredStateGraph.empty()
             .withNode(new DesiredNode(NodeId.of("c"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
 
-        loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60));
+        loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60)).build();
         loop.start("t1", graph1);
         loop.updateDesired("t1", graph2);
 
@@ -141,10 +137,9 @@ class ReconciliationLoopLifecycleTest {
             .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
-        loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofMillis(200));
+        loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofMillis(200)).build();
         loop.start("t1", graph);
 
         CountDownLatch latch = new CountDownLatch(1);

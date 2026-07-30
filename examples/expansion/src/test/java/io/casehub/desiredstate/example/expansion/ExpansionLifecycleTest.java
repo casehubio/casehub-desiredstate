@@ -39,11 +39,9 @@ class ExpansionLifecycleTest {
             router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(), executor, adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofMillis(200));
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), executor, adapterRouter,
+            new FaultPolicyEngine(List.of()), () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofMillis(200)).build();
         manager = new LifecycleManager(loop);
     }
 

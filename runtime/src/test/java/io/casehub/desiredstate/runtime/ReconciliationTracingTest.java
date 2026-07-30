@@ -74,9 +74,8 @@ class ReconciliationTracingTest {
         testEventSource = new CannedEventSource();
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-                planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-                TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
     }
 
     @AfterEach
@@ -146,9 +145,8 @@ class ReconciliationTracingTest {
         SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
                 router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         var adapterRouterLocal = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        ReconciliationLoop loopWithSimple = new ReconciliationLoop(
-                planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream,
-                TEST_DEBOUNCE, TEST_RESYNC);
+        ReconciliationLoop loopWithSimple = ReconciliationLoop.builder(planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream)
+                .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loopWithSimple.start("test-tenant", desired);
 
@@ -182,9 +180,8 @@ class ReconciliationTracingTest {
         SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
                 router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         var adapterRouterLocal = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        ReconciliationLoop loopWithSimple = new ReconciliationLoop(
-                planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream,
-                TEST_DEBOUNCE, TEST_RESYNC);
+        ReconciliationLoop loopWithSimple = ReconciliationLoop.builder(planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream)
+                .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loopWithSimple.start("test-tenant", desired);
 
@@ -213,9 +210,8 @@ class ReconciliationTracingTest {
         SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
                 router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
         var adapterRouterLocal = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        ReconciliationLoop loopWithSimple = new ReconciliationLoop(
-                planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream,
-                TEST_DEBOUNCE, TEST_RESYNC);
+        ReconciliationLoop loopWithSimple = ReconciliationLoop.builder(planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream)
+                .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loopWithSimple.start("test-tenant", desired);
 
@@ -245,9 +241,8 @@ class ReconciliationTracingTest {
         FaultPolicy noopPolicy = (tid, event, current, actual) -> List.of();
         faultEngine = new FaultPolicyEngine(List.of(noopPolicy));
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-                planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-                TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loop.start("test-tenant", desired);
 
@@ -296,9 +291,8 @@ class ReconciliationTracingTest {
         FaultPolicy noopPolicy = (tid, event, current, actual) -> List.of();
         faultEngine = new FaultPolicyEngine(List.of(noopPolicy));
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-                planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-                TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loop.start("test-tenant", desired);
 
