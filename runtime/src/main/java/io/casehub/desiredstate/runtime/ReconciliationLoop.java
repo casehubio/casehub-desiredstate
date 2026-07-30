@@ -91,11 +91,9 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class ReconciliationLoop {
 
-    private static final Logger LOG = Logger.getLogger(ReconciliationLoop.class.getName());
-
     static final Duration DEFAULT_DEBOUNCE = Duration.ofSeconds(1);
     static final Duration DEFAULT_RESYNC = Duration.ofMinutes(5);
-
+    private static final Logger LOG = Logger.getLogger(ReconciliationLoop.class.getName());
     private final TransitionPlanner planner;
     private final TransitionExecutor executor;
     private final ActualStateAdapterRouter actualStateAdapterRouter;
@@ -172,6 +170,14 @@ public class ReconciliationLoop {
         });
     }
 
+    public static Builder builder(TransitionPlanner planner,
+                                  TransitionExecutor executor,
+                                  ActualStateAdapterRouter actualStateAdapterRouter,
+                                  FaultPolicyEngine faultPolicyEngine,
+                                  MergedEventSource mergedEventSource) {
+        return new Builder(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource);
+    }
+
     private int computeSchedulerPoolSize() {
         if (resyncOverride != null || router == null) {
             return 1;
@@ -184,76 +190,6 @@ public class ReconciliationLoop {
         int groups = Math.max(1, distinctIntervals.size());
         return Math.min(groups, Runtime.getRuntime().availableProcessors());
     }
-
-    public static Builder builder(TransitionPlanner planner,
-                                  TransitionExecutor executor,
-                                  ActualStateAdapterRouter actualStateAdapterRouter,
-                                  FaultPolicyEngine faultPolicyEngine,
-                                  MergedEventSource mergedEventSource) {
-        return new Builder(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource);
-    }
-
-    public static class Builder {
-        private final TransitionPlanner                  planner;
-        private final TransitionExecutor                 executor;
-        private final ActualStateAdapterRouter           actualStateAdapterRouter;
-        private final FaultPolicyEngine                  faultPolicyEngine;
-        private final MergedEventSource                  mergedEventSource;
-        private       NodeProvisionerRouter              router;
-        private       Duration                           debounceWindow  = DEFAULT_DEBOUNCE;
-        private       Duration                           resyncInterval;
-        private       Consumer<CloudEvent>               cloudEventSink;
-        private       CbrProposalTracker                 cbrTracker;
-        private       List<GlobalReconciliationListener> globalListeners = List.of();
-
-        private Builder(TransitionPlanner planner, TransitionExecutor executor,
-                        ActualStateAdapterRouter actualStateAdapterRouter,
-                        FaultPolicyEngine faultPolicyEngine,
-                        MergedEventSource mergedEventSource) {
-            this.planner                  = planner;
-            this.executor                 = executor;
-            this.actualStateAdapterRouter = actualStateAdapterRouter;
-            this.faultPolicyEngine        = faultPolicyEngine;
-            this.mergedEventSource        = mergedEventSource;
-        }
-
-        public Builder router(NodeProvisionerRouter router)                                {
-                                                                                               this.router = router;
-                                                                                               return this;
-                                                                                           }
-
-        public Builder debounceWindow(Duration debounceWindow)                             {
-                                                                                               this.debounceWindow = debounceWindow;
-                                                                                               return this;
-                                                                                           }
-
-        public Builder resyncInterval(Duration resyncInterval)                             {
-                                                                                               this.resyncInterval = resyncInterval;
-                                                                                               return this;
-                                                                                           }
-
-        public Builder cloudEventSink(Consumer<CloudEvent> cloudEventSink)                 {
-                                                                                               this.cloudEventSink = cloudEventSink;
-                                                                                               return this;
-                                                                                           }
-
-        public Builder cbrTracker(CbrProposalTracker cbrTracker)                           {
-                                                                                               this.cbrTracker = cbrTracker;
-                                                                                               return this;
-                                                                                           }
-
-        public Builder globalListeners(List<GlobalReconciliationListener> globalListeners) {
-                                                                                               this.globalListeners = globalListeners;
-                                                                                               return this;
-                                                                                           }
-
-        public ReconciliationLoop build() {
-            return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
-                                          faultPolicyEngine, mergedEventSource, router, debounceWindow,
-                                          resyncInterval, cloudEventSink, cbrTracker, globalListeners);
-        }
-    }
-
 
     /**
      * Starts a reconciliation loop for the given tenant. Triggers an immediate initial
@@ -422,25 +358,85 @@ public class ReconciliationLoop {
         return groups;
     }
 
+    public static class Builder {
+        private final TransitionPlanner                  planner;
+        private final TransitionExecutor                 executor;
+        private final ActualStateAdapterRouter           actualStateAdapterRouter;
+        private final FaultPolicyEngine                  faultPolicyEngine;
+        private final MergedEventSource                  mergedEventSource;
+        private       NodeProvisionerRouter              router;
+        private       Duration                           debounceWindow  = DEFAULT_DEBOUNCE;
+        private       Duration                           resyncInterval;
+        private       Consumer<CloudEvent>               cloudEventSink;
+        private       CbrProposalTracker                 cbrTracker;
+        private       List<GlobalReconciliationListener> globalListeners = List.of();
+
+        private Builder(TransitionPlanner planner, TransitionExecutor executor,
+                        ActualStateAdapterRouter actualStateAdapterRouter,
+                        FaultPolicyEngine faultPolicyEngine,
+                        MergedEventSource mergedEventSource) {
+            this.planner                  = planner;
+            this.executor                 = executor;
+            this.actualStateAdapterRouter = actualStateAdapterRouter;
+            this.faultPolicyEngine        = faultPolicyEngine;
+            this.mergedEventSource        = mergedEventSource;
+        }
+
+        public Builder router(NodeProvisionerRouter router) {
+            this.router = router;
+            return this;
+        }
+
+        public Builder debounceWindow(Duration debounceWindow) {
+            this.debounceWindow = debounceWindow;
+            return this;
+        }
+
+        public Builder resyncInterval(Duration resyncInterval) {
+            this.resyncInterval = resyncInterval;
+            return this;
+        }
+
+        public Builder cloudEventSink(Consumer<CloudEvent> cloudEventSink) {
+            this.cloudEventSink = cloudEventSink;
+            return this;
+        }
+
+        public Builder cbrTracker(CbrProposalTracker cbrTracker) {
+            this.cbrTracker = cbrTracker;
+            return this;
+        }
+
+        public Builder globalListeners(List<GlobalReconciliationListener> globalListeners) {
+            this.globalListeners = globalListeners;
+            return this;
+        }
+
+        public ReconciliationLoop build() {
+            return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
+                                          faultPolicyEngine, mergedEventSource, router, debounceWindow,
+                                          resyncInterval, cloudEventSink, cbrTracker, globalListeners);
+        }
+    }
+
     /**
      * Internal per-tenant reconciliation loop.
      */
     private class TenantLoop {
 
+        private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
         private final String tenancyId;
         private final AtomicReference<DesiredStateGraph> desiredRef;
         private final AtomicLong cycleCounter = new AtomicLong(0);
         // Read-then-modify race is harmless: duplicate ANTI signals are idempotent in RAS Count/Streak evaluation
         private final Set<NodeId> activeProblems = ConcurrentHashMap.newKeySet();
+        /** Interval-grouped timers used when router is available and no override. */
+        private final Map<Duration, ScheduledFuture<?>> resyncFutures = new ConcurrentHashMap<>();
         private volatile ReconciliationListener listener;
         private volatile Cancellable eventSubscription;
         private volatile ScheduledFuture<?> requestedReconciliation;
-
         /** Single resync timer used when resyncOverride is set (test mode). */
         private volatile ScheduledFuture<?> resyncFuture;
-
-        /** Interval-grouped timers used when router is available and no override. */
-        private final Map<Duration, ScheduledFuture<?>> resyncFutures = new ConcurrentHashMap<>();
 
         TenantLoop(String tenancyId, DesiredStateGraph desired) {
             this(tenancyId, desired, null);
@@ -582,8 +578,6 @@ public class ReconciliationLoop {
                 }
             }
         }
-
-        private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
         /**
          * Full-graph reconciliation. Used by event-driven path and initial reconciliation.
