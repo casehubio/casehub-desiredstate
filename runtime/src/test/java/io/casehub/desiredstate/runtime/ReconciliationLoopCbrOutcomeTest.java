@@ -65,8 +65,9 @@ class ReconciliationLoopCbrOutcomeTest {
         DefaultMergedEventSource mergedSource = new DefaultMergedEventSource(List.of(testEventSource));
         FaultPolicyEngine faultEngine = new FaultPolicyEngine(List.of());
 
-        loop = new ReconciliationLoop(planner, testExecutor, router, faultEngine,
-            mergedSource, TEST_DEBOUNCE, TEST_RESYNC, capturedEvents::add, cbrTracker);
+        loop = ReconciliationLoop.builder(planner, testExecutor, router, faultEngine, mergedSource)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC)
+            .cloudEventSink(capturedEvents::add).cbrTracker(cbrTracker).build();
     }
 
     @AfterEach

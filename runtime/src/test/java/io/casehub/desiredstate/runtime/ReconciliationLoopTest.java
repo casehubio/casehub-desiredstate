@@ -14,7 +14,6 @@ import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.StateEvent;
-import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.testing.CannedEventSource;
 import io.casehub.desiredstate.testing.MockActualStateAdapter;
@@ -52,18 +51,17 @@ class ReconciliationLoopTest {
 
     @BeforeEach
     void setUp() {
-        factory = new DefaultDesiredStateGraphFactory();
+        factory       = new DefaultDesiredStateGraphFactory();
         actualAdapter = new MockActualStateAdapter();
         actualAdapter.setHandledTypes(Set.of(NodeType.of("test")));
-        testExecutor = new MockTransitionExecutor();
-        planner = new TransitionPlanner();
-        faultEngine = new FaultPolicyEngine(List.of());
+        testExecutor    = new MockTransitionExecutor();
+        planner         = new TransitionPlanner();
+        faultEngine     = new FaultPolicyEngine(List.of());
         testEventSource = new CannedEventSource();
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+                                 .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
     }
 
     @AfterEach
@@ -202,9 +200,8 @@ class ReconciliationLoopTest {
         faultEngine = new FaultPolicyEngine(List.of(addReplacementPolicy));
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loop.start("test-tenant", desired);
 
@@ -247,9 +244,8 @@ class ReconciliationLoopTest {
         faultEngine = new FaultPolicyEngine(List.of(capturingPolicy));
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loop.start("test-tenant", desired);
 
@@ -283,9 +279,8 @@ class ReconciliationLoopTest {
         faultEngine = new FaultPolicyEngine(List.of(addFixPolicy));
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         // "a" is DRIFTED — planner will re-provision "a" and provision "a-fix" (UNKNOWN → addition)
         actualAdapter.setStatuses(Map.of(NodeId.of("a"), NodeStatus.DRIFTED));
@@ -319,9 +314,8 @@ class ReconciliationLoopTest {
         faultEngine = new FaultPolicyEngine(List.of(capturingPolicy));
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loop.start("test-tenant", desired);
 
@@ -355,9 +349,8 @@ class ReconciliationLoopTest {
         faultEngine = new FaultPolicyEngine(List.of(capturingPolicy));
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
-        loop = new ReconciliationLoop(
-            planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream,
-            TEST_DEBOUNCE, TEST_RESYNC);
+        loop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
 
         loop.start("test-tenant", desired);
 

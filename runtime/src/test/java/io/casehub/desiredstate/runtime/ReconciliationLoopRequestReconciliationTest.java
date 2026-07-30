@@ -53,15 +53,9 @@ class ReconciliationLoopRequestReconciliationTest {
         };
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(),
-            new MockTransitionExecutor(),
-            adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            new CannedEventSource()::stream,
-            java.time.Duration.ofMillis(50),
-            java.time.Duration.ofHours(1)
-        );
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), new MockTransitionExecutor(),
+            adapterRouter, new FaultPolicyEngine(List.of()), new CannedEventSource()::stream)
+            .debounceWindow(java.time.Duration.ofMillis(50)).resyncInterval(java.time.Duration.ofHours(1)).build();
 
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = ImmutableDesiredStateGraph.empty()
@@ -91,13 +85,8 @@ class ReconciliationLoopRequestReconciliationTest {
         };
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(),
-            new MockTransitionExecutor(),
-            adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            new CannedEventSource()::stream
-        );
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), new MockTransitionExecutor(),
+            adapterRouter, new FaultPolicyEngine(List.of()), new CannedEventSource()::stream).build();
         assertDoesNotThrow(() -> loop.requestReconciliation("nonexistent"));
     }
 

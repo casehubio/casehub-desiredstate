@@ -78,15 +78,9 @@ class ReconciliationLoopSchedulingTest {
             List.of()
         );
 
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(),
-            new MockTransitionExecutor(),
-            adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            new CannedEventSource()::stream,
-            router,
-            Duration.ofMillis(50)
-        );
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), new MockTransitionExecutor(),
+            adapterRouter, new FaultPolicyEngine(List.of()), new CannedEventSource()::stream)
+            .router(router).debounceWindow(Duration.ofMillis(50)).build();
 
         loop.start("tenant-1", graph);
 
@@ -133,15 +127,9 @@ class ReconciliationLoopSchedulingTest {
             List.of()
         );
 
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(),
-            new MockTransitionExecutor(),
-            adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            new CannedEventSource()::stream,
-            router,
-            Duration.ofMillis(50)
-        );
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), new MockTransitionExecutor(),
+            adapterRouter, new FaultPolicyEngine(List.of()), new CannedEventSource()::stream)
+            .router(router).debounceWindow(Duration.ofMillis(50)).build();
 
         loop.start("tenant-1", graph);
 
@@ -189,15 +177,9 @@ class ReconciliationLoopSchedulingTest {
             List.of()
         );
 
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(),
-            new MockTransitionExecutor(),
-            adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            new CannedEventSource()::stream,
-            router,
-            Duration.ofMillis(50)
-        );
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), new MockTransitionExecutor(),
+            adapterRouter, new FaultPolicyEngine(List.of()), new CannedEventSource()::stream)
+            .router(router).debounceWindow(Duration.ofMillis(50)).build();
 
         loop.start("tenant-1", initialGraph);
 

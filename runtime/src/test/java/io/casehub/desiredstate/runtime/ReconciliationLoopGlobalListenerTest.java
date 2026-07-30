@@ -56,11 +56,10 @@ class ReconciliationLoopGlobalListenerTest {
         GlobalReconciliationListener gl1 = (tid, d, a) -> { fired.add("gl1"); latch.countDown(); };
         GlobalReconciliationListener gl2 = (tid, d, a) -> { fired.add("gl2"); latch.countDown(); };
 
-        ReconciliationLoop loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60),
-            null, null, List.of(gl1, gl2));
+        ReconciliationLoop loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60))
+            .globalListeners(List.of(gl1, gl2)).build();
         loop.start("t1", graph);
 
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
@@ -80,11 +79,10 @@ class ReconciliationLoopGlobalListenerTest {
         GlobalReconciliationListener global = (tid, d, a) -> { fired.add("global"); latch.countDown(); };
         ReconciliationListener perTenant = (tid, d, a) -> { fired.add("tenant"); latch.countDown(); };
 
-        ReconciliationLoop loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60),
-            null, null, List.of(global));
+        ReconciliationLoop loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60))
+            .globalListeners(List.of(global)).build();
         loop.start("t1", graph, perTenant);
 
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
@@ -104,11 +102,10 @@ class ReconciliationLoopGlobalListenerTest {
         GlobalReconciliationListener failing = (tid, d, a) -> { fired.add("failing"); latch.countDown(); throw new RuntimeException("boom"); };
         GlobalReconciliationListener surviving = (tid, d, a) -> { fired.add("surviving"); latch.countDown(); };
 
-        ReconciliationLoop loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60),
-            null, null, List.of(failing, surviving));
+        ReconciliationLoop loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60))
+            .globalListeners(List.of(failing, surviving)).build();
         loop.start("t1", graph);
 
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
@@ -125,11 +122,10 @@ class ReconciliationLoopGlobalListenerTest {
         CountDownLatch latch = new CountDownLatch(1);
         GlobalReconciliationListener global = (tid, d, a) -> latch.countDown();
 
-        ReconciliationLoop loop = new ReconciliationLoop(
-            planner, new MockTransitionExecutor(), adapterRouter,
-            faultPolicyEngine, () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofSeconds(60),
-            null, null, List.of(global));
+        ReconciliationLoop loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
+            faultPolicyEngine, () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60))
+            .globalListeners(List.of(global)).build();
         loop.start("t1", graph);
 
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();

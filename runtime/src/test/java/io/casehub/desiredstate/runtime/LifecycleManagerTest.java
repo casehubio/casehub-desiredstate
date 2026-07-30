@@ -38,11 +38,9 @@ class LifecycleManagerTest {
         adapter.setHandledTypes(Set.of(NodeType.of("t")));
         factory = new DefaultDesiredStateGraphFactory();
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
-        loop = new ReconciliationLoop(
-            new TransitionPlanner(), new MockTransitionExecutor(), adapterRouter,
-            new FaultPolicyEngine(List.of()),
-            () -> Multi.createFrom().nothing(),
-            Duration.ofMillis(50), Duration.ofMillis(200));
+        loop = ReconciliationLoop.builder(new TransitionPlanner(), new MockTransitionExecutor(), adapterRouter,
+            new FaultPolicyEngine(List.of()), () -> Multi.createFrom().nothing())
+            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofMillis(200)).build();
         manager = new LifecycleManager(loop);
     }
 
