@@ -8,4 +8,6 @@ public interface FaultCountStore {
     void reset(String namespace, String tenancyId, NodeId nodeId);
     void remove(String namespace, String tenancyId, NodeId nodeId);
     void evict(String namespace, String tenancyId, Set<NodeId> retainedNodes);
+
+    void evictAcrossNamespaces(String tenancyId, Set<NodeId> retainedNodes);
 }

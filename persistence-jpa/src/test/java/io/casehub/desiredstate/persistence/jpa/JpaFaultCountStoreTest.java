@@ -21,6 +21,9 @@ class JpaFaultCountStoreTest {
         store.evict("ns", "t2", Set.of());
         store.evict("ns-a", "t1", Set.of());
         store.evict("ns-b", "t1", Set.of());
+        store.evict("ns1", "t1", Set.of());
+        store.evict("ns1", "t2", Set.of());
+        store.evict("ns2", "t1", Set.of());
         store.evict("policy-a", "t1", Set.of());
         store.evict("policy-b", "t1", Set.of());
     }
@@ -117,5 +120,33 @@ class JpaFaultCountStoreTest {
         assertThat(store.getCount("ns-a", "t1", NodeId.of("n1"))).isEqualTo(0);
         assertThat(store.getCount("ns-b", "t1", NodeId.of("n1"))).isEqualTo(1);
         assertThat(store.getCount("ns-a", "t2", NodeId.of("n1"))).isEqualTo(1);
+    }
+
+    @Test
+    void evictAcrossNamespaces_removesNonRetainedAcrossAllNamespaces() {
+        store.incrementAndGet("ns1", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns1", "t1", NodeId.of("b"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("c"));
+
+        store.evictAcrossNamespaces("t1", Set.of(NodeId.of("a")));
+
+        assertThat(store.getCount("ns1", "t1", NodeId.of("a"))).isEqualTo(1);
+        assertThat(store.getCount("ns1", "t1", NodeId.of("b"))).isZero();
+        assertThat(store.getCount("ns2", "t1", NodeId.of("a"))).isEqualTo(1);
+        assertThat(store.getCount("ns2", "t1", NodeId.of("c"))).isZero();
+    }
+
+    @Test
+    void evictAcrossNamespaces_emptyRetainedRemovesAllForTenant() {
+        store.incrementAndGet("ns1", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("b"));
+        store.incrementAndGet("ns1", "t2", NodeId.of("c"));
+
+        store.evictAcrossNamespaces("t1", Set.of());
+
+        assertThat(store.getCount("ns1", "t1", NodeId.of("a"))).isZero();
+        assertThat(store.getCount("ns2", "t1", NodeId.of("b"))).isZero();
+        assertThat(store.getCount("ns1", "t2", NodeId.of("c"))).isEqualTo(1);
     }
 }

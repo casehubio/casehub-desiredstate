@@ -36,4 +36,11 @@ public class InMemoryFaultCountStore implements FaultCountStore {
                         && key.tenancyId().equals(tenancyId)
                         && !retainedNodes.contains(key.nodeId()));
     }
+
+    @Override
+    public void evictAcrossNamespaces(String tenancyId, Set<NodeId> retainedNodes) {
+        counts.keySet().removeIf(key ->
+                                         key.tenancyId().equals(tenancyId)
+                                         && !retainedNodes.contains(key.nodeId()));
+    }
 }

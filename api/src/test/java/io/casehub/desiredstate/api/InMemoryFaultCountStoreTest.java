@@ -91,4 +91,54 @@ class InMemoryFaultCountStoreTest {
         assertThat(store.getCount("ns-b", "t1", NodeId.of("n1"))).isEqualTo(1);
         assertThat(store.getCount("ns-a", "t2", NodeId.of("n1"))).isEqualTo(1);
     }
+
+    @Test
+    void evictAcrossNamespaces_removesNonRetainedAcrossAllNamespaces() {
+        store.incrementAndGet("ns1", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns1", "t1", NodeId.of("b"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("c"));
+
+        store.evictAcrossNamespaces("t1", Set.of(NodeId.of("a")));
+
+        assertThat(store.getCount("ns1", "t1", NodeId.of("a"))).isEqualTo(1);
+        assertThat(store.getCount("ns1", "t1", NodeId.of("b"))).isZero();
+        assertThat(store.getCount("ns2", "t1", NodeId.of("a"))).isEqualTo(1);
+        assertThat(store.getCount("ns2", "t1", NodeId.of("c"))).isZero();
+    }
+
+    @Test
+    void evictAcrossNamespaces_emptyRetainedRemovesAllForTenant() {
+        store.incrementAndGet("ns1", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("b"));
+        store.incrementAndGet("ns1", "t2", NodeId.of("c"));
+
+        store.evictAcrossNamespaces("t1", Set.of());
+
+        assertThat(store.getCount("ns1", "t1", NodeId.of("a"))).isZero();
+        assertThat(store.getCount("ns2", "t1", NodeId.of("b"))).isZero();
+        assertThat(store.getCount("ns1", "t2", NodeId.of("c"))).isEqualTo(1);
+    }
+
+    @Test
+    void evictAcrossNamespaces_allRetainedRemovesNothing() {
+        store.incrementAndGet("ns1", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns2", "t1", NodeId.of("b"));
+
+        store.evictAcrossNamespaces("t1", Set.of(NodeId.of("a"), NodeId.of("b")));
+
+        assertThat(store.getCount("ns1", "t1", NodeId.of("a"))).isEqualTo(1);
+        assertThat(store.getCount("ns2", "t1", NodeId.of("b"))).isEqualTo(1);
+    }
+
+    @Test
+    void evictAcrossNamespaces_doesNotAffectOtherTenants() {
+        store.incrementAndGet("ns1", "t1", NodeId.of("a"));
+        store.incrementAndGet("ns1", "t2", NodeId.of("a"));
+
+        store.evictAcrossNamespaces("t1", Set.of());
+
+        assertThat(store.getCount("ns1", "t1", NodeId.of("a"))).isZero();
+        assertThat(store.getCount("ns1", "t2", NodeId.of("a"))).isEqualTo(1);
+    }
 }
