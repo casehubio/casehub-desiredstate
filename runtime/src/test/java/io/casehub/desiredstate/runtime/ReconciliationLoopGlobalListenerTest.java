@@ -131,4 +131,79 @@ class ReconciliationLoopGlobalListenerTest {
         assertThat(latch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
         loop.stop("t1");
     }
+
+    @Test
+    void onTenantStopped_firesOnStop() throws Exception {
+        DesiredNode       node  = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
+        adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
+
+        CountDownLatch cycleLatch = new CountDownLatch(1);
+        List<String>   stopped    = new CopyOnWriteArrayList<>();
+
+        GlobalReconciliationListener gl = new GlobalReconciliationListener() {
+            @Override
+            public void onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph desired, ActualState actual) {
+                cycleLatch.countDown();
+            }
+
+            @Override
+            public void onTenantStopped(String tenancyId) {
+                stopped.add(tenancyId);
+            }
+        };
+
+        ReconciliationLoop loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(),
+                                                             adapterRouter, faultPolicyEngine, () -> Multi.createFrom().nothing())
+                                                    .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60))
+                                                    .globalListeners(List.of(gl)).build();
+        loop.start("t1", graph);
+
+        assertThat(cycleLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
+        loop.stop("t1");
+
+        assertThat(stopped).containsExactly("t1");
+    }
+
+    @Test
+    void onTenantStopped_exceptionDoesNotBlockOtherListeners() throws Exception {
+        DesiredNode       node  = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
+        adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
+
+        CountDownLatch cycleLatch = new CountDownLatch(1);
+        List<String>   stopped    = new CopyOnWriteArrayList<>();
+
+        GlobalReconciliationListener failing = new GlobalReconciliationListener() {
+            @Override
+            public void onReconciliationCycleCompleted(String tid, DesiredStateGraph d, ActualState a) {
+                cycleLatch.countDown();
+            }
+
+            @Override
+            public void onTenantStopped(String tenancyId) {
+                throw new RuntimeException("boom");
+            }
+        };
+        GlobalReconciliationListener surviving = new GlobalReconciliationListener() {
+            @Override
+            public void onReconciliationCycleCompleted(String tid, DesiredStateGraph d, ActualState a) {}
+
+            @Override
+            public void onTenantStopped(String tenancyId) {
+                stopped.add(tenancyId);
+            }
+        };
+
+        ReconciliationLoop loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(),
+                                                             adapterRouter, faultPolicyEngine, () -> Multi.createFrom().nothing())
+                                                    .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofSeconds(60))
+                                                    .globalListeners(List.of(failing, surviving)).build();
+        loop.start("t1", graph);
+
+        assertThat(cycleLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS)).isTrue();
+        loop.stop("t1");
+
+        assertThat(stopped).containsExactly("t1");
+    }
 }

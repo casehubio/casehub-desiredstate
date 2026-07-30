@@ -88,4 +88,22 @@ public class JpaFaultCountStore implements FaultCountStore {
               .executeUpdate();
         }
     }
+
+    @Override
+    @Transactional
+    public void evictAcrossNamespaces(String tenancyId, Set<NodeId> retainedNodes) {
+        if (retainedNodes.isEmpty()) {
+            em.createQuery("DELETE FROM FaultCountEntity e WHERE e.tenancyId = :tid")
+              .setParameter("tid", tenancyId)
+              .executeUpdate();
+        } else {
+            Set<String> retained = retainedNodes.stream()
+                                                .map(NodeId::value)
+                                                .collect(java.util.stream.Collectors.toSet());
+            em.createQuery("DELETE FROM FaultCountEntity e WHERE e.tenancyId = :tid AND e.nodeId NOT IN :retained")
+              .setParameter("tid", tenancyId)
+              .setParameter("retained", retained)
+              .executeUpdate();
+        }
+    }
 }
