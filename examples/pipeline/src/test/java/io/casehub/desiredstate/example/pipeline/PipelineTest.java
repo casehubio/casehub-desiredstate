@@ -10,6 +10,7 @@ import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
 import io.casehub.desiredstate.api.FaultEvent;
+import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.HumanGating;
@@ -24,6 +25,7 @@ import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.api.StepAction;
 import io.casehub.desiredstate.api.StepOutcome;
+import io.casehub.desiredstate.api.ThresholdFaultPolicy;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
@@ -315,9 +317,14 @@ class PipelineTest {
 
     @Test
     void provisionFailure_fullEscalationChain() {
-        ProvisionEscalationFaultPolicy policy = new ProvisionEscalationFaultPolicy(world);
+        ThresholdFaultPolicy policy = ThresholdFaultPolicy.builder()
+                .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                .tier(4, FaultPolicy.addReviewNode(PipelineNodeTypes.AI_REVIEW,
+                        (event, current) -> new AiReviewSpec(event.node(), event.detail())), PipelineNodeTypes.AI_REVIEW)
+                .tier(7, FaultPolicy.addReviewNode(PipelineNodeTypes.HUMAN_REVIEW,
+                        (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
+                .build();
 
-        // Create an ingestion node and put it in a graph
         DesiredNode ingestNode = new DesiredNode(
             NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
             new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
@@ -332,41 +339,49 @@ class PipelineTest {
                 .isEmpty();
         }
 
-        // Event 4: creates AI_REVIEW node
+        // Event 4: creates AI_REVIEW node with dependency edge
         List<GraphMutation> mutations4 = policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()));
-        assertThat(mutations4).hasSize(1);
+        assertThat(mutations4).hasSize(2);
         assertThat(mutations4.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addAiReview = (GraphMutation.AddNode) mutations4.get(0);
         assertThat(addAiReview.node().id()).isEqualTo(NodeId.of("ai-review-ingest"));
         assertThat(addAiReview.node().type()).isEqualTo(PipelineNodeTypes.AI_REVIEW);
-        assertThat(addAiReview.node().requiresHuman()).isFalse();
+        assertThat(mutations4.get(1)).isInstanceOf(GraphMutation.AddDependency.class);
 
-        // Apply mutation to graph
-        graph = graph.withMutation(addAiReview);
+        // Apply mutations to graph
+        for (GraphMutation m : mutations4) {
+            graph = graph.withMutation(m);
+        }
 
-        // Set AI_REVIEW as PENDING in world → next onFault returns empty (wait)
-        world.addReview(NodeId.of("ai-review-ingest"), NodeId.of("ingest"));
+        // Events 5-6: AI review present, below tier 2 threshold — addReviewNode duplicate guard
+        assertThat(policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()))).isEmpty();
         assertThat(policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()))).isEmpty();
 
-        // Set AI_REVIEW as UNRESOLVED → next onFault creates HUMAN_REVIEW
-        world.setAiReviewOutcome(NodeId.of("ingest"), false);
+        // Event 7: tier 2 threshold reached, AI review present → HUMAN_REVIEW
         List<GraphMutation> mutationsHuman = policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()));
-        assertThat(mutationsHuman).hasSize(1);
+        assertThat(mutationsHuman).hasSize(2);
         assertThat(mutationsHuman.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addHumanReview = (GraphMutation.AddNode) mutationsHuman.get(0);
         assertThat(addHumanReview.node().id()).isEqualTo(NodeId.of("human-review-ingest"));
         assertThat(addHumanReview.node().type()).isEqualTo(PipelineNodeTypes.HUMAN_REVIEW);
         assertThat(addHumanReview.node().requiresHuman()).isTrue();
 
-        // Apply mutation and add to world → next onFault returns empty (idempotency)
-        graph = graph.withMutation(addHumanReview);
-        world.addReview(NodeId.of("human-review-ingest"), NodeId.of("ingest"));
+        // Apply mutations — further faults return empty (duplicate guard)
+        for (GraphMutation m : mutationsHuman) {
+            graph = graph.withMutation(m);
+        }
         assertThat(policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()))).isEmpty();
     }
 
     @Test
-    void provisionFailure_aiReviewResolves() {
-        ProvisionEscalationFaultPolicy policy = new ProvisionEscalationFaultPolicy(world);
+    void provisionFailure_belowEscalation_noHumanReview() {
+        ThresholdFaultPolicy policy = ThresholdFaultPolicy.builder()
+                .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                .tier(4, FaultPolicy.addReviewNode(PipelineNodeTypes.AI_REVIEW,
+                        (event, current) -> new AiReviewSpec(event.node(), event.detail())), PipelineNodeTypes.AI_REVIEW)
+                .tier(7, FaultPolicy.addReviewNode(PipelineNodeTypes.HUMAN_REVIEW,
+                        (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
+                .build();
 
         DesiredNode ingestNode = new DesiredNode(
             NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
@@ -382,17 +397,16 @@ class PipelineTest {
 
         // Fault 4: creates AI_REVIEW
         List<GraphMutation> mutations = policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()));
-        assertThat(mutations).hasSize(1);
-        graph = graph.withMutation(mutations.get(0));
+        assertThat(mutations).hasSize(2);
+        for (GraphMutation m : mutations) {
+            graph = graph.withMutation(m);
+        }
 
-        // Set AI_REVIEW as RESOLVED in world
-        world.addReview(NodeId.of("ai-review-ingest"), NodeId.of("ingest"));
-        world.setAiReviewOutcome(NodeId.of("ingest"), true);
-
-        // Next onFault returns empty — AI resolved it, no human escalation
+        // Faults 5-6: below tier 2, AI review present — duplicate guard
+        assertThat(policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()))).isEmpty();
         assertThat(policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()))).isEmpty();
 
-        // Verify no HUMAN_REVIEW was created
+        // Verify no HUMAN_REVIEW was created (count is 6, below tier 2 threshold of 7)
         assertThat(graph.nodes().containsKey(NodeId.of("human-review-ingest"))).isFalse();
     }
 

@@ -26,6 +26,9 @@ public class DefaultDesiredStateGraphFactory implements DesiredStateGraphFactory
             graph = graph.withNode(node);
         }
         for (Dependency dep : deps) {
+            if (!graph.nodes().containsKey(dep.from()) || !graph.nodes().containsKey(dep.to())) {
+                throw new DanglingDependencyException(dep.from(), dep.to());
+            }
             graph = graph.withDependency(dep);
         }
         return graph;

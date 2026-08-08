@@ -31,10 +31,8 @@ class ThresholdFaultPolicyTest {
         return ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                 .nodeTypes(Set.of(TARGET))
-                .ignoreTypes(Set.of(REVIEW))
-                .threshold(threshold)
-                .action(FaultPolicy.addReviewNode(REVIEW,
-                        (event, current) -> new TestReviewSpec(event.node(), event.detail())))
+                .tier(threshold, FaultPolicy.addReviewNode(REVIEW,
+                        (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
                 .build();
     }
 
@@ -65,7 +63,7 @@ class ThresholdFaultPolicyTest {
         policy.onFault("t1", event, graph, EMPTY_ACTUAL);
         var mutations = policy.onFault("t1", event, graph, EMPTY_ACTUAL);
 
-        assertThat(mutations).hasSize(1);
+        assertThat(mutations).hasSize(2);
         assertThat(mutations.getFirst()).isInstanceOf(GraphMutation.AddNode.class);
         var addNode = (GraphMutation.AddNode) mutations.getFirst();
         assertThat(addNode.node().id()).isEqualTo(NodeId.of("review-n1"));
@@ -80,8 +78,8 @@ class ThresholdFaultPolicyTest {
         var event = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
 
         policy.onFault("t1", event, graph, EMPTY_ACTUAL);
-        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).hasSize(1);
-        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).hasSize(1);
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).hasSize(2);
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).hasSize(2);
     }
 
     @Test
@@ -115,14 +113,13 @@ class ThresholdFaultPolicyTest {
     void emptyNodeTypes_matchesAll() {
         var policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                .threshold(1)
-                .action(FaultPolicy.addReviewNode(REVIEW,
-                        (event, current) -> new TestReviewSpec(event.node(), event.detail())))
+                .tier(1, FaultPolicy.addReviewNode(REVIEW,
+                        (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
                 .build();
         var graph = graphWith("n1", OTHER);
         var event = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
 
-        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).hasSize(1);
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).hasSize(2);
     }
 
     @Test
@@ -137,7 +134,7 @@ class ThresholdFaultPolicyTest {
 
         policy.onFault("t1", eventA, graph, EMPTY_ACTUAL);
         assertThat(policy.onFault("t1", eventB, graph, EMPTY_ACTUAL)).isEmpty();
-        assertThat(policy.onFault("t1", eventA, graph, EMPTY_ACTUAL)).hasSize(1);
+        assertThat(policy.onFault("t1", eventA, graph, EMPTY_ACTUAL)).hasSize(2);
     }
 
     @Test
@@ -158,33 +155,30 @@ class ThresholdFaultPolicyTest {
         policy.onFault("t1", event, graph, EMPTY_ACTUAL);
         policy.onFault("t1", event, graph, EMPTY_ACTUAL);
         var mutations = policy.onFault("t1", event, graph, EMPTY_ACTUAL);
-        assertThat(mutations).hasSize(1);
+        assertThat(mutations).hasSize(2);
     }
 
     @Test
     void builderRequiresFaultTypes() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
-                .threshold(1)
-                .action((t, e, g, a) -> List.of())
+                .tier(1, (t, e, g, a) -> List.of(), NodeType.of("x"))
                 .build())
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void builderRequiresAction() {
+    void builderRejectsNoTiers() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                .threshold(1)
                 .build())
-                .isInstanceOf(NullPointerException.class);
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void builderRejectsZeroThreshold() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
                                                      .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                                     .threshold(0)
-                                                     .action((t, e, g, a) -> List.of())
+                                                     .tier(0, (t, e, g, a) -> List.of(), NodeType.of("x"))
                                                      .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("threshold");
@@ -203,6 +197,23 @@ class ThresholdFaultPolicyTest {
     }
 
     @Test
+    void addReviewNode_returnsDependencyEdge() {
+        var policy = policyWithThreshold(1);
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        var mutations = policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+
+        assertThat(mutations).hasSize(2);
+        assertThat(mutations.get(0)).isInstanceOf(GraphMutation.AddNode.class);
+        assertThat(mutations.get(1)).isInstanceOf(GraphMutation.AddDependency.class);
+        var addDep = (GraphMutation.AddDependency) mutations.get(1);
+        assertThat(addDep.dependency().from()).isEqualTo(NodeId.of("review-n1"));
+        assertThat(addDep.dependency().to()).isEqualTo(NodeId.of("n1"));
+    }
+
+
+    @Test
     void tenantIsolation_sameFaultCountedIndependently() {
         var policy = policyWithThreshold(2);
         var graph  = graphWith("n1", TARGET);
@@ -210,7 +221,7 @@ class ThresholdFaultPolicyTest {
 
         policy.onFault("tenant-a", event, graph, EMPTY_ACTUAL);
         assertThat(policy.onFault("tenant-b", event, graph, EMPTY_ACTUAL)).isEmpty();
-        assertThat(policy.onFault("tenant-a", event, graph, EMPTY_ACTUAL)).hasSize(1);
+        assertThat(policy.onFault("tenant-a", event, graph, EMPTY_ACTUAL)).hasSize(2);
     }
 
     @Test
@@ -218,9 +229,8 @@ class ThresholdFaultPolicyTest {
         var store = new InMemoryFaultCountStore();
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                         .threshold(2)
-                                         .action(FaultPolicy.addReviewNode(REVIEW,
-                                                                           (event, current) -> new TestReviewSpec(event.node(), event.detail())))
+                                         .tier(2, FaultPolicy.addReviewNode(REVIEW,
+                                                 (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
                                          .faultCountStore(store)
                                          .namespace("test-policy")
                                          .build();
@@ -237,8 +247,7 @@ class ThresholdFaultPolicyTest {
         var store = new InMemoryFaultCountStore();
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                         .threshold(3)
-                                         .action((t, e, g, a) -> List.of())
+                                         .tier(3, (t, e, g, a) -> List.of(), NodeType.of("escalation"))
                                          .faultCountStore(store)
                                          .namespace("test")
                                          .build();
@@ -259,8 +268,7 @@ class ThresholdFaultPolicyTest {
         var store = new InMemoryFaultCountStore();
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                         .threshold(3)
-                                         .action((t, e, g, a) -> List.of())
+                                         .tier(3, (t, e, g, a) -> List.of(), NodeType.of("escalation"))
                                          .faultCountStore(store)
                                          .namespace("test")
                                          .build();
@@ -291,19 +299,142 @@ class ThresholdFaultPolicyTest {
         policy.onFault("t1", event, graph, EMPTY_ACTUAL);
         assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL))
                 .as("Third fault after reset triggers action")
-                .hasSize(1);
+                .hasSize(2);
     }
 
     @Test
     void builder_requiresNamespaceForCustomStore() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
                                                      .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                                     .threshold(1)
-                                                     .action((t, e, g, a) -> List.of())
+                                                     .tier(1, (t, e, g, a) -> List.of(), NodeType.of("x"))
                                                      .faultCountStore(new InMemoryFaultCountStore())
                                                      .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("namespace");
+    }
+
+
+    // === Multi-tier tests ===
+
+    private static final NodeType AI_REVIEW    = NodeType.of("ai-review");
+    private static final NodeType HUMAN_REVIEW = NodeType.of("human-review");
+
+    record AiReviewSpec(NodeId faultedNode) implements NodeSpec {}
+
+    record HumanReviewSpec(NodeId faultedNode) implements NodeSpec {}
+
+    private ThresholdFaultPolicy twoTierPolicy() {
+        return ThresholdFaultPolicy.builder()
+                                   .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                                   .nodeTypes(Set.of(TARGET))
+                                   .tier(3, FaultPolicy.addReviewNode(AI_REVIEW,
+                                                                      (event, current) -> new AiReviewSpec(event.node())), AI_REVIEW)
+                                   .tier(6, FaultPolicy.addReviewNode(HUMAN_REVIEW,
+                                                                      (event, current) -> new HumanReviewSpec(event.node())), HUMAN_REVIEW)
+                                   .build();
+    }
+
+    @Test
+    void multiTier_belowAllThresholds_returnsEmpty() {
+        var policy = twoTierPolicy();
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).isEmpty();
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).isEmpty();
+    }
+
+    @Test
+    void multiTier_atTier1Threshold_firesTier1() {
+        var policy = twoTierPolicy();
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        var mutations = policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+
+        assertThat(mutations).hasSize(2);
+        var addNode = (GraphMutation.AddNode) mutations.get(0);
+        assertThat(addNode.node().type()).isEqualTo(AI_REVIEW);
+    }
+
+    @Test
+    void multiTier_atTier2Threshold_tier1Present_firesTier2() {
+        var policy = twoTierPolicy();
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        for (int i = 0; i < 5; i++) {
+            policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        }
+
+        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"), AI_REVIEW,
+                                     new AiReviewSpec(NodeId.of("n1")), HumanGating.ALL);
+        var graphWithAi = graph.withNode(aiNode)
+                               .withDependency(new Dependency(NodeId.of("ai-review-n1"), NodeId.of("n1")));
+
+        var mutations = policy.onFault("t1", event, graphWithAi, EMPTY_ACTUAL);
+
+        assertThat(mutations).hasSize(2);
+        var addNode = (GraphMutation.AddNode) mutations.get(0);
+        assertThat(addNode.node().type()).isEqualTo(HUMAN_REVIEW);
+    }
+
+    @Test
+    void multiTier_atTier2Threshold_tier1Absent_firesTier1() {
+        var policy = twoTierPolicy();
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        for (int i = 0; i < 5; i++) {
+            policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        }
+        var mutations = policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+
+        assertThat(mutations).hasSize(2);
+        var addNode = (GraphMutation.AddNode) mutations.get(0);
+        assertThat(addNode.node().type()).isEqualTo(AI_REVIEW);
+    }
+
+    @Test
+    void multiTier_firstMatchWins_emptyResultNotFallenThrough() {
+        var policy = twoTierPolicy();
+        var graph  = graphWith("n1", TARGET);
+        var event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        for (int i = 0; i < 3; i++) {
+            policy.onFault("t1", event, graph, EMPTY_ACTUAL);
+        }
+
+        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"), AI_REVIEW,
+                                     new AiReviewSpec(NodeId.of("n1")), HumanGating.ALL);
+        var graphWithAi = graph.withNode(aiNode)
+                               .withDependency(new Dependency(NodeId.of("ai-review-n1"), NodeId.of("n1")));
+
+        var mutations = policy.onFault("t1", event, graphWithAi, EMPTY_ACTUAL);
+        assertThat(mutations).isEmpty();
+    }
+
+    @Test
+    void multiTier_autoIgnore_faultOnTierNodeType_returnsEmpty() {
+        var policy = twoTierPolicy();
+        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"), AI_REVIEW,
+                                     new AiReviewSpec(NodeId.of("n1")), HumanGating.NONE);
+        var graph = graphFactory.of(List.of(aiNode), List.of());
+        var event = new FaultEvent(NodeId.of("ai-review-n1"), FaultType.PROVISION_FAILED, "fail");
+
+        assertThat(policy.onFault("t1", event, graph, EMPTY_ACTUAL)).isEmpty();
+    }
+
+    @Test
+    void multiTier_builderRejectsNonAscendingThresholds() {
+        assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
+                                                     .faultTypes(Set.of(FaultType.PROVISION_FAILED))
+                                                     .tier(5, (t, e, g, a) -> List.of(), AI_REVIEW)
+                                                     .tier(3, (t, e, g, a) -> List.of(), HUMAN_REVIEW)
+                                                     .build())
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
 }

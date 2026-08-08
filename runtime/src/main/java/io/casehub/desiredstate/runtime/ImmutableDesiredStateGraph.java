@@ -186,12 +186,8 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
         NodeId from = dep.from();
         NodeId to   = dep.to();
 
-        // Validate both nodes exist
-        if (!nodes.containsKey(from)) {
-            throw new DanglingDependencyException(from, to);
-        }
-        if (!nodes.containsKey(to)) {
-            throw new DanglingDependencyException(from, to);
+        if (!nodes.containsKey(from) || !nodes.containsKey(to)) {
+            return this;
         }
 
         // Self-loop check
