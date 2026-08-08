@@ -112,31 +112,34 @@ SPI: `onFault(String tenancyId, FaultEvent event, DesiredStateGraph current, Act
 
 **FaultType enum:** `NODE_DESTROYED`, `NODE_DEGRADED`, `PROVISION_FAILED`, `DEPROVISION_FAILED`, `HUMAN_NODE_TIMEOUT`, `DEPENDENCY_UNAVAILABLE`, `APPROVAL_REJECTED`.
 
-Static factory: `FaultPolicy.addReviewNode(NodeType, ReviewSpecFactory)` -- creates a policy that adds a review node with `HumanGating.ALL` on fault.
+Static factory: `FaultPolicy.addReviewNode(NodeType, ReviewSpecFactory)` -- creates a review node with dependency edge to the faulted node, `HumanGating.ALL`, and ID derived from `NodeType.value()` (e.g. `NodeType.of("ai-review")` produces `"ai-review-n1"`).
 
 `FaultPolicyEngine` discovers all `FaultPolicy` beans via CDI, runs all matching, merges mutations, and detects conflicts (`ConflictingMutationException`).
 
 ### ThresholdFaultPolicy
 
-Reusable `FaultPolicy` in the API module -- counts faults per node via pluggable `FaultCountStore` SPI, delegates to a configured `FaultPolicy` at threshold. Builder-configured:
+Reusable `FaultPolicy` in the API module -- counts faults per node via pluggable `FaultCountStore` SPI. Supports multi-tier escalation with graph-presence guards. Builder-configured:
 
 ```java
 ThresholdFaultPolicy.builder()
     .faultTypes(Set.of(FaultType.PROVISION_FAILED))
     .nodeTypes(Set.of(NodeType.of("compute")))    // optional filter
-    .ignoreTypes(Set.of(NodeType.of("review")))   // optional exclusion
-    .threshold(3)                                   // default: 3
-    .action(escalationPolicy)                       // policy to delegate to
+    .tier(4, addReviewNode(AI_REVIEW, aiSpec), AI_REVIEW)
+    .tier(7, addReviewNode(HUMAN_REVIEW, humanSpec), HUMAN_REVIEW)
     .faultCountStore(store)                         // optional; defaults to InMemoryFaultCountStore
     .namespace("provision-escalation")              // required when custom store provided
     .build();
 ```
 
-`resetCount(tenancyId, nodeId)` for external recovery-reset. Lazy eviction on fault for removed nodes.
+Tier nodeTypes are auto-merged into `ignoreTypes`. Evaluation is highest-tier-first, first-match-wins. Tier N+1 fires only if a dependent of the faulted node with tier N's `NodeType` exists in the graph (graph-presence guard via `dependentsOf()`). `resetCount(tenancyId, nodeId)` for external recovery-reset. Lazy eviction on fault for removed nodes.
 
 ### GraphMutation
 
 Sealed interface with five variants: `AddNode(DesiredNode)`, `RemoveNode(NodeId)`, `UpdateNode(NodeId, DesiredNode)`, `AddDependency(Dependency)`, `RemoveDependency(Dependency)`.
+
+### GraphMutations
+
+Static utility: `GraphMutations.addNodeDependingOn(DesiredNode, NodeId)` returns `[AddNode, AddDependency]` -- the common pattern for adding a node with a dependency edge to an existing node.
 
 ### HumanNodeHandler
 

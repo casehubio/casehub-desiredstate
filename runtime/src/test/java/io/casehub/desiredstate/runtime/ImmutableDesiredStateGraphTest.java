@@ -144,25 +144,22 @@ class ImmutableDesiredStateGraphTest {
 
     // === 5. Dangling dependency detection ===
 
-    @Test void withDependency_throws_when_from_node_missing() {
+    @Test void withDependency_missingFromNode_returnsUnchanged() {
         var g = factory.empty().withNode(node("A"));
-
-        assertThatThrownBy(() -> g.withDependency(dep("phantom", "A")))
-                .isInstanceOf(DanglingDependencyException.class);
+        var result = g.withDependency(dep("phantom", "A"));
+        assertThat(result).isSameAs(g);
     }
 
-    @Test void withDependency_throws_when_to_node_missing() {
+    @Test void withDependency_missingToNode_returnsUnchanged() {
         var g = factory.empty().withNode(node("A"));
-
-        assertThatThrownBy(() -> g.withDependency(dep("A", "phantom")))
-                .isInstanceOf(DanglingDependencyException.class);
+        var result = g.withDependency(dep("A", "phantom"));
+        assertThat(result).isSameAs(g);
     }
 
-    @Test void withDependency_throws_when_both_nodes_missing() {
+    @Test void withDependency_bothNodesMissing_returnsUnchanged() {
         var g = factory.empty();
-
-        assertThatThrownBy(() -> g.withDependency(dep("X", "Y")))
-                .isInstanceOf(DanglingDependencyException.class);
+        var result = g.withDependency(dep("X", "Y"));
+        assertThat(result).isSameAs(g);
     }
 
     // === 6. Self-loop cycle detection ===
