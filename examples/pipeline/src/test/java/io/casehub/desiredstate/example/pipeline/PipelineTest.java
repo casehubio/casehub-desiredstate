@@ -416,25 +416,30 @@ class PipelineTest {
 
         // Create a validator node
         DesiredNode validator = new DesiredNode(
-            NodeId.of("quality-gate"), PipelineNodeTypes.VALIDATOR,
-            new ValidatorSpec("click-schema", 0.95, true), HumanGating.NONE);
+                NodeId.of("quality-gate"), PipelineNodeTypes.VALIDATOR,
+                new ValidatorSpec("click-schema", 0.95, true), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(validator), List.of());
 
         // Set the validator as QUARANTINED in world
         world.setStage(NodeId.of("quality-gate"),
-            new PipelineWorld.StageEntry(PipelineNodeTypes.VALIDATOR, PipelineWorld.StageState.QUARANTINED,
-                "click-schema", null, 0, 0, 5, "quality threshold breached"));
+                       new PipelineWorld.StageEntry(PipelineNodeTypes.VALIDATOR, PipelineWorld.StageState.QUARANTINED,
+                                                    "click-schema", null, 0, 0, 5, "quality threshold breached"));
 
         FaultEvent fault = new FaultEvent(NodeId.of("quality-gate"), FaultType.NODE_DEGRADED,
-            "quality threshold breached");
+                                          "quality threshold breached");
 
         List<GraphMutation> mutations = policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()));
-        assertThat(mutations).hasSize(1);
+        assertThat(mutations).hasSize(2);
         assertThat(mutations.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addHuman = (GraphMutation.AddNode) mutations.get(0);
         assertThat(addHuman.node().id()).isEqualTo(NodeId.of("human-review-quality-gate"));
         assertThat(addHuman.node().type()).isEqualTo(PipelineNodeTypes.HUMAN_REVIEW);
         assertThat(addHuman.node().requiresHuman()).isTrue();
+
+        assertThat(mutations.get(1)).isInstanceOf(GraphMutation.AddDependency.class);
+        GraphMutation.AddDependency addDep = (GraphMutation.AddDependency) mutations.get(1);
+        assertThat(addDep.dependency().from()).isEqualTo(NodeId.of("human-review-quality-gate"));
+        assertThat(addDep.dependency().to()).isEqualTo(NodeId.of("quality-gate"));
     }
 
     @Test
@@ -443,23 +448,28 @@ class PipelineTest {
 
         // Create a schema node
         DesiredNode schema = new DesiredNode(
-            NodeId.of("click-schema"), PipelineNodeTypes.SCHEMA,
-            new SchemaSpec("click-schema", List.of("userId", "pageUrl", "timestamp"), 1), HumanGating.NONE);
+                NodeId.of("click-schema"), PipelineNodeTypes.SCHEMA,
+                new SchemaSpec("click-schema", List.of("userId", "pageUrl", "timestamp"), 1), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(schema), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("click-schema"), FaultType.NODE_DEGRADED,
-            "schema version drift detected");
+                                          "schema version drift detected");
 
         List<GraphMutation> mutations = policy.onFault("tenant-1", fault, graph, new ActualState(Map.of()));
-        assertThat(mutations).hasSize(1);
+        assertThat(mutations).hasSize(2);
         assertThat(mutations.get(0)).isInstanceOf(GraphMutation.AddNode.class);
         GraphMutation.AddNode addHuman = (GraphMutation.AddNode) mutations.get(0);
         assertThat(addHuman.node().id()).isEqualTo(NodeId.of("human-review-click-schema"));
 
+        assertThat(mutations.get(1)).isInstanceOf(GraphMutation.AddDependency.class);
+        GraphMutation.AddDependency addDep = (GraphMutation.AddDependency) mutations.get(1);
+        assertThat(addDep.dependency().from()).isEqualTo(NodeId.of("human-review-click-schema"));
+        assertThat(addDep.dependency().to()).isEqualTo(NodeId.of("click-schema"));
+
         // Assert no RemoveNode mutations returned
         Optional<GraphMutation> removeNode = mutations.stream()
-            .filter(m -> m instanceof GraphMutation.RemoveNode)
-            .findAny();
+                                                      .filter(m -> m instanceof GraphMutation.RemoveNode)
+                                                      .findAny();
         assertThat(removeNode).isEmpty();
     }
 
