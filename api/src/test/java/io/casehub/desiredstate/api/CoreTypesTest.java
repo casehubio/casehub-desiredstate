@@ -6,9 +6,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CoreTypesTest {
-    record TestSpec(String name, int size) implements NodeSpec {}
+    record TestSpec(String name, int size) implements NodeSpec {
+        @Override public NodeType nodeType() { return NodeType.of("test"); }
+    }
 
     record HumanSpec(String name) implements NodeSpec {
+        @Override public NodeType nodeType() { return NodeType.of("test"); }
         @Override
         public HumanGating humanGating() {return HumanGating.ALL;}
     }
@@ -39,9 +42,9 @@ class CoreTypesTest {
     @Test
     void desiredNode_humanGating() {
         var spec = new TestSpec("Library", 12);
-        var node = new DesiredNode(new NodeId("library"), new NodeType("room"), spec, HumanGating.NONE);
+        var node = new DesiredNode(new NodeId("library"), spec, HumanGating.NONE);
         assertThat(node.requiresHuman()).isFalse();
-        var humanNode = new DesiredNode(new NodeId("dragon"), new NodeType("creature"), spec, HumanGating.ALL);
+        var humanNode = new DesiredNode(new NodeId("dragon"), spec, HumanGating.ALL);
         assertThat(humanNode.requiresHuman()).isTrue();
     }
 
@@ -60,7 +63,7 @@ class CoreTypesTest {
     @Test
     void desiredNode_orComposition_specAll_nodeNone() {
         var spec = new HumanSpec("dragon-lair");
-        var node = new DesiredNode(new NodeId("lair"), new NodeType("room"), spec, HumanGating.NONE);
+        var node = new DesiredNode(new NodeId("lair"), spec, HumanGating.NONE);
         assertThat(node.requiresHuman()).isTrue();
         assertThat(node.requiresHuman(StepAction.PROVISION)).isTrue();
         assertThat(node.requiresHuman(StepAction.DEPROVISION)).isTrue();
@@ -69,21 +72,21 @@ class CoreTypesTest {
     @Test
     void desiredNode_orComposition_specNone_nodeAll() {
         var spec = new TestSpec("Library", 12);
-        var node = new DesiredNode(new NodeId("library"), new NodeType("room"), spec, HumanGating.ALL);
+        var node = new DesiredNode(new NodeId("library"), spec, HumanGating.ALL);
         assertThat(node.requiresHuman()).isTrue();
     }
 
     @Test
     void desiredNode_orComposition_bothNone() {
         var spec = new TestSpec("Library", 12);
-        var node = new DesiredNode(new NodeId("library"), new NodeType("room"), spec, HumanGating.NONE);
+        var node = new DesiredNode(new NodeId("library"), spec, HumanGating.NONE);
         assertThat(node.requiresHuman()).isFalse();
     }
 
     @Test
     void requiresHuman_perAction_nodeProvisionOnly_specNone() {
         NodeSpec    spec = new TestSpec("Library", 12);
-        DesiredNode node = new DesiredNode(NodeId.of("n"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+        DesiredNode node = new DesiredNode(NodeId.of("n"), spec, HumanGating.PROVISION_ONLY);
         assertThat(node.requiresHuman(StepAction.PROVISION)).isTrue();
         assertThat(node.requiresHuman(StepAction.DEPROVISION)).isFalse();
         assertThat(node.requiresHuman()).isTrue();
@@ -92,10 +95,11 @@ class CoreTypesTest {
     @Test
     void requiresHuman_perAction_nodeNone_specDeprovisionOnly() {
         NodeSpec spec = new NodeSpec() {
+            @Override public NodeType nodeType() { return NodeType.of("test"); }
             @Override
             public HumanGating humanGating() {return HumanGating.DEPROVISION_ONLY;}
         };
-        DesiredNode node = new DesiredNode(NodeId.of("n"), NodeType.of("t"), spec, HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n"), spec, HumanGating.NONE);
         assertThat(node.requiresHuman(StepAction.PROVISION)).isFalse();
         assertThat(node.requiresHuman(StepAction.DEPROVISION)).isTrue();
     }
@@ -103,10 +107,11 @@ class CoreTypesTest {
     @Test
     void requiresHuman_perAction_merge_nodeProvisionOnly_specDeprovisionOnly() {
         NodeSpec spec = new NodeSpec() {
+            @Override public NodeType nodeType() { return NodeType.of("test"); }
             @Override
             public HumanGating humanGating() {return HumanGating.DEPROVISION_ONLY;}
         };
-        DesiredNode node = new DesiredNode(NodeId.of("n"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+        DesiredNode node = new DesiredNode(NodeId.of("n"), spec, HumanGating.PROVISION_ONLY);
         assertThat(node.requiresHuman(StepAction.PROVISION)).isTrue();
         assertThat(node.requiresHuman(StepAction.DEPROVISION)).isTrue();
         assertThat(node.requiresHuman()).isTrue();
@@ -114,7 +119,7 @@ class CoreTypesTest {
 
     @Test
     void humanGating_nullRejected() {
-        assertThatThrownBy(() -> new DesiredNode(NodeId.of("n"), NodeType.of("t"), new TestSpec("x", 1), null))
+        assertThatThrownBy(() -> new DesiredNode(NodeId.of("n"), new TestSpec("x", 1), null))
                 .isInstanceOf(NullPointerException.class);
     }
 }

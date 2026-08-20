@@ -67,8 +67,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void emitsNodeFaultedOnProvisionFailure() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
@@ -94,8 +93,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void emitsNodeDriftedOnDriftDetection() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.DRIFTED));
@@ -110,8 +108,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void emitsNodeRecoveredWhenPreviouslyFaultedNodeIsPresent() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         // First cycle: node fails to provision
@@ -142,8 +139,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void emitsReconciliationCompletedAfterEachCycle() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
@@ -165,8 +161,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void getDesired_returnsCurrentGraph() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of());
@@ -190,8 +185,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void emitsNodeFaultedOnDeprovisionFailure() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         // Initial cycle: provision node
@@ -229,8 +223,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void emitsNodeFaultedOnApprovalRejected() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
@@ -254,5 +247,5 @@ class ReconciliationLoopCloudEventTest {
         assertThat(faultEvent.getExtension("tenancyid")).isEqualTo("test-tenant");
     }
 
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 }

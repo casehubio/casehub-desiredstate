@@ -2,6 +2,7 @@ package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
 import java.util.List;
 
 public record SinkSpec(String destination, String format, List<String> partitionKeys,
@@ -18,4 +19,7 @@ public record SinkSpec(String destination, String format, List<String> partition
     public HumanGating humanGating() {
         return approvalRequired ? HumanGating.DEPROVISION_ONLY : HumanGating.NONE;
     }
+
+    @Override
+    public NodeType nodeType() {return PipelineNodeTypes.SINK;}
 }

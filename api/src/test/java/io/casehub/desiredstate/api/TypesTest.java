@@ -10,7 +10,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class TypesTest {
-    record TestSpec(String name) implements NodeSpec {}
+    record TestSpec(String name) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     // Minimal test stub for DesiredStateGraph
     private static final DesiredStateGraph EMPTY_GRAPH = new DesiredStateGraph() {
@@ -32,7 +32,7 @@ class TypesTest {
     };
 
     @Test void graphMutation_sealedExhaustive() {
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), HumanGating.NONE);
+        var node = new DesiredNode(new NodeId("a"), new TestSpec("x"), HumanGating.NONE);
         GraphMutation mutation = new GraphMutation.AddNode(node);
         String result = switch (mutation) {
             case GraphMutation.AddNode m -> "add:" + m.node().id().value();

@@ -85,7 +85,7 @@ The existing test creates an anonymous NodeProvisioner without `handledTypes()` 
         @Override public ProvisionResult provision(DesiredNode node, ProvisionContext ctx) { return new ProvisionResult.Success(); }
         @Override public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext ctx) { return new DeprovisionResult.Success(); }
     };
-    var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
+    var node = new DesiredNode(new NodeId("a"), new TestSpec("x"), false);
     assertThat(provisioner.provision(node, null)).isInstanceOf(ProvisionResult.Success.class);
 }
 ```
@@ -270,7 +270,7 @@ class DefaultNodeProvisionerRouterTest {
         var provB = mockProvisioner(Set.of(TYPE_B));
         var router = new DefaultNodeProvisionerRouter(List.of(provA, provB));
 
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("a"), false);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("a"), false);
         var result = router.provision(nodeA, new ProvisionContext("t1", null));
 
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
@@ -283,7 +283,7 @@ class DefaultNodeProvisionerRouterTest {
         var prov = mockProvisioner(Set.of(TYPE_A));
         var router = new DefaultNodeProvisionerRouter(List.of(prov));
 
-        var unknown = new DesiredNode(NodeId.of("x"), NodeType.of("unknown"), new TestSpec("x"), false);
+        var unknown = new DesiredNode(NodeId.of("x"), new TestSpec("x"), false);
         var result = router.provision(unknown, new ProvisionContext("t1", null));
 
         assertThat(result).isInstanceOf(ProvisionResult.Failed.class);
@@ -344,7 +344,7 @@ class DefaultNodeProvisionerRouterTest {
         var provB = mockProvisioner(Set.of(TYPE_B));
         var router = new DefaultNodeProvisionerRouter(List.of(provA, provB));
 
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("b"), false);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("b"), false);
         var result = router.deprovision(nodeB, new DeprovisionContext("t1", null));
 
         assertThat(result).isInstanceOf(DeprovisionResult.Success.class);
@@ -676,8 +676,8 @@ class ReconciliationLoopSchedulingTest {
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), false),
-                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), false)
+                new DesiredNode(NodeId.of("f1"), new TestSpec("f"), false),
+                new DesiredNode(NodeId.of("s1"), new TestSpec("s"), false)
             ),
             List.of()
         );

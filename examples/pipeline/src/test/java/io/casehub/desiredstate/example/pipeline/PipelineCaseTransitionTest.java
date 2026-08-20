@@ -103,14 +103,8 @@ class PipelineCaseTransitionTest {
 
     @Test
     void pruneAndGrow_producesResultForBothPhases() {
-        DesiredNode oldNode = new DesiredNode(
-            NodeId.of("old-stage"), PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("old-agg"), List.of("old-rule"), "parquet"),
-            HumanGating.NONE);
-        DesiredNode newNode = new DesiredNode(
-            NodeId.of("new-stage"), PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("new-agg"), List.of("new-rule"), "parquet"),
-            HumanGating.NONE);
+        DesiredNode oldNode = new DesiredNode(NodeId.of("old-stage"), new TransformerSpec(List.of("old-agg"), List.of("old-rule"), "parquet"), HumanGating.NONE);
+        DesiredNode newNode = new DesiredNode(NodeId.of("new-stage"), new TransformerSpec(List.of("new-agg"), List.of("new-rule"), "parquet"), HumanGating.NONE);
 
         DesiredStateGraph graph = factory.of(List.of(newNode), List.of());
 
@@ -131,10 +125,7 @@ class PipelineCaseTransitionTest {
 
     @Test
     void humanReviewNode_skippedInResult() {
-        DesiredNode humanNode = new DesiredNode(
-            NodeId.of("human-review"), PipelineNodeTypes.HUMAN_REVIEW,
-            new HumanReviewSpec(NodeId.of("failing-stage"), "schema mismatch", "auto-fix exhausted"),
-            HumanGating.ALL);
+        DesiredNode humanNode = new DesiredNode(NodeId.of("human-review"), new HumanReviewSpec(NodeId.of("failing-stage"), "schema mismatch", "auto-fix exhausted"), HumanGating.ALL);
 
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 

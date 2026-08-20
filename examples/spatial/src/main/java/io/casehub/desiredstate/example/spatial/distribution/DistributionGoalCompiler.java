@@ -17,21 +17,19 @@ public class DistributionGoalCompiler implements GoalCompiler<DistributionBluepr
 
         for (var cellDef : goals.frontierCells()) {
             var cellId = NodeId.of("cell-%d-%d".formatted(cellDef.row(), cellDef.col()));
-            nodes.add(new DesiredNode(cellId, SpatialNodeTypes.CELL,
-                new CellSpec(cellDef.row(), cellDef.col(), 0, TerrainType.OPEN), HumanGating.NONE));
+            nodes.add(new DesiredNode(cellId, new CellSpec(cellDef.row(), cellDef.col(), 0, TerrainType.OPEN), HumanGating.NONE));
             allocation.put(cellId, cellDef.ratio());
             deps.add(new Dependency(zoneId, cellId));
         }
 
         var zoneSpec = new ZoneSpec(goals.zoneName(), allocation, goals.totalForce());
-        nodes.add(new DesiredNode(zoneId, SpatialNodeTypes.ZONE, zoneSpec, HumanGating.NONE));
+        nodes.add(new DesiredNode(zoneId, zoneSpec, HumanGating.NONE));
 
         for (var cellDef : goals.frontierCells()) {
             var cellId = NodeId.of("cell-%d-%d".formatted(cellDef.row(), cellDef.col()));
             var unitId = NodeId.of("unit-" + cellId.value());
             var strength = zoneSpec.strengthFor(cellId);
-            nodes.add(new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-                new UnitSpec(cellId, strength), HumanGating.NONE));
+            nodes.add(new DesiredNode(unitId, new UnitSpec(cellId, strength), HumanGating.NONE));
             deps.add(new Dependency(unitId, cellId));
             deps.add(new Dependency(unitId, zoneId));
         }

@@ -69,14 +69,14 @@ public class ZoneRebalanceFaultPolicy implements FaultPolicy {
         ZoneSpec newZoneSpec = new ZoneSpec(
                 zoneSpec.zoneName(), normalized, zoneSpec.totalForce());
         mutations.add(new GraphMutation.UpdateNode(event.node(),
-                new DesiredNode(node.id(), node.type(), newZoneSpec, node.humanGating())));
+                new DesiredNode(node.id(), newZoneSpec, node.humanGating())));
 
         for (var entry : normalized.entrySet()) {
             NodeId unitId   = NodeId.of("unit-" + entry.getKey().value());
             int    strength = (int) Math.round(zoneSpec.totalForce() * entry.getValue());
             DesiredNode existingUnit = current.nodes().get(unitId);
             mutations.add(new GraphMutation.UpdateNode(unitId,
-                new DesiredNode(unitId, existingUnit.type(), new UnitSpec(entry.getKey(), strength), existingUnit.humanGating())));
+                new DesiredNode(unitId, new UnitSpec(entry.getKey(), strength), existingUnit.humanGating())));
         }
 
         return mutations;

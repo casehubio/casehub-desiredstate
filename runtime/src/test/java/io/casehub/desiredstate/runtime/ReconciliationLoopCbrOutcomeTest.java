@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReconciliationLoopCbrOutcomeTest {
 
-    private record TestSpec(String value) implements NodeSpec {}
+    private record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     private DefaultDesiredStateGraphFactory factory;
     private MockActualStateAdapter actualAdapter;
@@ -78,7 +78,7 @@ class ReconciliationLoopCbrOutcomeTest {
     @Test
     void noCbrProposals_noOutcomeEvents() throws Exception {
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
 
         CountDownLatch cycleLatch = new CountDownLatch(1);
@@ -94,7 +94,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void pendingProposal_matchedOnEmptyPlan_alreadyPresent() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(nodeId, new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(nodeId, NodeStatus.PRESENT));
 
         cbrTracker.recordProposal("t1", new CbrProposal(
@@ -116,7 +116,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void pendingProposal_matchedAfterExecution_succeeded() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(nodeId, new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of());
 
         cbrTracker.recordProposal("t1", new CbrProposal(
@@ -139,7 +139,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void pendingProposal_matchedAfterExecution_failed() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(nodeId, new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of());
         testExecutor.failNodes.add(nodeId);
 
@@ -161,7 +161,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void proposalConsumedAfterMatch_noDoubleEmission() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(nodeId, new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(nodeId, NodeStatus.PRESENT));
 
         cbrTracker.recordProposal("t1", new CbrProposal(
@@ -191,7 +191,7 @@ class ReconciliationLoopCbrOutcomeTest {
     void tenantStop_clearsPendingProposals() throws Exception {
         var nodeId = NodeId.of("n1");
         DesiredStateGraph graph = factory.empty().withNode(
-            new DesiredNode(nodeId, NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(nodeId, new TestSpec("v"), HumanGating.NONE));
         actualAdapter.setStatuses(Map.of(nodeId, NodeStatus.PRESENT));
 
         cbrTracker.recordProposal("t1", new CbrProposal(

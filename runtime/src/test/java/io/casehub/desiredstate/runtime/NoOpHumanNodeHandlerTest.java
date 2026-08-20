@@ -18,14 +18,12 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class NoOpHumanNodeHandlerTest {
 
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @Test
     void returnsSkippedWithConfigurationMessage() {
         NoOpHumanNodeHandler handler = new NoOpHumanNodeHandler();
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), HumanGating.ALL
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.ALL);
         DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
             .of(List.of(node), List.of());
         ProvisionContext context = new ProvisionContext("tenant1", graph);
@@ -40,9 +38,7 @@ class NoOpHumanNodeHandlerTest {
     @Test
     void deprovision_returnsSkippedWithConfigurationMessage() {
         NoOpHumanNodeHandler handler = new NoOpHumanNodeHandler();
-        DesiredNode node = new DesiredNode(
-                NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), HumanGating.ALL
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.ALL);
         DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
                                           .of(List.of(node), List.of());
         DeprovisionContext context = new DeprovisionContext("tenant1", graph);

@@ -29,7 +29,7 @@ class SituationRecompilerEngineTest {
         "sit-1", "zone-A", "tenant-1", 0.95,
         Map.of(), Instant.now().minusSeconds(60), Instant.now(), 3);
 
-    private record TestSpec(String value) implements NodeSpec {}
+    private record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @Test
     void emptyRecompilerList_shouldReturnEmpty() {
@@ -41,7 +41,7 @@ class SituationRecompilerEngineTest {
     @Test
     void singleRecompiler_returnsNonEmpty_shouldReturnResult() {
         DesiredStateGraph newGraph = graph.withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE));
         SituationRecompiler recompiler = (tid, c, a, s, f) -> Optional.of(CompilationResult.single(newGraph));
 
         SituationRecompilerEngine engine = new SituationRecompilerEngine(List.of(recompiler));
@@ -75,9 +75,9 @@ class SituationRecompilerEngineTest {
     @Test
     void shouldRespectPriorityOrdering() {
         DesiredStateGraph lowGraph = graph.withNode(
-            new DesiredNode(NodeId.of("low"), NodeType.of("test"), new TestSpec("low"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("low"), new TestSpec("low"), HumanGating.NONE));
         DesiredStateGraph highGraph = graph.withNode(
-            new DesiredNode(NodeId.of("high"), NodeType.of("test"), new TestSpec("high"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("high"), new TestSpec("high"), HumanGating.NONE));
 
         SituationRecompiler lowPriority = new SituationRecompiler() {
             @Override

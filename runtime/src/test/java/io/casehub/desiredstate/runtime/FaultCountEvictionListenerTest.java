@@ -21,7 +21,7 @@ class FaultCountEvictionListenerTest {
     private InMemoryFaultCountStore store;
     private FaultCountEvictionListener listener;
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec() implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @BeforeEach
     void setUp() {
@@ -36,7 +36,7 @@ class FaultCountEvictionListenerTest {
         store.incrementAndGet("ns2", "t1", NodeId.of("b"));
 
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
 
         listener.onReconciliationCycleCompleted("t1", graph, new ActualState(Map.of()));
 
@@ -51,7 +51,7 @@ class FaultCountEvictionListenerTest {
         store.incrementAndGet("ns2", "t1", NodeId.of("a"));
 
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
 
         listener.onReconciliationCycleCompleted("t1", graph, new ActualState(Map.of()));
 

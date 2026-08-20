@@ -114,12 +114,8 @@ void delegatesHumanNodesToHandler() {
     SimpleTransitionExecutor handlerExecutor =
         new SimpleTransitionExecutor(mockProvisioner, handler);
 
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
-    DesiredNode normalNode = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec("normal"), false
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
+    DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec("normal"), false);
 
     DesiredStateGraph graph = factory.of(List.of(humanNode, normalNode), List.of());
 
@@ -219,12 +215,8 @@ Update the existing `skipsHumanNodes()` test — it should now verify the NoOp m
 ```java
 @Test
 void skipsHumanNodesWithNoOpHandler() {
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
-    DesiredNode normalNode = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec("normal"), false
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
+    DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec("normal"), false);
 
     DesiredStateGraph graph = factory.of(List.of(humanNode, normalNode), List.of());
 
@@ -274,9 +266,7 @@ class NoOpHumanNodeHandlerTest {
     @Test
     void returnsSkippedWithConfigurationMessage() {
         NoOpHumanNodeHandler handler = new NoOpHumanNodeHandler();
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), true
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), true);
         DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
             .of(List.of(node), List.of());
         ProvisionContext context = new ProvisionContext("tenant1", graph);
@@ -309,9 +299,7 @@ void handlerReceivesCorrectProvisionContext() {
     SimpleTransitionExecutor capturingExecutor =
         new SimpleTransitionExecutor(mockProvisioner, capturingHandler);
 
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
 
     DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 
@@ -595,9 +583,7 @@ class WorkItemHumanNodeHandlerTest {
 
     @Test
     void firstCall_createsWorkItem_returnsSkippedWithId() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("thermo-1"), NodeType.of("iot-device"), new TestSpec("install"), true
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("thermo-1"), new TestSpec("install"), true);
         DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
         ProvisionContext context = new ProvisionContext("tenant1", graph);
 
@@ -705,9 +691,7 @@ void subsequentCall_findsActiveWorkItem_doesNotCreateDuplicate() {
     UUID existingId = UUID.randomUUID();
     mockCreator.activeRef = new WorkItemRef(existingId);
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("thermo-1"), NodeType.of("iot-device"), new TestSpec("install"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("thermo-1"), new TestSpec("install"), true);
     DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
     ProvisionContext context = new ProvisionContext("tenant1", graph);
 
@@ -736,9 +720,7 @@ void reProvisionAfterCompletion_noActiveWorkItem_createsNew() {
     // activeRef is null — simulates all prior WorkItems being terminal
     mockCreator.activeRef = null;
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("thermo-1"), NodeType.of("iot-device"), new TestSpec("install"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("thermo-1"), new TestSpec("install"), true);
     DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
     ProvisionContext context = new ProvisionContext("tenant1", graph);
 
@@ -761,9 +743,7 @@ Add to `WorkItemHumanNodeHandlerTest.java`:
 ```java
 @Test
 void differentTenancy_differentCallerRef() {
-    DesiredNode node = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), true);
     DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
 
     handler.onProvision(node, new ProvisionContext("tenantA", graph));
@@ -789,12 +769,8 @@ void differentNodeId_differentCallerRef() {
     DesiredStateGraph graph = graphFactory.empty();
     ProvisionContext context = new ProvisionContext("tenant1", graph);
 
-    DesiredNode nodeA = new DesiredNode(
-        NodeId.of("a"), NodeType.of("test"), new TestSpec("v"), true
-    );
-    DesiredNode nodeB = new DesiredNode(
-        NodeId.of("b"), NodeType.of("test"), new TestSpec("v"), true
-    );
+    DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("v"), true);
+    DesiredNode nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("v"), true);
 
     handler.onProvision(nodeA, context);
     String refA = mockCreator.lastCreateRequest.callerRef;

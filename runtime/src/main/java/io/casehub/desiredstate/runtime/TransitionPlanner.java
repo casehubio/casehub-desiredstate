@@ -52,7 +52,7 @@ public class TransitionPlanner {
                 };
                 if (remove) {
                     removals.add(new OrderedStep(
-                        new DesiredNode(nodeId, NodeType.of("unknown"), new UnknownSpec(), HumanGating.NONE),
+                        new DesiredNode(nodeId, new UnknownSpec(), HumanGating.NONE),
                         StepAction.DEPROVISION));
                 }
             }
@@ -142,9 +142,10 @@ public class TransitionPlanner {
         return result;
     }
 
-    /**
-     * Marker NodeSpec for nodes being removed that have no known spec.
-     */
     private static class UnknownSpec implements NodeSpec {
+        private static final NodeType UNKNOWN = NodeType.of("unknown");
+
+        @Override
+        public NodeType nodeType() {return UNKNOWN;}
     }
 }

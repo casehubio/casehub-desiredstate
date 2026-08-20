@@ -189,8 +189,7 @@ class ReconciliationLoopTest {
         testExecutor.failNodes.add(NodeId.of("a"));
 
         // Configure fault policy to add a replacement node on failure
-        DesiredNode replacement = new DesiredNode(
-            NodeId.of("a-replacement"), NodeType.of("test"), new TestSpec("replacement"), HumanGating.NONE);
+        DesiredNode replacement = new DesiredNode(NodeId.of("a-replacement"), new TestSpec("replacement"), HumanGating.NONE);
         FaultPolicy addReplacementPolicy = (tid, event, current, actual) -> {
             if (event.node().equals(NodeId.of("a"))) {
                 return List.of(new GraphMutation.AddNode(replacement));
@@ -268,8 +267,7 @@ class ReconciliationLoopTest {
         DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
 
         // FaultPolicy: on NODE_DEGRADED for "a", add a new node "a-fix"
-        DesiredNode fixNode = new DesiredNode(
-            NodeId.of("a-fix"), NodeType.of("test"), new TestSpec("fix"), HumanGating.NONE);
+        DesiredNode fixNode = new DesiredNode(NodeId.of("a-fix"), new TestSpec("fix"), HumanGating.NONE);
         FaultPolicy addFixPolicy = (tid, event, current, actual) -> {
             if (event.type() == FaultType.NODE_DEGRADED && event.node().equals(NodeId.of("a"))) {
                 return List.of(new GraphMutation.AddNode(fixNode));
@@ -369,10 +367,10 @@ class ReconciliationLoopTest {
     // --- Test helpers ---
 
     private DesiredNode node(String id) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(id), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestSpec(id), HumanGating.NONE);
     }
 
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
 
 }

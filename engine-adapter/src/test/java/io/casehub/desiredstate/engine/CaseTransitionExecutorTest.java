@@ -122,10 +122,8 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanNodes_getHumanTaskBindings() {
-        DesiredNode automatedNode = new DesiredNode(
-                NodeId.of("app"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("human-review-app"), NodeType.of("human-review"), new TestSpec(), HumanGating.ALL);
+        DesiredNode automatedNode = new DesiredNode(NodeId.of("app"), new TestSpec(), HumanGating.NONE);
+        DesiredNode humanNode = new DesiredNode(NodeId.of("human-review-app"), new TestSpec(), HumanGating.ALL);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode, humanNode), List.of());
@@ -159,10 +157,8 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanNodes_excludedFromGrowWorkflow() {
-        DesiredNode automatedNode = new DesiredNode(
-                NodeId.of("app"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("human-review-app"), NodeType.of("human-review"), new TestSpec(), HumanGating.ALL);
+        DesiredNode automatedNode = new DesiredNode(NodeId.of("app"), new TestSpec(), HumanGating.NONE);
+        DesiredNode humanNode = new DesiredNode(NodeId.of("human-review-app"), new TestSpec(), HumanGating.ALL);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode, humanNode), List.of());
@@ -185,10 +181,8 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanNodes_markedAsSkippedInResult() {
-        DesiredNode automatedNode = new DesiredNode(
-                NodeId.of("app"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("human-review-app"), NodeType.of("human-review"), new TestSpec(), HumanGating.ALL);
+        DesiredNode automatedNode = new DesiredNode(NodeId.of("app"), new TestSpec(), HumanGating.NONE);
+        DesiredNode humanNode = new DesiredNode(NodeId.of("human-review-app"), new TestSpec(), HumanGating.ALL);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode, humanNode), List.of());
@@ -212,8 +206,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void onlyAutomatedNodes_noHumanTaskBindings() {
-        DesiredNode automatedNode = new DesiredNode(
-                NodeId.of("app"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
+        DesiredNode automatedNode = new DesiredNode(NodeId.of("app"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode), List.of());
@@ -235,8 +228,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanOnlyPlan_noWorkersOnlyHumanBindings() {
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("human-review-app"), NodeType.of("human-review"), new TestSpec(), HumanGating.ALL);
+        DesiredNode humanNode = new DesiredNode(NodeId.of("human-review-app"), new TestSpec(), HumanGating.ALL);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
@@ -256,8 +248,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void pendingApproval_nodeSkipped() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("gated"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("gated"), new TestSpec(), HumanGating.NONE);
 
         approvalHandler.programCheck(
             NodeId.of("gated"), StepAction.PROVISION,
@@ -281,8 +272,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void rejectedApproval_nodeRejectedAndAcknowledged() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("rejected"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("rejected"), new TestSpec(), HumanGating.NONE);
 
         approvalHandler.programCheck(
             NodeId.of("rejected"), StepAction.PROVISION,
@@ -305,8 +295,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void allNodesFiltered_noCaseStarted() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("pending"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("pending"), new TestSpec(), HumanGating.NONE);
 
         approvalHandler.programCheck(
             NodeId.of("pending"), StepAction.PROVISION,
@@ -332,10 +321,8 @@ class CaseTransitionExecutorTest {
 
     @Test
     void mixedPlan_filteredAndAutomated() {
-        DesiredNode pendingNode = new DesiredNode(
-            NodeId.of("gated"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
-        DesiredNode autoNode = new DesiredNode(
-            NodeId.of("auto"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
+        DesiredNode pendingNode = new DesiredNode(NodeId.of("gated"), new TestSpec(), HumanGating.NONE);
+        DesiredNode autoNode = new DesiredNode(NodeId.of("auto"), new TestSpec(), HumanGating.NONE);
 
         approvalHandler.programCheck(
             NodeId.of("gated"), StepAction.PROVISION,
@@ -361,12 +348,8 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanRemovals_getHumanTaskBindings() {
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec(), HumanGating.ALL
-        );
-        DesiredNode normalNode = new DesiredNode(
-                NodeId.of("n1"), NodeType.of("test"), new TestSpec(), HumanGating.NONE
-        );
+        DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), HumanGating.ALL);
+        DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode, normalNode), List.of());
@@ -392,12 +375,8 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanRemovals_excludedFromPruneWorkflow() {
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec(), HumanGating.ALL
-        );
-        DesiredNode normalNode = new DesiredNode(
-                NodeId.of("n1"), NodeType.of("test"), new TestSpec(), HumanGating.NONE
-        );
+        DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), HumanGating.ALL);
+        DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode, normalNode), List.of());
@@ -421,9 +400,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanRemovals_markedAsSkippedInResult() {
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec(), HumanGating.ALL
-        );
+        DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), HumanGating.ALL);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode), List.of());
@@ -443,9 +420,7 @@ class CaseTransitionExecutorTest {
 
     @Test
     void humanAdditions_useActionNamespacedBindingNames() {
-        DesiredNode humanNode = new DesiredNode(
-                NodeId.of("h1"), NodeType.of("test"), new TestSpec(), HumanGating.ALL
-        );
+        DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), HumanGating.ALL);
 
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode), List.of());
@@ -467,5 +442,7 @@ class CaseTransitionExecutorTest {
     }
 
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec(NodeType nodeType) implements NodeSpec {
+        TestSpec() {this(NodeType.of("test"));}
+    }
 }

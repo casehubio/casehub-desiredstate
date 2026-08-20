@@ -47,12 +47,8 @@ class TransitionPlannerTest {
 
     @Test
     void allAbsent_producesAdditionsOnly() {
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
-        DesiredNode nodeB = new DesiredNode(
-            NodeId.of("b"), NodeType.of("test"), new TestSpec("B"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("B"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(List.of(nodeA, nodeB), List.of());
         ActualState actual = new ActualState(Map.of(
@@ -85,15 +81,9 @@ class TransitionPlannerTest {
     @Test
     void additionsOrdering_rootsFirst() {
         // A → B → C (C depends on B, B depends on A)
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
-        DesiredNode nodeB = new DesiredNode(
-            NodeId.of("b"), NodeType.of("test"), new TestSpec("B"), HumanGating.NONE
-        );
-        DesiredNode nodeC = new DesiredNode(
-            NodeId.of("c"), NodeType.of("test"), new TestSpec("C"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("B"), HumanGating.NONE);
+        DesiredNode nodeC = new DesiredNode(NodeId.of("c"), new TestSpec("C"), HumanGating.NONE);
 
         Dependency bDependsOnA = new Dependency(NodeId.of("b"), NodeId.of("a"));
         Dependency cDependsOnB = new Dependency(NodeId.of("c"), NodeId.of("b"));
@@ -130,18 +120,10 @@ class TransitionPlannerTest {
     @Test
     void additionsOrdering_diamondDependency() {
         // Diamond: A, B depends on A, C depends on A, D depends on B and C
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
-        DesiredNode nodeB = new DesiredNode(
-            NodeId.of("b"), NodeType.of("test"), new TestSpec("B"), HumanGating.NONE
-        );
-        DesiredNode nodeC = new DesiredNode(
-            NodeId.of("c"), NodeType.of("test"), new TestSpec("C"), HumanGating.NONE
-        );
-        DesiredNode nodeD = new DesiredNode(
-            NodeId.of("d"), NodeType.of("test"), new TestSpec("D"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("B"), HumanGating.NONE);
+        DesiredNode nodeC = new DesiredNode(NodeId.of("c"), new TestSpec("C"), HumanGating.NONE);
+        DesiredNode nodeD = new DesiredNode(NodeId.of("d"), new TestSpec("D"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(
             List.of(nodeA, nodeB, nodeC, nodeD),
@@ -179,9 +161,7 @@ class TransitionPlannerTest {
 
     @Test
     void mixedChanges_separatesAdditionsAndRemovals() {
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
         ActualState actual = new ActualState(Map.of(
@@ -200,9 +180,7 @@ class TransitionPlannerTest {
 
     @Test
     void driftedInDesired_producesAddition() {
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
         ActualState actual = new ActualState(Map.of(
@@ -234,15 +212,9 @@ class TransitionPlannerTest {
 
     @Test
     void driftedWithDependencies_respectsTopologicalOrder() {
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
-        DesiredNode nodeB = new DesiredNode(
-            NodeId.of("b"), NodeType.of("test"), new TestSpec("B"), HumanGating.NONE
-        );
-        DesiredNode nodeC = new DesiredNode(
-            NodeId.of("c"), NodeType.of("test"), new TestSpec("C"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("B"), HumanGating.NONE);
+        DesiredNode nodeC = new DesiredNode(NodeId.of("c"), new TestSpec("C"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(
             List.of(nodeA, nodeB, nodeC),
@@ -276,18 +248,10 @@ class TransitionPlannerTest {
 
     @Test
     void mixedStatuses_classifiesCorrectly() {
-        DesiredNode present = new DesiredNode(
-            NodeId.of("present"), NodeType.of("test"), new TestSpec("P"), HumanGating.NONE
-        );
-        DesiredNode absent = new DesiredNode(
-            NodeId.of("absent"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
-        DesiredNode drifted = new DesiredNode(
-            NodeId.of("drifted"), NodeType.of("test"), new TestSpec("D"), HumanGating.NONE
-        );
-        DesiredNode unknown = new DesiredNode(
-            NodeId.of("unknown"), NodeType.of("test"), new TestSpec("U"), HumanGating.NONE
-        );
+        DesiredNode present = new DesiredNode(NodeId.of("present"), new TestSpec("P"), HumanGating.NONE);
+        DesiredNode absent = new DesiredNode(NodeId.of("absent"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode drifted = new DesiredNode(NodeId.of("drifted"), new TestSpec("D"), HumanGating.NONE);
+        DesiredNode unknown = new DesiredNode(NodeId.of("unknown"), new TestSpec("U"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(
             List.of(present, absent, drifted, unknown), List.of()
@@ -330,9 +294,7 @@ class TransitionPlannerTest {
 
     @Test
     void presentInDesired_noAction() {
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
         ActualState actual = new ActualState(Map.of(
@@ -374,12 +336,8 @@ class TransitionPlannerTest {
     void driftedWithPresentDependency_provisionsDriftedOnly() {
         // B depends on A. A is PRESENT (fine), B is DRIFTED (needs re-provision).
         // Only B should be in additions, with zero in-degree (A is outside toAdd).
-        DesiredNode nodeA = new DesiredNode(
-            NodeId.of("a"), NodeType.of("test"), new TestSpec("A"), HumanGating.NONE
-        );
-        DesiredNode nodeB = new DesiredNode(
-            NodeId.of("b"), NodeType.of("test"), new TestSpec("B"), HumanGating.NONE
-        );
+        DesiredNode nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("B"), HumanGating.NONE);
 
         DesiredStateGraph desired = factory.of(
             List.of(nodeA, nodeB),
@@ -399,5 +357,5 @@ class TransitionPlannerTest {
     }
 
     // Helper test spec
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 }

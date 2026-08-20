@@ -47,7 +47,7 @@ public TransitionPlan plan(DesiredStateGraph desired, ActualState actual) {
             };
             if (remove) {
                 removals.add(new OrderedStep(
-                    new DesiredNode(nodeId, NodeType.of("unknown"), new UnknownSpec(), false),
+                    new DesiredNode(nodeId, new UnknownSpec(), false),
                     StepAction.DEPROVISION));
             }
         }

@@ -110,9 +110,10 @@ class TransitionWorkflowGeneratorTest {
     }
 
     private static DesiredNode node(String id, String type) {
-        return new DesiredNode(NodeId.of(id), NodeType.of(type), new TestNodeSpec(), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestNodeSpec(NodeType.of(type)), HumanGating.NONE);
     }
 
-    /** Minimal NodeSpec for tests. */
-    private record TestNodeSpec() implements NodeSpec {}
+    private record TestNodeSpec(NodeType nodeType) implements NodeSpec {
+        TestNodeSpec() {this(NodeType.of("test"));}
+    }
 }

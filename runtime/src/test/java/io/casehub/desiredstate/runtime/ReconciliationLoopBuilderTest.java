@@ -39,7 +39,7 @@ class ReconciliationLoopBuilderTest {
     private FaultPolicyEngine faultEngine;
     private ReconciliationLoop loop;
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec() implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @BeforeEach
     void setUp() {
@@ -59,7 +59,7 @@ class ReconciliationLoopBuilderTest {
     @Test
     void builder_withDefaults_createsWorkingLoop() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
         loop = ReconciliationLoop.builder(planner, executor, adapterRouter, faultEngine,
@@ -74,7 +74,7 @@ class ReconciliationLoopBuilderTest {
     @Test
     void builder_withTimingOptions_appliesSettings() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
         loop = ReconciliationLoop.builder(planner, executor, adapterRouter, faultEngine,
@@ -91,7 +91,7 @@ class ReconciliationLoopBuilderTest {
     @Test
     void builder_withCloudEventSink_receivesEvents() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
         List<CloudEvent> events = new CopyOnWriteArrayList<>();
@@ -111,7 +111,7 @@ class ReconciliationLoopBuilderTest {
     @Test
     void builder_withGlobalListeners_firesOnCycle() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -131,7 +131,7 @@ class ReconciliationLoopBuilderTest {
     @Test
     void builder_withCbrTracker_sharesInstance() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(
-                new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+                new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
         CbrProposalTracker tracker = new CbrProposalTracker();

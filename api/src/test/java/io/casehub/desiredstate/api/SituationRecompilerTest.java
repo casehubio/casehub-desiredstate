@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class SituationRecompilerTest {
 
-    private record TestNodeSpec(String config) implements NodeSpec {}
+    private record TestNodeSpec(String config) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @Test
     void situationRecompiler_canBeImplemented() {

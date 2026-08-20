@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.*;
 
 class NodeSpecValueSemanticsTest {
 
-    private record SpecA(String x, int y) implements NodeSpec {}
-    private record SpecB(double value) implements NodeSpec {}
+    private record SpecA(String x, int y) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
+    private record SpecB(double value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @Test
     void recordNodeSpecs_shouldHaveValueEquality() {

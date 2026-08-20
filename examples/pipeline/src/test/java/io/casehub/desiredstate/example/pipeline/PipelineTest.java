@@ -265,10 +265,7 @@ class PipelineTest {
     @Test
     void schemaIncompatibility_failsProvision() {
         // Create an enricher node that needs a lookup source
-        DesiredNode enricher = new DesiredNode(
-            NodeId.of("geo-enrich"), PipelineNodeTypes.ENRICHER,
-            new EnricherSpec("geo-lookup", List.of("userId"), List.of("country", "city")),
-            HumanGating.NONE);
+        DesiredNode enricher = new DesiredNode(NodeId.of("geo-enrich"), new EnricherSpec("geo-lookup", List.of("userId"), List.of("country", "city")), HumanGating.NONE);
 
         // Do NOT register the lookup source — provisioning should fail
         DesiredStateGraph graph = factory.of(List.of(enricher), List.of());
@@ -325,9 +322,7 @@ class PipelineTest {
                         (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
                 .build();
 
-        DesiredNode ingestNode = new DesiredNode(
-            NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
-            new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
+        DesiredNode ingestNode = new DesiredNode(NodeId.of("ingest"), new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(ingestNode), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("ingest"), FaultType.PROVISION_FAILED, "source unavailable");
@@ -383,9 +378,7 @@ class PipelineTest {
                         (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
                 .build();
 
-        DesiredNode ingestNode = new DesiredNode(
-            NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
-            new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
+        DesiredNode ingestNode = new DesiredNode(NodeId.of("ingest"), new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(ingestNode), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("ingest"), FaultType.PROVISION_FAILED, "source unavailable");
@@ -415,9 +408,7 @@ class PipelineTest {
         QuarantineFaultPolicy policy = new QuarantineFaultPolicy(world);
 
         // Create a validator node
-        DesiredNode validator = new DesiredNode(
-                NodeId.of("quality-gate"), PipelineNodeTypes.VALIDATOR,
-                new ValidatorSpec("click-schema", 0.95, true), HumanGating.NONE);
+        DesiredNode validator = new DesiredNode(NodeId.of("quality-gate"), new ValidatorSpec("click-schema", 0.95, true), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(validator), List.of());
 
         // Set the validator as QUARANTINED in world
@@ -447,9 +438,7 @@ class PipelineTest {
         SchemaDriftFaultPolicy policy = new SchemaDriftFaultPolicy();
 
         // Create a schema node
-        DesiredNode schema = new DesiredNode(
-                NodeId.of("click-schema"), PipelineNodeTypes.SCHEMA,
-                new SchemaSpec("click-schema", List.of("userId", "pageUrl", "timestamp"), 1), HumanGating.NONE);
+        DesiredNode schema = new DesiredNode(NodeId.of("click-schema"), new SchemaSpec("click-schema", List.of("userId", "pageUrl", "timestamp"), 1), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(schema), List.of());
 
         FaultEvent fault = new FaultEvent(NodeId.of("click-schema"), FaultType.NODE_DEGRADED,
@@ -577,12 +566,8 @@ class PipelineTest {
     @Test
     void layerConstraint_rejectsBackwardDependency() {
         // Bronze node depending on a Gold node — backward
-        DesiredNode source = new DesiredNode(NodeId.of("raw-source"),
-            PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("raw", "json", "kafka://raw"), HumanGating.NONE);
-        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
-            PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
+        DesiredNode source = new DesiredNode(NodeId.of("raw-source"), new DataSourceSpec("raw", "json", "kafka://raw"), HumanGating.NONE);
+        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"), new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
 
         // source depends on transformer — backward (Bronze depends on Gold)
         DesiredStateGraph graph = factory.of(
@@ -599,12 +584,8 @@ class PipelineTest {
     @Test
     void layerConstraint_rejectsLayerSkip() {
         // Gold node depending directly on Bronze (skipping Silver)
-        DesiredNode source = new DesiredNode(NodeId.of("clickstream"),
-            PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("clickstream", "json", "kafka://clicks"), HumanGating.NONE);
-        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
-            PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
+        DesiredNode source = new DesiredNode(NodeId.of("clickstream"), new DataSourceSpec("clickstream", "json", "kafka://clicks"), HumanGating.NONE);
+        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"), new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
 
         // transformer depends on source — Gold depends on Bronze (skips Silver)
         DesiredStateGraph graph = factory.of(
@@ -620,12 +601,8 @@ class PipelineTest {
 
     @Test
     void layerConstraint_allowsSameLayerDependencies() {
-        DesiredNode source1 = new DesiredNode(NodeId.of("source-a"),
-            PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("a", "json", "kafka://a"), HumanGating.NONE);
-        DesiredNode source2 = new DesiredNode(NodeId.of("source-b"),
-            PipelineNodeTypes.DATA_SOURCE,
-            new DataSourceSpec("b", "json", "kafka://b"), HumanGating.NONE);
+        DesiredNode source1 = new DesiredNode(NodeId.of("source-a"), new DataSourceSpec("a", "json", "kafka://a"), HumanGating.NONE);
+        DesiredNode source2 = new DesiredNode(NodeId.of("source-b"), new DataSourceSpec("b", "json", "kafka://b"), HumanGating.NONE);
 
         // source-b depends on source-a — same layer (Bronze → Bronze)
         DesiredStateGraph graph = factory.of(
@@ -638,12 +615,8 @@ class PipelineTest {
     @Test
     void layerConstraint_ignoresFaultNodes() {
         // AI_REVIEW node depending on a Gold node — no layer, should be ignored
-        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"),
-            PipelineNodeTypes.TRANSFORMER,
-            new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
-        DesiredNode aiReview = new DesiredNode(NodeId.of("ai-review-session-agg"),
-            PipelineNodeTypes.AI_REVIEW,
-            new AiReviewSpec(NodeId.of("session-agg"), "provision failure"), HumanGating.NONE);
+        DesiredNode transformer = new DesiredNode(NodeId.of("session-agg"), new TransformerSpec(List.of("sessionize"), List.of("group-by-session"), "parquet"), HumanGating.NONE);
+        DesiredNode aiReview = new DesiredNode(NodeId.of("ai-review-session-agg"), new AiReviewSpec(NodeId.of("session-agg"), "provision failure"), HumanGating.NONE);
 
         DesiredStateGraph graph = factory.of(
             List.of(transformer, aiReview),
@@ -699,8 +672,7 @@ class PipelineTest {
         // Create an AI_REVIEW node without pre-setting the outcome
         NodeId targetNode = NodeId.of("ingest");
         NodeId reviewNode = NodeId.of("ai-review-ingest");
-        DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
+        DesiredNode aiReview = new DesiredNode(reviewNode, new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
 
         // Provision the AI_REVIEW node
@@ -733,8 +705,7 @@ class PipelineTest {
 
         NodeId targetNode = NodeId.of("ingest");
         NodeId reviewNode = NodeId.of("ai-review-ingest");
-        DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
+        DesiredNode aiReview = new DesiredNode(reviewNode, new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
 
         ProvisionResult result = agentProvisioner.provision(aiReview, new ProvisionContext("default", graph));
@@ -751,8 +722,7 @@ class PipelineTest {
 
         NodeId targetNode = NodeId.of("ingest");
         NodeId reviewNode = NodeId.of("ai-review-ingest");
-        DesiredNode aiReview = new DesiredNode(reviewNode, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
+        DesiredNode aiReview = new DesiredNode(reviewNode, new AiReviewSpec(targetNode, "source unavailable"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(aiReview), List.of());
 
         ProvisionResult result = noOpProvisioner.provision(aiReview, new ProvisionContext("default", graph));

@@ -23,15 +23,14 @@ public class ExpansionGoalCompiler implements GoalCompiler<ExpansionGoal> {
 
         // Probe is always first
         NodeId probeId = NodeId.of("probe-" + goals.locationId());
-        nodes.add(new DesiredNode(probeId, ExpansionNodeTypes.PROBE,
-            new ProbeSpec(goals.locationId()), HumanGating.NONE));
+        nodes.add(new DesiredNode(probeId, new ProbeSpec(goals.locationId()), HumanGating.NONE));
 
         NodeId prevId = probeId;
         for (String structure : goals.requiredStructures()) {
             NodeId nodeId = NodeId.of(structure + "-" + goals.locationId());
             NodeType type = resolveType(structure);
             NodeSpec spec = resolveSpec(structure, goals.locationId());
-            nodes.add(new DesiredNode(nodeId, type, spec, HumanGating.NONE));
+            nodes.add(new DesiredNode(nodeId, spec, HumanGating.NONE));
             deps.add(new Dependency(nodeId, prevId));
             prevId = nodeId;
         }
@@ -45,20 +44,16 @@ public class ExpansionGoalCompiler implements GoalCompiler<ExpansionGoal> {
 
         // Carry forward nexus — it needs continuous reconciliation
         NodeId nexusId = NodeId.of("nexus-" + goals.locationId());
-        nodes.add(new DesiredNode(nexusId, ExpansionNodeTypes.NEXUS,
-            new NexusSpec(goals.locationId()), HumanGating.NONE));
+        nodes.add(new DesiredNode(nexusId, new NexusSpec(goals.locationId()), HumanGating.NONE));
 
         // Defense nodes
         NodeId patrolId = NodeId.of("patrol-" + goals.locationId());
         NodeId monitorId = NodeId.of("monitor-" + goals.locationId());
         NodeId responseId = NodeId.of("response-" + goals.locationId());
 
-        nodes.add(new DesiredNode(patrolId, ExpansionNodeTypes.PATROL,
-            new PatrolSpec(goals.locationId()), HumanGating.NONE));
-        nodes.add(new DesiredNode(monitorId, ExpansionNodeTypes.MONITOR,
-            new MonitorSpec(goals.locationId()), HumanGating.NONE));
-        nodes.add(new DesiredNode(responseId, ExpansionNodeTypes.RESPONSE,
-            new ResponseSpec(goals.locationId(), goals.defensePosture()), HumanGating.NONE));
+        nodes.add(new DesiredNode(patrolId, new PatrolSpec(goals.locationId()), HumanGating.NONE));
+        nodes.add(new DesiredNode(monitorId, new MonitorSpec(goals.locationId()), HumanGating.NONE));
+        nodes.add(new DesiredNode(responseId, new ResponseSpec(goals.locationId(), goals.defensePosture()), HumanGating.NONE));
 
         // patrol and monitor depend on nexus
         deps.add(new Dependency(patrolId, nexusId));

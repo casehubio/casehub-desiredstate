@@ -55,11 +55,7 @@ class DesiredStateReplanDispatchTest {
 
         currentGraph = mockFactory.empty();
         newGraph = mockFactory.empty().withNode(
-            new DesiredNode(
-                NodeId.of("fallback-1"),
-                NodeType.of("fallback"),
-                new TestNodeSpec("fallback config"),
-                HumanGating.NONE));
+            new DesiredNode(NodeId.of("fallback-1"), new TestNodeSpec("fallback config"), HumanGating.NONE));
 
         mockLoop = new ReconciliationLoop(null, null, null, null, null) {
             @Override
@@ -162,7 +158,7 @@ class DesiredStateReplanDispatchTest {
             .hasMessageContaining("Missing required arg");
     }
 
-    private record TestNodeSpec(String config) implements NodeSpec {}
+    private record TestNodeSpec(String config) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     private static class MockDesiredStateGraph implements DesiredStateGraph {
         private final Map<NodeId, DesiredNode> nodes = new LinkedHashMap<>();

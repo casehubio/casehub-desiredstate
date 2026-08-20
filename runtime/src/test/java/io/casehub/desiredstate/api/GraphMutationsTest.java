@@ -10,12 +10,11 @@ class GraphMutationsTest {
 
     private static final NodeType REVIEW = NodeType.of("review");
 
-    record TestSpec(String detail) implements NodeSpec {}
+    record TestSpec(String detail) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @Test
     void addNodeDependingOn_returnsAddNodeAndAddDependency() {
-        DesiredNode node = new DesiredNode(NodeId.of("review-n1"), REVIEW,
-                new TestSpec("test"), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("review-n1"), new TestSpec("test"), HumanGating.NONE);
         NodeId dependsOn = NodeId.of("n1");
 
         List<GraphMutation> mutations = GraphMutations.addNodeDependingOn(node, dependsOn);

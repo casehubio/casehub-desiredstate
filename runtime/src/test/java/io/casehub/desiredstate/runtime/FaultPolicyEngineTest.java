@@ -40,9 +40,7 @@ class FaultPolicyEngineTest {
     void noPolicies_returnsEmptyMutations() {
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of());
 
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -60,9 +58,7 @@ class FaultPolicyEngineTest {
 
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy));
 
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -81,17 +77,13 @@ class FaultPolicyEngineTest {
         );
 
         FaultPolicy policy2 = (tid, event, current, actual) -> List.of(
-            new GraphMutation.UpdateNode(NodeId.of("n2"), new DesiredNode(NodeId.of("n2"), NodeType.of("test"), new TestSpec("updated"), HumanGating.NONE))
+            new GraphMutation.UpdateNode(NodeId.of("n2"), new DesiredNode(NodeId.of("n2"), new TestSpec("updated"), HumanGating.NONE))
         );
 
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy1, policy2));
 
-        DesiredNode node1 = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE
-        );
-        DesiredNode node2 = new DesiredNode(
-            NodeId.of("n2"), NodeType.of("test"), new TestSpec("N2"), HumanGating.NONE
-        );
+        DesiredNode node1 = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
+        DesiredNode node2 = new DesiredNode(NodeId.of("n2"), new TestSpec("N2"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node1, node2), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -113,9 +105,7 @@ class FaultPolicyEngineTest {
 
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy1, policy2));
 
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -132,14 +122,12 @@ class FaultPolicyEngineTest {
         );
 
         FaultPolicy policy2 = (tid, event, current, actual) -> List.of(
-            new GraphMutation.UpdateNode(NodeId.of("n1"), new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("updated"), HumanGating.NONE))
+            new GraphMutation.UpdateNode(NodeId.of("n1"), new DesiredNode(NodeId.of("n1"), new TestSpec("updated"), HumanGating.NONE))
         );
 
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy1, policy2));
 
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE
-        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -164,9 +152,7 @@ class FaultPolicyEngineTest {
 
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy1, policy2));
 
-        DesiredNode node1 = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE
-        );
+        DesiredNode node1 = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node1), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.DEPENDENCY_UNAVAILABLE, "detail");
@@ -194,8 +180,8 @@ class FaultPolicyEngineTest {
 
         FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy));
 
-        DesiredNode node1 = new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), HumanGating.NONE);
-        DesiredNode node2 = new DesiredNode(NodeId.of("n2"), NodeType.of("test"), new TestSpec("N2"), HumanGating.NONE);
+        DesiredNode node1 = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), HumanGating.NONE);
+        DesiredNode node2 = new DesiredNode(NodeId.of("n2"), new TestSpec("N2"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node1, node2), List.of());
 
         FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -207,5 +193,5 @@ class FaultPolicyEngineTest {
     }
 
     // Helper test spec
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 }

@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.within;
 
 class CbrProposalTrackerTest {
 
-    private record TestSpec(String value) implements NodeSpec {}
+    private record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     private CbrProposalTracker tracker;
     private final DefaultDesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
@@ -91,7 +91,7 @@ class CbrProposalTrackerTest {
             "src-1", CbrPath.FAULT, Set.of(nodeId), Instant.now()));
 
         var result = new TransitionResult(Map.of());
-        var node = new DesiredNode(nodeId, new NodeType("t"), new TestSpec("v"), HumanGating.NONE);
+        var node = new DesiredNode(nodeId, new TestSpec("v"), HumanGating.NONE);
         var graph = factory.of(java.util.List.of(node), Set.of());
         var outcomes = tracker.matchOutcomes("t1", result, graph);
 

@@ -73,8 +73,7 @@ void driftDetection_runsBeforeEmptyPlanCheck() {
     actualAdapter.setStatuses(Map.of(NodeId.of("a"), NodeStatus.DRIFTED));
 
     // Fault policy that adds a replacement node on NODE_DEGRADED
-    DesiredNode replacement = new DesiredNode(
-        NodeId.of("a-fix"), NodeType.of("test"), new TestSpec("fix"), false);
+    DesiredNode replacement = new DesiredNode(NodeId.of("a-fix"), new TestSpec("fix"), false);
     FaultPolicy degradedPolicy = (event, current) -> {
         if (event.type() == FaultType.NODE_DEGRADED) {
             return List.of(new GraphMutation.AddNode(replacement));
@@ -877,27 +876,23 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
         // Bronze: sources (roots)
         for (PipelineBlueprint.SourceEntry src : goals.sources()) {
-            nodes.add(new DesiredNode(NodeId.of(src.id()), PipelineNodeTypes.DATA_SOURCE,
-                new DataSourceSpec(src.id(), src.format(), src.uri()), false));
+            nodes.add(new DesiredNode(NodeId.of(src.id()), new DataSourceSpec(src.id(), src.format(), src.uri()), false));
         }
 
         // Bronze: schemas (roots)
         for (PipelineBlueprint.SchemaEntry schema : goals.schemas()) {
-            nodes.add(new DesiredNode(NodeId.of(schema.id()), PipelineNodeTypes.SCHEMA,
-                new SchemaSpec(schema.id(), schema.fields(), schema.version()), false));
+            nodes.add(new DesiredNode(NodeId.of(schema.id()), new SchemaSpec(schema.id(), schema.fields(), schema.version()), false));
         }
 
         // Bronze: ingestion depends on its sourceRef
         for (PipelineBlueprint.IngestionEntry ing : goals.ingestions()) {
-            nodes.add(new DesiredNode(NodeId.of(ing.id()), PipelineNodeTypes.INGESTION,
-                new IngestionSpec(ing.sourceRef(), ing.batchSize(), ing.format()), false));
+            nodes.add(new DesiredNode(NodeId.of(ing.id()), new IngestionSpec(ing.sourceRef(), ing.batchSize(), ing.format()), false));
             dependencies.add(new Dependency(NodeId.of(ing.id()), NodeId.of(ing.sourceRef())));
         }
 
         // Silver: cleanser depends on all ingestions + all schemas
         for (PipelineBlueprint.CleanserEntry cl : goals.cleansers()) {
-            nodes.add(new DesiredNode(NodeId.of(cl.id()), PipelineNodeTypes.CLEANSER,
-                new CleanserSpec(cl.rules(), cl.deduplication(), cl.nullHandling()), false));
+            nodes.add(new DesiredNode(NodeId.of(cl.id()), new CleanserSpec(cl.rules(), cl.deduplication(), cl.nullHandling()), false));
             for (PipelineBlueprint.IngestionEntry ing : goals.ingestions()) {
                 dependencies.add(new Dependency(NodeId.of(cl.id()), NodeId.of(ing.id())));
             }
@@ -908,8 +903,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
         // Silver: enricher depends on all cleansers
         for (PipelineBlueprint.EnricherEntry enr : goals.enrichers()) {
-            nodes.add(new DesiredNode(NodeId.of(enr.id()), PipelineNodeTypes.ENRICHER,
-                new EnricherSpec(enr.lookupSource(), enr.joinKeys(), enr.enrichFields()), false));
+            nodes.add(new DesiredNode(NodeId.of(enr.id()), new EnricherSpec(enr.lookupSource(), enr.joinKeys(), enr.enrichFields()), false));
             for (PipelineBlueprint.CleanserEntry cl : goals.cleansers()) {
                 dependencies.add(new Dependency(NodeId.of(enr.id()), NodeId.of(cl.id())));
             }
@@ -917,8 +911,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
         // Silver: validator depends on all enrichers + all schemas
         for (PipelineBlueprint.ValidatorEntry val : goals.validators()) {
-            nodes.add(new DesiredNode(NodeId.of(val.id()), PipelineNodeTypes.VALIDATOR,
-                new ValidatorSpec(val.schemaRef(), val.qualityThreshold(), val.anomalyDetection()), false));
+            nodes.add(new DesiredNode(NodeId.of(val.id()), new ValidatorSpec(val.schemaRef(), val.qualityThreshold(), val.anomalyDetection()), false));
             for (PipelineBlueprint.EnricherEntry enr : goals.enrichers()) {
                 dependencies.add(new Dependency(NodeId.of(val.id()), NodeId.of(enr.id())));
             }
@@ -929,8 +922,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
         // Gold: transformer depends on all validators
         for (PipelineBlueprint.TransformerEntry tr : goals.transformers()) {
-            nodes.add(new DesiredNode(NodeId.of(tr.id()), PipelineNodeTypes.TRANSFORMER,
-                new TransformerSpec(tr.aggregations(), tr.reshapeRules(), tr.outputFormat()), false));
+            nodes.add(new DesiredNode(NodeId.of(tr.id()), new TransformerSpec(tr.aggregations(), tr.reshapeRules(), tr.outputFormat()), false));
             for (PipelineBlueprint.ValidatorEntry val : goals.validators()) {
                 dependencies.add(new Dependency(NodeId.of(tr.id()), NodeId.of(val.id())));
             }
@@ -938,8 +930,7 @@ public class PipelineGoalCompiler implements GoalCompiler<PipelineBlueprint> {
 
         // Gold: sink depends on all transformers
         for (PipelineBlueprint.SinkEntry sink : goals.sinks()) {
-            nodes.add(new DesiredNode(NodeId.of(sink.id()), PipelineNodeTypes.SINK,
-                new SinkSpec(sink.destination(), sink.format(), sink.partitionKeys()), false));
+            nodes.add(new DesiredNode(NodeId.of(sink.id()), new SinkSpec(sink.destination(), sink.format(), sink.partitionKeys()), false));
             for (PipelineBlueprint.TransformerEntry tr : goals.transformers()) {
                 dependencies.add(new Dependency(NodeId.of(sink.id()), NodeId.of(tr.id())));
             }
@@ -1300,8 +1291,7 @@ void schemaIncompatibility_failsProvision() {
     world.registerSource(NodeId.of("src"), "json", "kafka://test");
     // No schema registered — cleanser validation should fail
 
-    DesiredNode cleanser = new DesiredNode(NodeId.of("clean"), PipelineNodeTypes.CLEANSER,
-        new CleanserSpec(List.of("deduplicate"), true, "DROP"), false);
+    DesiredNode cleanser = new DesiredNode(NodeId.of("clean"), new CleanserSpec(List.of("deduplicate"), true, "DROP"), false);
 
     ProvisionContext context = new ProvisionContext("test-tenancy", factory.empty());
     ProvisionResult result = provisioner.provision(cleanser, context);
@@ -1620,8 +1610,7 @@ Add to `PipelineTest.java`:
 @Test
 void provisionFailure_fullEscalationChain() {
     ProvisionEscalationFaultPolicy policy = new ProvisionEscalationFaultPolicy(world);
-    DesiredNode ingestion = new DesiredNode(NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
-        new IngestionSpec("src", 1000, "json"), false);
+    DesiredNode ingestion = new DesiredNode(NodeId.of("ingest"), new IngestionSpec("src", 1000, "json"), false);
     DesiredStateGraph graph = factory.of(List.of(ingestion), List.of());
 
     FaultEvent fault = new FaultEvent(NodeId.of("ingest"), FaultType.PROVISION_FAILED, "source unavailable");
@@ -1669,8 +1658,7 @@ void provisionFailure_fullEscalationChain() {
 @Test
 void provisionFailure_aiReviewResolves() {
     ProvisionEscalationFaultPolicy policy = new ProvisionEscalationFaultPolicy(world);
-    DesiredNode ingestion = new DesiredNode(NodeId.of("ingest"), PipelineNodeTypes.INGESTION,
-        new IngestionSpec("src", 1000, "json"), false);
+    DesiredNode ingestion = new DesiredNode(NodeId.of("ingest"), new IngestionSpec("src", 1000, "json"), false);
     DesiredStateGraph graph = factory.of(List.of(ingestion), List.of());
 
     FaultEvent fault = new FaultEvent(NodeId.of("ingest"), FaultType.PROVISION_FAILED, "source unavailable");
@@ -1698,8 +1686,7 @@ void validationQuarantine_humanReview() {
     // Validator is QUARANTINED (not just DEGRADED from upstream drift)
     world.setStage(NodeId.of("validator"), PipelineWorld.StageState.QUARANTINED, "schema", "schema");
 
-    DesiredNode validator = new DesiredNode(NodeId.of("validator"), PipelineNodeTypes.VALIDATOR,
-        new ValidatorSpec("schema", 0.95, true), false);
+    DesiredNode validator = new DesiredNode(NodeId.of("validator"), new ValidatorSpec("schema", 0.95, true), false);
     DesiredStateGraph graph = factory.of(List.of(validator), List.of());
 
     FaultEvent fault = new FaultEvent(NodeId.of("validator"), FaultType.NODE_DEGRADED, "Records quarantined");
@@ -1715,8 +1702,7 @@ void validationQuarantine_humanReview() {
 void schemaDrift_humanReviewOnly() {
     SchemaDriftFaultPolicy policy = new SchemaDriftFaultPolicy();
 
-    DesiredNode schema = new DesiredNode(NodeId.of("my-schema"), PipelineNodeTypes.SCHEMA,
-        new SchemaSpec("my-schema", List.of("a", "b"), 1), false);
+    DesiredNode schema = new DesiredNode(NodeId.of("my-schema"), new SchemaSpec("my-schema", List.of("a", "b"), 1), false);
     DesiredStateGraph graph = factory.of(List.of(schema), List.of());
 
     FaultEvent fault = new FaultEvent(NodeId.of("my-schema"), FaultType.NODE_DEGRADED, "Schema version changed");
@@ -1804,8 +1790,7 @@ public class ProvisionEscalationFaultPolicy implements FaultPolicy {
 
         // Event 4: create AI_REVIEW
         if (!current.nodes().containsKey(aiReviewId)) {
-            DesiredNode reviewNode = new DesiredNode(aiReviewId, PipelineNodeTypes.AI_REVIEW,
-                new AiReviewSpec(event.node(), event.detail()), false);
+            DesiredNode reviewNode = new DesiredNode(aiReviewId, new AiReviewSpec(event.node(), event.detail()), false);
             return List.of(new GraphMutation.AddNode(reviewNode));
         }
 
@@ -1818,8 +1803,7 @@ public class ProvisionEscalationFaultPolicy implements FaultPolicy {
             return List.of(); // Fix takes effect next cycle
         }
         // UNRESOLVED: escalate to human
-        DesiredNode humanNode = new DesiredNode(humanReviewId, PipelineNodeTypes.HUMAN_REVIEW,
-            new HumanReviewSpec(event.node(), event.detail(), "AI review could not resolve"), true);
+        DesiredNode humanNode = new DesiredNode(humanReviewId, new HumanReviewSpec(event.node(), event.detail(), "AI review could not resolve"), true);
         return List.of(new GraphMutation.AddNode(humanNode));
     }
 }
@@ -1859,8 +1843,7 @@ public class QuarantineFaultPolicy implements FaultPolicy {
         PipelineWorld.StageEntry entry = world.stageEntry(event.node());
         String reason = entry != null ? entry.errorDetail() : "Validation quarantine";
 
-        DesiredNode humanNode = new DesiredNode(humanReviewId, PipelineNodeTypes.HUMAN_REVIEW,
-            new HumanReviewSpec(event.node(), reason, "Records quarantined by validator"), true);
+        DesiredNode humanNode = new DesiredNode(humanReviewId, new HumanReviewSpec(event.node(), reason, "Records quarantined by validator"), true);
         return List.of(new GraphMutation.AddNode(humanNode));
     }
 }
@@ -1887,8 +1870,7 @@ public class SchemaDriftFaultPolicy implements FaultPolicy {
         NodeId humanReviewId = NodeId.of("human-review-" + event.node().value());
         if (current.nodes().containsKey(humanReviewId)) return List.of();
 
-        DesiredNode humanNode = new DesiredNode(humanReviewId, PipelineNodeTypes.HUMAN_REVIEW,
-            new HumanReviewSpec(event.node(), event.detail(), "Schema drift requires approval"), true);
+        DesiredNode humanNode = new DesiredNode(humanReviewId, new HumanReviewSpec(event.node(), event.detail(), "Schema drift requires approval"), true);
         return List.of(new GraphMutation.AddNode(humanNode));
     }
 }

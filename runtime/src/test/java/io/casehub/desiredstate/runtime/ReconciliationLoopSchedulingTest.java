@@ -72,8 +72,8 @@ class ReconciliationLoopSchedulingTest {
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE),
-                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), HumanGating.NONE)
+                new DesiredNode(NodeId.of("f1"), new TestSpec(FAST_TYPE, "f"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("s1"), new TestSpec(SLOW_TYPE, "s"), HumanGating.NONE)
             ),
             List.of()
         );
@@ -121,8 +121,8 @@ class ReconciliationLoopSchedulingTest {
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE),
-                new DesiredNode(NodeId.of("s1"), SLOW_TYPE, new TestSpec("s"), HumanGating.NONE)
+                new DesiredNode(NodeId.of("f1"), new TestSpec(FAST_TYPE, "f"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("s1"), new TestSpec(SLOW_TYPE, "s"), HumanGating.NONE)
             ),
             List.of()
         );
@@ -173,7 +173,7 @@ class ReconciliationLoopSchedulingTest {
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
         var factory = new DefaultDesiredStateGraphFactory();
         var initialGraph = factory.of(
-            List.of(new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE)),
+            List.of(new DesiredNode(NodeId.of("f1"), new TestSpec(FAST_TYPE, "f"), HumanGating.NONE)),
             List.of()
         );
 
@@ -185,8 +185,8 @@ class ReconciliationLoopSchedulingTest {
 
         var updatedGraph = factory.of(
             List.of(
-                new DesiredNode(NodeId.of("f1"), FAST_TYPE, new TestSpec("f"), HumanGating.NONE),
-                new DesiredNode(NodeId.of("n1"), newType, new TestSpec("n"), HumanGating.NONE)
+                new DesiredNode(NodeId.of("f1"), new TestSpec(FAST_TYPE, "f"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("n1"), new TestSpec(newType, "n"), HumanGating.NONE)
             ),
             List.of()
         );
@@ -196,5 +196,7 @@ class ReconciliationLoopSchedulingTest {
             "New type should be reconciled after updateDesired recomputes interval groups");
     }
 
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(NodeType nodeType, String value) implements NodeSpec {
+        TestSpec(String value) {this(NodeType.of("test"), value);}
+    }
 }

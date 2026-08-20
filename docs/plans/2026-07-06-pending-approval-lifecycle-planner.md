@@ -103,8 +103,8 @@ class CompilationResultTest {
     @Test
     void allPresent_allNodesPresent_returnsTrue() {
         var graph = new TestGraph(Map.of(
-            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false),
-            NodeId.of("b"), new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), false)
+            NodeId.of("a"), new DesiredNode(NodeId.of("a"), new TestSpec(), false),
+            NodeId.of("b"), new DesiredNode(NodeId.of("b"), new TestSpec(), false)
         ));
         var actual = new ActualState(Map.of(
             NodeId.of("a"), NodeStatus.PRESENT,
@@ -116,7 +116,7 @@ class CompilationResultTest {
     @Test
     void allPresent_someAbsent_returnsFalse() {
         var graph = new TestGraph(Map.of(
-            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false)
+            NodeId.of("a"), new DesiredNode(NodeId.of("a"), new TestSpec(), false)
         ));
         var actual = new ActualState(Map.of(NodeId.of("a"), NodeStatus.ABSENT));
         assertThat(CompletionCondition.allPresent().isComplete(graph, actual)).isFalse();
@@ -125,7 +125,7 @@ class CompilationResultTest {
     @Test
     void allPresent_unknownStatus_returnsFalse() {
         var graph = new TestGraph(Map.of(
-            NodeId.of("a"), new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false)
+            NodeId.of("a"), new DesiredNode(NodeId.of("a"), new TestSpec(), false)
         ));
         var actual = new ActualState(Map.of());
         assertThat(CompletionCondition.allPresent().isComplete(graph, actual)).isFalse();
@@ -461,7 +461,7 @@ class ReconciliationLoopLifecycleTest {
 
     @Test
     void listenerFiresOnReconciliationCycle() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), false);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
@@ -485,7 +485,7 @@ class ReconciliationLoopLifecycleTest {
 
     @Test
     void listenerFiresOnEmptyPlanCycles() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), false);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
@@ -509,9 +509,9 @@ class ReconciliationLoopLifecycleTest {
     @Test
     void compareAndSetDesired_succeedsWhenExpectedMatches() {
         DesiredStateGraph graph1 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false));
+            .withNode(new DesiredNode(NodeId.of("a"), new TestSpec(), false));
         DesiredStateGraph graph2 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), false));
+            .withNode(new DesiredNode(NodeId.of("b"), new TestSpec(), false));
 
         loop = new ReconciliationLoop(
             planner, new SucceedingExecutor(), adapter,
@@ -528,11 +528,11 @@ class ReconciliationLoopLifecycleTest {
     @Test
     void compareAndSetDesired_failsWhenExpectedDoesNotMatch() {
         DesiredStateGraph graph1 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false));
+            .withNode(new DesiredNode(NodeId.of("a"), new TestSpec(), false));
         DesiredStateGraph graph2 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), false));
+            .withNode(new DesiredNode(NodeId.of("b"), new TestSpec(), false));
         DesiredStateGraph graph3 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("c"), NodeType.of("t"), new TestSpec(), false));
+            .withNode(new DesiredNode(NodeId.of("c"), new TestSpec(), false));
 
         loop = new ReconciliationLoop(
             planner, new SucceedingExecutor(), adapter,
@@ -550,7 +550,7 @@ class ReconciliationLoopLifecycleTest {
     @Test
     void setListener_onRunningTenant() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false));
+            .withNode(new DesiredNode(NodeId.of("a"), new TestSpec(), false));
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
         loop = new ReconciliationLoop(
@@ -771,7 +771,7 @@ class LifecycleManagerTest {
 
     @Test
     void singleGraph_startsReconciliationDirectly() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), false);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.makePresent(NodeId.of("a"));
 
@@ -783,8 +783,8 @@ class LifecycleManagerTest {
 
     @Test
     void lifecycle_transitionsOnCompletion() throws Exception {
-        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), false);
-        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), new TestSpec(), false);
+        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), new TestSpec(), false);
 
         DesiredStateGraph buildGraph = ImmutableDesiredStateGraph.empty().withNode(buildNode);
         DesiredStateGraph defendGraph = ImmutableDesiredStateGraph.empty().withNode(defendNode);
@@ -807,8 +807,8 @@ class LifecycleManagerTest {
 
     @Test
     void lifecycle_staysOnPhaseUntilComplete() throws Exception {
-        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), false);
-        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), new TestSpec(), false);
+        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), new TestSpec(), false);
 
         DesiredStateGraph buildGraph = ImmutableDesiredStateGraph.empty().withNode(buildNode);
         DesiredStateGraph defendGraph = ImmutableDesiredStateGraph.empty().withNode(defendNode);
@@ -831,7 +831,7 @@ class LifecycleManagerTest {
 
     @Test
     void stop_cleansUpLifecycleState() {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), false);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), false);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.makePresent(NodeId.of("a"));
 
@@ -1543,8 +1543,7 @@ class ExpansionLifecycleTest {
     @Test
     void singlePhaseBackwardCompat() throws Exception {
         // Compile a single-phase result (non-lifecycle)
-        DesiredNode node = new DesiredNode(NodeId.of("standalone"),
-            ExpansionNodeTypes.NEXUS, new NexusSpec("loc-1"), false);
+        DesiredNode node = new DesiredNode(NodeId.of("standalone"), new NexusSpec("loc-1"), false);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         manager.start("t1", CompilationResult.single(graph));
@@ -1592,15 +1591,14 @@ public class ExpansionGoalCompiler implements GoalCompiler<ExpansionGoal> {
 
         // Probe is always first
         NodeId probeId = NodeId.of("probe-" + goals.locationId());
-        nodes.add(new DesiredNode(probeId, ExpansionNodeTypes.PROBE,
-            new ProbeSpec(goals.locationId()), false));
+        nodes.add(new DesiredNode(probeId, new ProbeSpec(goals.locationId()), false));
 
         NodeId prevId = probeId;
         for (String structure : goals.requiredStructures()) {
             NodeId nodeId = NodeId.of(structure + "-" + goals.locationId());
             NodeType type = resolveType(structure);
             NodeSpec spec = resolveSpec(structure, goals.locationId());
-            nodes.add(new DesiredNode(nodeId, type, spec, false));
+            nodes.add(new DesiredNode(nodeId, spec, false));
             deps.add(new Dependency(nodeId, prevId));
             prevId = nodeId;
         }
@@ -1614,20 +1612,16 @@ public class ExpansionGoalCompiler implements GoalCompiler<ExpansionGoal> {
 
         // Carry forward nexus — it needs continuous reconciliation
         NodeId nexusId = NodeId.of("nexus-" + goals.locationId());
-        nodes.add(new DesiredNode(nexusId, ExpansionNodeTypes.NEXUS,
-            new NexusSpec(goals.locationId()), false));
+        nodes.add(new DesiredNode(nexusId, new NexusSpec(goals.locationId()), false));
 
         // Defense nodes
         NodeId patrolId = NodeId.of("patrol-" + goals.locationId());
         NodeId monitorId = NodeId.of("monitor-" + goals.locationId());
         NodeId responseId = NodeId.of("response-" + goals.locationId());
 
-        nodes.add(new DesiredNode(patrolId, ExpansionNodeTypes.PATROL,
-            new PatrolSpec(goals.locationId()), false));
-        nodes.add(new DesiredNode(monitorId, ExpansionNodeTypes.MONITOR,
-            new MonitorSpec(goals.locationId()), false));
-        nodes.add(new DesiredNode(responseId, ExpansionNodeTypes.RESPONSE,
-            new ResponseSpec(goals.locationId(), goals.defensePosture()), false));
+        nodes.add(new DesiredNode(patrolId, new PatrolSpec(goals.locationId()), false));
+        nodes.add(new DesiredNode(monitorId, new MonitorSpec(goals.locationId()), false));
+        nodes.add(new DesiredNode(responseId, new ResponseSpec(goals.locationId(), goals.defensePosture()), false));
 
         // patrol and monitor depend on nexus
         deps.add(new Dependency(patrolId, nexusId));

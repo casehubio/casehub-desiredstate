@@ -113,8 +113,8 @@ void policyReceivesActualState() {
 
     FaultPolicyEngine engine = new FaultPolicyEngine(List.of(policy));
 
-    DesiredNode node1 = new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("N1"), false);
-    DesiredNode node2 = new DesiredNode(NodeId.of("n2"), NodeType.of("test"), new TestSpec("N2"), false);
+    DesiredNode node1 = new DesiredNode(NodeId.of("n1"), new TestSpec("N1"), false);
+    DesiredNode node2 = new DesiredNode(NodeId.of("n2"), new TestSpec("N2"), false);
     DesiredStateGraph graph = factory.of(List.of(node1, node2), List.of());
 
     FaultEvent event = new FaultEvent(NodeId.of("n1"), FaultType.NODE_DESTROYED, "detail");
@@ -663,8 +663,7 @@ class ReconciliationLoopCloudEventTest {
     @Test
     void emitsNodeFaultedOnProvisionFailure() {
         // Setup: a node that will fail to provision
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), false);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         adapter.setStatus(NodeId.of("n1"), NodeStatus.ABSENT);
@@ -694,8 +693,7 @@ class ReconciliationLoopCloudEventTest {
 
     @Test
     void getDesired_returnsCurrentGraph() {
-        DesiredNode node = new DesiredNode(
-            NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false);
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), false);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
         // Start loop, then read desired

@@ -1,9 +1,22 @@
 package io.casehub.desiredstate.engine;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ApprovalCheckResult;
+import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.DeprovisionResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeProvisioner;
+import io.casehub.desiredstate.api.NodeProvisionerRouter;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.PlanApproval;
+import io.casehub.desiredstate.api.ProvisionContext;
+import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.StepAction;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter;
-import io.casehub.desiredstate.testing.MockNodeProvisioner;
 import io.casehub.desiredstate.testing.MockPendingApprovalHandler;
 import io.casehub.engine.flow.CallableDispatchRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,8 +49,7 @@ class DesiredStateDispatchTest {
         approvalHandler = new MockPendingApprovalHandler();
         callRegistry = new CallableDispatchRegistry();
 
-        testNode = new DesiredNode(
-            NodeId.of("app"), NodeType.of("service"), new TestSpec(), HumanGating.NONE);
+        testNode = new DesiredNode(NodeId.of("app"), new TestSpec(), HumanGating.NONE);
 
         DefaultDesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         graph = factory.of(List.of(testNode), List.of());
@@ -264,5 +276,7 @@ class DesiredStateDispatchTest {
         assertThat(future).isCompletedExceptionally();
     }
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec(NodeType nodeType) implements NodeSpec {
+        TestSpec() {this(NodeType.of("service"));}
+    }
 }

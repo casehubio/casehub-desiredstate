@@ -25,21 +25,26 @@ class ThresholdFaultPolicyTest {
         graphFactory = new DefaultDesiredStateGraphFactory();
     }
 
-    record TestReviewSpec(NodeId faultedNode, String reason) implements NodeSpec {}
+
+    record TestNodeSpec(NodeType nodeType) implements NodeSpec {}
+
+    record TestReviewSpec(NodeId faultedNode, String reason) implements NodeSpec {
+        @Override public NodeType nodeType() { return REVIEW; }
+    }
 
     private ThresholdFaultPolicy policyWithThreshold(int threshold) {
         return ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                 .nodeTypes(Set.of(TARGET))
-                .tier(threshold, FaultPolicy.addReviewNode(REVIEW,
+                .tier(threshold, FaultPolicy.addReviewNode(
                         (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
                 .build();
     }
 
     private DesiredStateGraph graphWith(String nodeId, NodeType type) {
         return graphFactory.of(
-                List.of(new DesiredNode(NodeId.of(nodeId), type,
-                        new TestReviewSpec(NodeId.of(nodeId), "x"), HumanGating.NONE)),
+                List.of(new DesiredNode(NodeId.of(nodeId),
+                        new TestNodeSpec(type), HumanGating.NONE)),
                 List.of());
     }
 
@@ -113,7 +118,7 @@ class ThresholdFaultPolicyTest {
     void emptyNodeTypes_matchesAll() {
         var policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                .tier(1, FaultPolicy.addReviewNode(REVIEW,
+                .tier(1, FaultPolicy.addReviewNode(
                         (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
                 .build();
         var graph = graphWith("n1", OTHER);
@@ -125,8 +130,8 @@ class ThresholdFaultPolicyTest {
     @Test
     void multipleNodesTrackedIndependently() {
         var policy = policyWithThreshold(2);
-        var node1 = new DesiredNode(NodeId.of("a"), TARGET, new TestReviewSpec(NodeId.of("a"), "x"), HumanGating.NONE);
-        var node2 = new DesiredNode(NodeId.of("b"), TARGET, new TestReviewSpec(NodeId.of("b"), "x"), HumanGating.NONE);
+        var node1 = new DesiredNode(NodeId.of("a"), new TestNodeSpec(TARGET), HumanGating.NONE);
+        var node2 = new DesiredNode(NodeId.of("b"), new TestNodeSpec(TARGET), HumanGating.NONE);
         var graph = graphFactory.of(List.of(node1, node2), List.of());
 
         var eventA = new FaultEvent(NodeId.of("a"), FaultType.PROVISION_FAILED, "fail");
@@ -188,8 +193,8 @@ class ThresholdFaultPolicyTest {
     @Test
     void addReviewNode_duplicateGuard() {
         var policy = policyWithThreshold(1);
-        var targetNode = new DesiredNode(NodeId.of("n1"), TARGET, new TestReviewSpec(NodeId.of("n1"), "x"), HumanGating.NONE);
-        var reviewNode = new DesiredNode(NodeId.of("review-n1"), REVIEW, new TestReviewSpec(NodeId.of("n1"), "prior"), HumanGating.ALL);
+        var targetNode = new DesiredNode(NodeId.of("n1"), new TestNodeSpec(TARGET), HumanGating.NONE);
+        var reviewNode = new DesiredNode(NodeId.of("review-n1"), new TestReviewSpec(NodeId.of("n1"), "prior"), HumanGating.ALL);
         var graph = graphFactory.of(List.of(targetNode, reviewNode), List.of());
         var event = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
 
@@ -319,17 +324,21 @@ class ThresholdFaultPolicyTest {
     private static final NodeType AI_REVIEW    = NodeType.of("ai-review");
     private static final NodeType HUMAN_REVIEW = NodeType.of("human-review");
 
-    record AiReviewSpec(NodeId faultedNode) implements NodeSpec {}
+    record AiReviewSpec(NodeId faultedNode) implements NodeSpec {
+        @Override public NodeType nodeType() { return AI_REVIEW; }
+    }
 
-    record HumanReviewSpec(NodeId faultedNode) implements NodeSpec {}
+    record HumanReviewSpec(NodeId faultedNode) implements NodeSpec {
+        @Override public NodeType nodeType() { return HUMAN_REVIEW; }
+    }
 
     private ThresholdFaultPolicy twoTierPolicy() {
         return ThresholdFaultPolicy.builder()
                                    .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                                    .nodeTypes(Set.of(TARGET))
-                                   .tier(3, FaultPolicy.addReviewNode(AI_REVIEW,
+                                   .tier(3, FaultPolicy.addReviewNode(
                                                                       (event, current) -> new AiReviewSpec(event.node())), AI_REVIEW)
-                                   .tier(6, FaultPolicy.addReviewNode(HUMAN_REVIEW,
+                                   .tier(6, FaultPolicy.addReviewNode(
                                                                       (event, current) -> new HumanReviewSpec(event.node())), HUMAN_REVIEW)
                                    .build();
     }
@@ -369,7 +378,7 @@ class ThresholdFaultPolicyTest {
             policy.onFault("t1", event, graph, EMPTY_ACTUAL);
         }
 
-        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"), AI_REVIEW,
+        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"),
                                      new AiReviewSpec(NodeId.of("n1")), HumanGating.ALL);
         var graphWithAi = graph.withNode(aiNode)
                                .withDependency(new Dependency(NodeId.of("ai-review-n1"), NodeId.of("n1")));
@@ -407,7 +416,7 @@ class ThresholdFaultPolicyTest {
             policy.onFault("t1", event, graph, EMPTY_ACTUAL);
         }
 
-        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"), AI_REVIEW,
+        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"),
                                      new AiReviewSpec(NodeId.of("n1")), HumanGating.ALL);
         var graphWithAi = graph.withNode(aiNode)
                                .withDependency(new Dependency(NodeId.of("ai-review-n1"), NodeId.of("n1")));
@@ -419,7 +428,7 @@ class ThresholdFaultPolicyTest {
     @Test
     void multiTier_autoIgnore_faultOnTierNodeType_returnsEmpty() {
         var policy = twoTierPolicy();
-        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"), AI_REVIEW,
+        var aiNode = new DesiredNode(NodeId.of("ai-review-n1"),
                                      new AiReviewSpec(NodeId.of("n1")), HumanGating.NONE);
         var graph = graphFactory.of(List.of(aiNode), List.of());
         var event = new FaultEvent(NodeId.of("ai-review-n1"), FaultType.PROVISION_FAILED, "fail");

@@ -59,7 +59,7 @@ class ReconciliationLoopRequestReconciliationTest {
 
         var factory = new DefaultDesiredStateGraphFactory();
         var graph = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("x"), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("n1"), new TestSpec("x"), HumanGating.NONE));
         loop.start("tenant-1", graph);
 
         assertTrue(initialLatch.await(AWAIT.toSeconds(), TimeUnit.SECONDS), "Initial reconciliation did not occur");
@@ -90,5 +90,5 @@ class ReconciliationLoopRequestReconciliationTest {
         assertDoesNotThrow(() -> loop.requestReconciliation("nonexistent"));
     }
 
-    private record TestSpec(String value) implements io.casehub.desiredstate.api.NodeSpec {}
+    private record TestSpec(String value) implements io.casehub.desiredstate.api.NodeSpec { @Override public io.casehub.desiredstate.api.NodeType nodeType() { return io.casehub.desiredstate.api.NodeType.of("test"); } }
 }

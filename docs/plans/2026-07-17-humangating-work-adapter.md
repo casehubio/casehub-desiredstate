@@ -222,7 +222,7 @@ Update `CoreTypesTest` — replace all `new DesiredNode(..., false)` with `Human
 ```java
 @Test void requiresHuman_perAction_nodeProvisionOnly_specNone() {
     NodeSpec spec = new NodeSpec() {};
-    DesiredNode node = new DesiredNode(NodeId.of("n"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n"), spec, HumanGating.PROVISION_ONLY);
     assertThat(node.requiresHuman(StepAction.PROVISION)).isTrue();
     assertThat(node.requiresHuman(StepAction.DEPROVISION)).isFalse();
     assertThat(node.requiresHuman()).isTrue();
@@ -232,7 +232,7 @@ Update `CoreTypesTest` — replace all `new DesiredNode(..., false)` with `Human
     NodeSpec spec = new NodeSpec() {
         @Override public HumanGating humanGating() { return HumanGating.DEPROVISION_ONLY; }
     };
-    DesiredNode node = new DesiredNode(NodeId.of("n"), NodeType.of("t"), spec, HumanGating.NONE);
+    DesiredNode node = new DesiredNode(NodeId.of("n"), spec, HumanGating.NONE);
     assertThat(node.requiresHuman(StepAction.PROVISION)).isFalse();
     assertThat(node.requiresHuman(StepAction.DEPROVISION)).isTrue();
 }
@@ -241,14 +241,14 @@ Update `CoreTypesTest` — replace all `new DesiredNode(..., false)` with `Human
     NodeSpec spec = new NodeSpec() {
         @Override public HumanGating humanGating() { return HumanGating.DEPROVISION_ONLY; }
     };
-    DesiredNode node = new DesiredNode(NodeId.of("n"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n"), spec, HumanGating.PROVISION_ONLY);
     assertThat(node.requiresHuman(StepAction.PROVISION)).isTrue();
     assertThat(node.requiresHuman(StepAction.DEPROVISION)).isTrue();
     assertThat(node.requiresHuman()).isTrue();
 }
 
 @Test void humanGating_nullRejected() {
-    assertThatThrownBy(() -> new DesiredNode(NodeId.of("n"), NodeType.of("t"), new NodeSpec() {}, null))
+    assertThatThrownBy(() -> new DesiredNode(NodeId.of("n"), new NodeSpec() {}, null))
         .isInstanceOf(NullPointerException.class);
 }
 ```
@@ -297,8 +297,8 @@ Add to `GraphDiffTest`:
 
 ```java
 @Test void humanGating_change_only_generates_updateNode() {
-    DesiredNode current = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.NONE);
-    DesiredNode adapted = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.DEPROVISION_ONLY);
+    DesiredNode current = new DesiredNode(NodeId.of("n1"), spec, HumanGating.NONE);
+    DesiredNode adapted = new DesiredNode(NodeId.of("n1"), spec, HumanGating.DEPROVISION_ONLY);
 
     DesiredStateGraph currentGraph = factory.of(List.of(current), List.of());
     DesiredStateGraph adaptedGraph = factory.of(List.of(adapted), List.of());
@@ -316,8 +316,8 @@ Add to `GraphDiffTest`:
     NodeSpec specWithGating = new NodeSpec() {
         @Override public HumanGating humanGating() { return HumanGating.PROVISION_ONLY; }
     };
-    DesiredNode current = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), specWithGating, HumanGating.NONE);
-    DesiredNode adapted = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), specWithGating, HumanGating.DEPROVISION_ONLY);
+    DesiredNode current = new DesiredNode(NodeId.of("n1"), specWithGating, HumanGating.NONE);
+    DesiredNode adapted = new DesiredNode(NodeId.of("n1"), specWithGating, HumanGating.DEPROVISION_ONLY);
 
     DesiredStateGraph currentGraph = factory.of(List.of(current), List.of());
     DesiredStateGraph adaptedGraph = factory.of(List.of(adapted), List.of());
@@ -331,7 +331,7 @@ Add to `GraphDiffTest`:
 }
 
 @Test void equal_nodes_generate_no_mutation() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.PROVISION_ONLY);
 
     DesiredStateGraph currentGraph = factory.of(List.of(node), List.of());
     DesiredStateGraph adaptedGraph = factory.of(List.of(node), List.of());
@@ -403,20 +403,20 @@ Add to `SimpleTransitionExecutorTest`:
 
 ```java
 @Test void provisionOnly_provision_delegatesToHandler_deprovision_toProvisioner() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.PROVISION_ONLY);
     // Build graph and plan with this node in both additions and removals...
     // Verify: provision → handler called, provisioner NOT called
     // Verify: deprovision → provisioner called, handler NOT called
 }
 
 @Test void deprovisionOnly_provision_toProvisioner_deprovision_delegatesToHandler() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.DEPROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.DEPROVISION_ONLY);
     // Verify: provision → provisioner called, handler NOT called
     // Verify: deprovision → handler called, provisioner NOT called
 }
 
 @Test void deprovisionOnly_approvalCheck_runsForProvision_skippedForDeprovision() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.DEPROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.DEPROVISION_ONLY);
     // Verify: provision action runs through PendingApprovalHandler.check()
     // Verify: deprovision action skips approval check (goes to handler)
 }
@@ -501,13 +501,13 @@ Add to `DesiredStateExecutionRegistryTest`:
 Add to `CaseTransitionExecutorTest`:
 ```java
 @Test void perAction_provisionOnly_additionsHumanBinding_removalsAutomated() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.PROVISION_ONLY);
     // Build plan with node in additions → expect human-provision binding
     // Build plan with node in removals → expect automated prune worker, no human-deprovision binding
 }
 
 @Test void checkApproval_provisionOnly_skipsForProvision_runsForDeprovision() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.PROVISION_ONLY);
     // In removals: checkApproval should run (deprovision is not human-gated)
     // In additions: checkApproval should return null (provision is human-gated)
 }
@@ -523,7 +523,7 @@ Add to `CaseTransitionExecutorTest`:
 }
 
 @Test void buildOptimisticResult_perAction_provisionOnly() {
-    DesiredNode node = new DesiredNode(NodeId.of("n1"), NodeType.of("t"), spec, HumanGating.PROVISION_ONLY);
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), spec, HumanGating.PROVISION_ONLY);
     // In additions: Skipped("routed to human task binding")
     // In removals: Succeeded()
 }

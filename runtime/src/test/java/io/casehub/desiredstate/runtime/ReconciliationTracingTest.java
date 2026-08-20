@@ -311,10 +311,10 @@ class ReconciliationTracingTest {
     // --- Test helpers (same pattern as ReconciliationLoopTest) ---
 
     private DesiredNode node(String id) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(id), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestSpec(id), HumanGating.NONE);
     }
 
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     static class SucceedingProvisioner implements NodeProvisioner {
         @Override

@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CbrSituationRecompilerTest {
 
-    private record TestSpec(String value) implements NodeSpec {}
+    private record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     private CbrFaultPolicyTest.StubRetriever retriever;
     private CbrFaultPolicyTest.StubAdapter adapter;
@@ -65,7 +65,7 @@ class CbrSituationRecompilerTest {
     @Test
     void successfulAdaptation_shouldReturnCompilationResult() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("fixed"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.9, "case-1", Map.of())));
@@ -107,7 +107,7 @@ class CbrSituationRecompilerTest {
     @Test
     void belowRetrievalThreshold_shouldReturnEmpty() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.3, "case-1", Map.of())));
@@ -122,7 +122,7 @@ class CbrSituationRecompilerTest {
     @Test
     void belowAdaptationThreshold_shouldReturnEmpty() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), HumanGating.NONE));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.8, "case-1", Map.of())));
@@ -137,7 +137,7 @@ class CbrSituationRecompilerTest {
     @Test
     void successfulAdaptation_recordsProposalInTracker() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-                new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), HumanGating.NONE));
+                new DesiredNode(NodeId.of("n1"), new TestSpec("fixed"), HumanGating.NONE));
 
         retriever.setResults(List.of(
                 new RetrievedConfiguration(adapted, 0.9, "case-42", Map.of())));

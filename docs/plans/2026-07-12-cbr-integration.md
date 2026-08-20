@@ -664,7 +664,7 @@ class SituationRecompilerEngineTest {
     @Test
     void singleRecompiler_returnsNonEmpty_shouldReturnResult() {
         DesiredStateGraph newGraph = graph.withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), false));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), false));
         SituationRecompiler recompiler = (c, a, s, f) -> Optional.of(CompilationResult.single(newGraph));
 
         SituationRecompilerEngine engine = new SituationRecompilerEngine(List.of(recompiler));
@@ -698,9 +698,9 @@ class SituationRecompilerEngineTest {
     @Test
     void shouldRespectPriorityOrdering() {
         DesiredStateGraph lowGraph = graph.withNode(
-            new DesiredNode(NodeId.of("low"), NodeType.of("test"), new TestSpec("low"), false));
+            new DesiredNode(NodeId.of("low"), new TestSpec("low"), false));
         DesiredStateGraph highGraph = graph.withNode(
-            new DesiredNode(NodeId.of("high"), NodeType.of("test"), new TestSpec("high"), false));
+            new DesiredNode(NodeId.of("high"), new TestSpec("high"), false));
 
         SituationRecompiler lowPriority = new SituationRecompiler() {
             @Override
@@ -881,7 +881,7 @@ class GraphDiffTest {
     }
 
     private DesiredNode node(String id, String spec) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(spec), false);
+        return new DesiredNode(NodeId.of(id), new TestSpec(spec), false);
     }
 
     @Test
@@ -969,8 +969,8 @@ class GraphDiffTest {
         // This is consistent with filterByTypes() — scope by NodeType, not NodeId.
 
         DesiredNode n1 = node("n1", "v1");
-        DesiredNode n2 = new DesiredNode(NodeId.of("n2"), NodeType.of("test"), new TestSpec("v2"), false);
-        DesiredNode n3 = new DesiredNode(NodeId.of("n3"), NodeType.of("other"), new TestSpec("v3"), false);
+        DesiredNode n2 = new DesiredNode(NodeId.of("n2"), new TestSpec("v2"), false);
+        DesiredNode n3 = new DesiredNode(NodeId.of("n3"), new TestSpec("v3"), false);
 
         DesiredStateGraph current = graph(n1, n2, n3);
         // Adapted only has n1 — n2 is same type as n1 ("test"), n3 is different type ("other")
@@ -988,7 +988,7 @@ class GraphDiffTest {
     @Test
     void addDependency_targetExistsInCurrent() {
         DesiredNode n1 = node("n1", "v1");
-        DesiredNode n2 = new DesiredNode(NodeId.of("n2"), NodeType.of("other"), new TestSpec("v2"), false);
+        DesiredNode n2 = new DesiredNode(NodeId.of("n2"), new TestSpec("v2"), false);
 
         DesiredStateGraph current = graph(n2); // n2 exists in current
         DesiredStateGraph adapted = graph(n1)
@@ -1018,7 +1018,7 @@ class GraphDiffTest {
     @Test
     void crossBoundaryDependency_shouldNotBeRemoved() {
         DesiredNode n1 = node("n1", "v1");
-        DesiredNode n2 = new DesiredNode(NodeId.of("n2"), NodeType.of("other"), new TestSpec("v2"), false);
+        DesiredNode n2 = new DesiredNode(NodeId.of("n2"), new TestSpec("v2"), false);
         Dependency dep = new Dependency(NodeId.of("n1"), NodeId.of("n2"));
 
         DesiredStateGraph current = graph(n1, n2).withDependency(dep);
@@ -1257,7 +1257,7 @@ class CbrFaultPolicyTest {
     @Test
     void candidateBelowRetrievalThreshold_shouldBeFiltered() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("new"), false));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("new"), false));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.3, "case-1", Map.of())));
@@ -1274,7 +1274,7 @@ class CbrFaultPolicyTest {
     @Test
     void candidateBelowAdaptationThreshold_shouldBeFiltered() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("new"), false));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("new"), false));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.8, "case-1", Map.of())));
@@ -1291,7 +1291,7 @@ class CbrFaultPolicyTest {
     @Test
     void successfulAdaptation_shouldProduceMutations() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), false));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("fixed"), false));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.9, "case-1", Map.of())));
@@ -1324,9 +1324,9 @@ class CbrFaultPolicyTest {
     @Test
     void shouldSelectHighestConfidenceAdaptation() {
         DesiredStateGraph low = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("low"), NodeType.of("t"), new TestSpec("low"), false));
+            new DesiredNode(NodeId.of("low"), new TestSpec("low"), false));
         DesiredStateGraph high = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("high"), NodeType.of("t"), new TestSpec("high"), false));
+            new DesiredNode(NodeId.of("high"), new TestSpec("high"), false));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(low, 0.9, "case-low", Map.of()),
@@ -1348,7 +1348,7 @@ class CbrFaultPolicyTest {
     @Test
     void perCallPreferenceResolution_changedThreshold() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("v"), false));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("v"), false));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.3, "case-1", Map.of())));
@@ -1557,7 +1557,7 @@ class CbrSituationRecompilerTest {
     @Test
     void successfulAdaptation_shouldReturnCompilationResult() {
         DesiredStateGraph adapted = ImmutableDesiredStateGraph.empty().withNode(
-            new DesiredNode(NodeId.of("n1"), NodeType.of("t"), new TestSpec("fixed"), false));
+            new DesiredNode(NodeId.of("n1"), new TestSpec("fixed"), false));
 
         retriever.setResults(List.of(
             new RetrievedConfiguration(adapted, 0.9, "case-1", Map.of())));

@@ -19,22 +19,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ImmutableDesiredStateGraphTest {
 
-    record TestSpec(String name) implements NodeSpec {}
+    record TestSpec(NodeType nodeType, String name) implements NodeSpec {
+        TestSpec(String name) {this(NodeType.of("test"), name);}
+    }
 
     static final NodeType ROOM = NodeType.of("room");
     static final NodeType CREATURE = NodeType.of("creature");
     static final NodeType ITEM = NodeType.of("item");
 
     static DesiredNode node(String id) {
-        return new DesiredNode(NodeId.of(id), ROOM, new TestSpec(id), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestSpec(id), HumanGating.NONE);
     }
 
     static DesiredNode node(String id, NodeType type) {
-        return new DesiredNode(NodeId.of(id), type, new TestSpec(id), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestSpec(type, id), HumanGating.NONE);
     }
 
     static DesiredNode node(String id, NodeSpec spec) {
-        return new DesiredNode(NodeId.of(id), ROOM, spec, HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), spec, HumanGating.NONE);
     }
 
     static Dependency dep(String from, String to) {
@@ -315,8 +317,8 @@ class ImmutableDesiredStateGraphTest {
     @Test
     void overlay_shared_nodes_with_different_humanGating_throws() {
         var spec = new TestSpec("shared");
-        var g1   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), ROOM, spec, HumanGating.NONE));
-        var g2   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), ROOM, spec, HumanGating.ALL));
+        var g1   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), spec, HumanGating.NONE));
+        var g2   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), spec, HumanGating.ALL));
 
         assertThatThrownBy(() -> g1.overlay(g2))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -325,9 +327,8 @@ class ImmutableDesiredStateGraphTest {
 
     @Test
     void overlay_shared_nodes_with_different_type_throws() {
-        var spec = new TestSpec("shared");
-        var g1   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), ROOM, spec, HumanGating.NONE));
-        var g2   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), CREATURE, spec, HumanGating.NONE));
+        var g1   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), new TestSpec(ROOM, "shared"), HumanGating.NONE));
+        var g2   = factory.empty().withNode(new DesiredNode(NodeId.of("A"), new TestSpec(CREATURE, "shared"), HumanGating.NONE));
 
         assertThatThrownBy(() -> g1.overlay(g2))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -418,7 +419,7 @@ class ImmutableDesiredStateGraphTest {
         var newSpec = new TestSpec("updated");
         var g = factory.empty()
                 .withNode(node("A"))
-                .withMutation(new GraphMutation.UpdateNode(NodeId.of("A"), new DesiredNode(NodeId.of("A"), NodeType.of("test"), newSpec, HumanGating.NONE)));
+                .withMutation(new GraphMutation.UpdateNode(NodeId.of("A"), new DesiredNode(NodeId.of("A"), newSpec, HumanGating.NONE)));
 
         assertThat(g.nodes().get(NodeId.of("A")).spec()).isEqualTo(newSpec);
     }
@@ -426,7 +427,7 @@ class ImmutableDesiredStateGraphTest {
     @Test void withMutation_updateNode_nonexistent_throws() {
         var g = factory.empty();
 
-        assertThatThrownBy(() -> g.withMutation(new GraphMutation.UpdateNode(NodeId.of("phantom"), new DesiredNode(NodeId.of("phantom"), NodeType.of("test"), new TestSpec("x"), HumanGating.NONE))))
+        assertThatThrownBy(() -> g.withMutation(new GraphMutation.UpdateNode(NodeId.of("phantom"), new DesiredNode(NodeId.of("phantom"), new TestSpec("x"), HumanGating.NONE))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

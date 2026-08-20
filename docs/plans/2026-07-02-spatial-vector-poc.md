@@ -573,8 +573,7 @@ class BattlefieldProvisionerTest {
 
     @Test
     void provisionCell_revealsInWorld() {
-        var cellNode = new DesiredNode(NodeId.of("cell-5-5"), SpatialNodeTypes.CELL,
-            new CellSpec(5, 5, 0, TerrainType.OPEN), false);
+        var cellNode = new DesiredNode(NodeId.of("cell-5-5"), new CellSpec(5, 5, 0, TerrainType.OPEN), false);
         var graph = factory.of(List.of(cellNode), List.of());
         var ctx = new ProvisionContext("test", graph);
 
@@ -588,10 +587,8 @@ class BattlefieldProvisionerTest {
     void provisionUnit_placesWithStrength() {
         var cellId = NodeId.of("cell-3-3");
         var unitId = NodeId.of("unit-1");
-        var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(3, 3, 0, TerrainType.OPEN), false);
-        var unitNode = new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-            new UnitSpec(cellId, 10), false);
+        var cellNode = new DesiredNode(cellId, new CellSpec(3, 3, 0, TerrainType.OPEN), false);
+        var unitNode = new DesiredNode(unitId, new UnitSpec(cellId, 10), false);
         var graph = factory.of(List.of(cellNode, unitNode),
             List.of(new Dependency(unitId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -608,10 +605,8 @@ class BattlefieldProvisionerTest {
     void provisionScout_placesAndRevealsFog() {
         var cellId = NodeId.of("cell-5-5");
         var scoutId = NodeId.of("scout-1");
-        var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(5, 5, 0, TerrainType.OPEN), false);
-        var scoutNode = new DesiredNode(scoutId, SpatialNodeTypes.SCOUT,
-            new ScoutSpec(cellId, 2), false);
+        var cellNode = new DesiredNode(cellId, new CellSpec(5, 5, 0, TerrainType.OPEN), false);
+        var scoutNode = new DesiredNode(scoutId, new ScoutSpec(cellId, 2), false);
         var graph = factory.of(List.of(cellNode, scoutNode),
             List.of(new Dependency(scoutId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -627,10 +622,8 @@ class BattlefieldProvisionerTest {
         var cellId = NodeId.of("cell-5-5");
         var zoneId = NodeId.of("zone-north");
         var allocation = Map.of(cellId, 1.0);
-        var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(5, 5, 0, TerrainType.OPEN), false);
-        var zoneNode = new DesiredNode(zoneId, SpatialNodeTypes.ZONE,
-            new ZoneSpec("north", allocation, 100), false);
+        var cellNode = new DesiredNode(cellId, new CellSpec(5, 5, 0, TerrainType.OPEN), false);
+        var zoneNode = new DesiredNode(zoneId, new ZoneSpec("north", allocation, 100), false);
         var graph = factory.of(List.of(cellNode, zoneNode),
             List.of(new Dependency(zoneId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -645,10 +638,8 @@ class BattlefieldProvisionerTest {
     void deprovisionUnit_removesFromWorld() {
         var cellId = NodeId.of("cell-3-3");
         var unitId = NodeId.of("unit-1");
-        var cellNode = new DesiredNode(cellId, SpatialNodeTypes.CELL,
-            new CellSpec(3, 3, 0, TerrainType.OPEN), false);
-        var unitNode = new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-            new UnitSpec(cellId, 10), false);
+        var cellNode = new DesiredNode(cellId, new CellSpec(3, 3, 0, TerrainType.OPEN), false);
+        var unitNode = new DesiredNode(unitId, new UnitSpec(cellId, 10), false);
         var graph = factory.of(List.of(cellNode, unitNode),
             List.of(new Dependency(unitId, cellId)));
         var ctx = new ProvisionContext("test", graph);
@@ -1348,19 +1339,16 @@ public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
 
         // Base cell
         var baseCellId = NodeId.of("cell-%d-%d".formatted(goals.baseRow(), goals.baseCol()));
-        nodes.add(new DesiredNode(baseCellId, SpatialNodeTypes.CELL,
-            new CellSpec(goals.baseRow(), goals.baseCol(), 0, TerrainType.OPEN), false));
+        nodes.add(new DesiredNode(baseCellId, new CellSpec(goals.baseRow(), goals.baseCol(), 0, TerrainType.OPEN), false));
 
         // Scout cells and scouts
         for (var pos : goals.scoutPositions()) {
             var scoutCellId = NodeId.of("cell-%d-%d".formatted(pos[0], pos[1]));
             if (nodes.stream().noneMatch(n -> n.id().equals(scoutCellId))) {
-                nodes.add(new DesiredNode(scoutCellId, SpatialNodeTypes.CELL,
-                    new CellSpec(pos[0], pos[1], 0, TerrainType.OPEN), false));
+                nodes.add(new DesiredNode(scoutCellId, new CellSpec(pos[0], pos[1], 0, TerrainType.OPEN), false));
             }
             var scoutId = NodeId.of("scout-%d-%d".formatted(pos[0], pos[1]));
-            nodes.add(new DesiredNode(scoutId, SpatialNodeTypes.SCOUT,
-                new ScoutSpec(scoutCellId, 2), false));
+            nodes.add(new DesiredNode(scoutId, new ScoutSpec(scoutCellId, 2), false));
             deps.add(new Dependency(scoutId, scoutCellId));
         }
 
@@ -1380,22 +1368,20 @@ public class DefenseGoalCompiler implements GoalCompiler<DefenseBlueprint> {
                     var parts = cellIdStr.replace("cell-", "").split("-");
                     var row = Integer.parseInt(parts[0]);
                     var col = Integer.parseInt(parts[1]);
-                    nodes.add(new DesiredNode(cellId, SpatialNodeTypes.CELL,
-                        new CellSpec(row, col, 0, TerrainType.OPEN), false));
+                    nodes.add(new DesiredNode(cellId, new CellSpec(row, col, 0, TerrainType.OPEN), false));
                 }
                 deps.add(new Dependency(zoneId, cellId));
             }
 
             var zoneSpec = new ZoneSpec(zoneDef.name(), allocationByNodeId, zoneDef.totalForce());
-            nodes.add(new DesiredNode(zoneId, SpatialNodeTypes.ZONE, zoneSpec, false));
+            nodes.add(new DesiredNode(zoneId, zoneSpec, false));
 
             // Units per cell
             for (var entry : allocationByNodeId.entrySet()) {
                 var cellId = entry.getKey();
                 var unitId = NodeId.of("unit-" + cellId.value());
                 var strength = zoneSpec.strengthFor(cellId);
-                nodes.add(new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-                    new UnitSpec(cellId, strength), false));
+                nodes.add(new DesiredNode(unitId, new UnitSpec(cellId, strength), false));
                 deps.add(new Dependency(unitId, cellId));
                 deps.add(new Dependency(unitId, zoneId));
             }
@@ -1729,19 +1715,16 @@ public class AttackGoalCompiler implements GoalCompiler<AttackBlueprint> {
 
         // Origin cell
         var originCellId = NodeId.of("cell-%d-%d".formatted(goals.originRow(), goals.originCol()));
-        nodes.add(new DesiredNode(originCellId, SpatialNodeTypes.CELL,
-            new CellSpec(goals.originRow(), goals.originCol(), 0, TerrainType.OPEN), false));
+        nodes.add(new DesiredNode(originCellId, new CellSpec(goals.originRow(), goals.originCol(), 0, TerrainType.OPEN), false));
 
         // Scout cells and scouts
         for (var pos : goals.scoutPositions()) {
             var scoutCellId = NodeId.of("cell-%d-%d".formatted(pos[0], pos[1]));
             if (nodes.stream().noneMatch(n -> n.id().equals(scoutCellId))) {
-                nodes.add(new DesiredNode(scoutCellId, SpatialNodeTypes.CELL,
-                    new CellSpec(pos[0], pos[1], 0, TerrainType.OPEN), false));
+                nodes.add(new DesiredNode(scoutCellId, new CellSpec(pos[0], pos[1], 0, TerrainType.OPEN), false));
             }
             var scoutId = NodeId.of("scout-%d-%d".formatted(pos[0], pos[1]));
-            nodes.add(new DesiredNode(scoutId, SpatialNodeTypes.SCOUT,
-                new ScoutSpec(scoutCellId, 2), false));
+            nodes.add(new DesiredNode(scoutId, new ScoutSpec(scoutCellId, 2), false));
             deps.add(new Dependency(scoutId, scoutCellId));
         }
 
@@ -1750,19 +1733,16 @@ public class AttackGoalCompiler implements GoalCompiler<AttackBlueprint> {
         for (var wp : goals.waypoints()) {
             var wpCellId = NodeId.of("cell-%d-%d".formatted(wp.row(), wp.col()));
             if (nodes.stream().noneMatch(n -> n.id().equals(wpCellId))) {
-                nodes.add(new DesiredNode(wpCellId, SpatialNodeTypes.CELL,
-                    new CellSpec(wp.row(), wp.col(), 0, TerrainType.OPEN), false));
+                nodes.add(new DesiredNode(wpCellId, new CellSpec(wp.row(), wp.col(), 0, TerrainType.OPEN), false));
             }
 
             var wpId = NodeId.of("waypoint-%d-%d".formatted(wp.row(), wp.col()));
-            nodes.add(new DesiredNode(wpId, SpatialNodeTypes.CELL,
-                new CellSpec(wp.row(), wp.col(), 0, TerrainType.OPEN), false));
+            nodes.add(new DesiredNode(wpId, new CellSpec(wp.row(), wp.col(), 0, TerrainType.OPEN), false));
 
             // Actually, waypoints are conceptual — use UNIT type with cell dependency
             // Re-think: waypoint IS a position with force. Model as UNIT on that cell.
             var unitId = NodeId.of("unit-waypoint-%d-%d".formatted(wp.row(), wp.col()));
-            nodes.add(new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-                new UnitSpec(wpCellId, wp.strength()), false));
+            nodes.add(new DesiredNode(unitId, new UnitSpec(wpCellId, wp.strength()), false));
             deps.add(new Dependency(unitId, wpCellId));
 
             if (previousWaypointId != null) {
@@ -2222,21 +2202,19 @@ public class DistributionGoalCompiler implements GoalCompiler<DistributionBluepr
 
         for (var cellDef : goals.frontierCells()) {
             var cellId = NodeId.of("cell-%d-%d".formatted(cellDef.row(), cellDef.col()));
-            nodes.add(new DesiredNode(cellId, SpatialNodeTypes.CELL,
-                new CellSpec(cellDef.row(), cellDef.col(), 0, TerrainType.OPEN), false));
+            nodes.add(new DesiredNode(cellId, new CellSpec(cellDef.row(), cellDef.col(), 0, TerrainType.OPEN), false));
             allocation.put(cellId, cellDef.ratio());
             deps.add(new Dependency(zoneId, cellId));
         }
 
         var zoneSpec = new ZoneSpec(goals.zoneName(), allocation, goals.totalForce());
-        nodes.add(new DesiredNode(zoneId, SpatialNodeTypes.ZONE, zoneSpec, false));
+        nodes.add(new DesiredNode(zoneId, zoneSpec, false));
 
         for (var cellDef : goals.frontierCells()) {
             var cellId = NodeId.of("cell-%d-%d".formatted(cellDef.row(), cellDef.col()));
             var unitId = NodeId.of("unit-" + cellId.value());
             var strength = zoneSpec.strengthFor(cellId);
-            nodes.add(new DesiredNode(unitId, SpatialNodeTypes.UNIT,
-                new UnitSpec(cellId, strength), false));
+            nodes.add(new DesiredNode(unitId, new UnitSpec(cellId, strength), false));
             deps.add(new Dependency(unitId, cellId));
             deps.add(new Dependency(unitId, zoneId));
         }

@@ -157,7 +157,7 @@ class ExecutionBackendTest {
     }
 
     private DesiredNode node(String id, NodeType type, NodeSpec spec) {
-        return new DesiredNode(NodeId.of(id), type, spec, false);
+        return new DesiredNode(NodeId.of(id), spec, false);
     }
 }
 ```

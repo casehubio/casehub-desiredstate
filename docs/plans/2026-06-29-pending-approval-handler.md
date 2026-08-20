@@ -366,9 +366,7 @@ Add to `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionEx
 @Test
 void pendingApproval_noHandler_returnsFailed() {
     // NoOp handler returns Failed when provisioner returns PendingApproval
-    DesiredNode node = new DesiredNode(
-        NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec("pg"), false);
     mockProvisioner.shouldReturnPendingApproval = true;
 
     DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -402,9 +400,7 @@ void pendingApproval_handlerCheckReturnsPending_skipsProvisioner() {
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         mockProvisioner, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec("pg"), false);
     DesiredStateGraph graph = factory.of(List.of(node), List.of());
     TransitionPlan plan = new TransitionPlan(
         List.of(),
@@ -448,9 +444,7 @@ void pendingApproval_handlerCheckReturnsApproved_callsProvisionerWithApproval() 
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         capturingProvisioner, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec("pg"), false);
     DesiredStateGraph graph = factory.of(List.of(node), List.of());
     TransitionPlan plan = new TransitionPlan(
         List.of(),
@@ -487,9 +481,7 @@ void pendingApproval_handlerCheckReturnsRejected_returnsRejectedAndAcknowledges(
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         mockProvisioner, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec("pg"), false);
     DesiredStateGraph graph = factory.of(List.of(node), List.of());
     TransitionPlan plan = new TransitionPlan(
         List.of(),
@@ -536,9 +528,7 @@ void pendingApproval_provisionerReturnsPendingApproval_callsRecordPending() {
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         pendingProvisioner, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("db-prod"), NodeType.of("database"), new TestSpec("pg"), false
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec("pg"), false);
     DesiredStateGraph graph = factory.of(List.of(node), List.of());
     TransitionPlan plan = new TransitionPlan(
         List.of(),
@@ -569,9 +559,7 @@ void deprovision_pendingApproval_handlerCheckReturnsPending_skipsProvisioner() {
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         mockProvisioner, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("old-db"), NodeType.of("database"), new TestSpec("pg"), false
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("old-db"), new TestSpec("pg"), false);
     DesiredStateGraph graph = factory.empty();
     TransitionPlan plan = new TransitionPlan(
         List.of(new OrderedStep(node, StepAction.DEPROVISION)),
@@ -603,9 +591,7 @@ void requiresHuman_takesPrecedence_overPendingApprovalHandler() {
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         mockProvisioner, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
     DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
     TransitionPlan plan = new TransitionPlan(
         List.of(),

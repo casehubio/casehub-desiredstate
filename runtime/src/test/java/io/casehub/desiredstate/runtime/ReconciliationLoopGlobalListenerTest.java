@@ -33,7 +33,7 @@ class ReconciliationLoopGlobalListenerTest {
     private DefaultActualStateAdapterRouter adapterRouter;
     private FaultPolicyEngine faultPolicyEngine;
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec() implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     @BeforeEach
     void setUp() {
@@ -46,7 +46,7 @@ class ReconciliationLoopGlobalListenerTest {
 
     @Test
     void globalListeners_fireOnReconciliationCycle() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
@@ -69,7 +69,7 @@ class ReconciliationLoopGlobalListenerTest {
 
     @Test
     void globalListeners_fireAlongsidePerTenantListener() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
@@ -92,7 +92,7 @@ class ReconciliationLoopGlobalListenerTest {
 
     @Test
     void globalListener_exceptionDoesNotBlockOthers() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
@@ -115,7 +115,7 @@ class ReconciliationLoopGlobalListenerTest {
 
     @Test
     void globalListeners_fireOnEmptyPlanCycles() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
@@ -134,7 +134,7 @@ class ReconciliationLoopGlobalListenerTest {
 
     @Test
     void onTenantStopped_firesOnStop() throws Exception {
-        DesiredNode       node  = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode       node  = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
@@ -167,7 +167,7 @@ class ReconciliationLoopGlobalListenerTest {
 
     @Test
     void onTenantStopped_exceptionDoesNotBlockOtherListeners() throws Exception {
-        DesiredNode       node  = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode       node  = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 

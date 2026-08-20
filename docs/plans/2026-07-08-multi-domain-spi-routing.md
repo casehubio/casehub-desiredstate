@@ -139,9 +139,9 @@ Add to `ImmutableDesiredStateGraphTest`:
 @Test void filterByTypes_retainsMatchingNodesAndInternalDeps() {
     NodeType typeA = NodeType.of("a");
     NodeType typeB = NodeType.of("b");
-    DesiredNode n1 = new DesiredNode(NodeId.of("n1"), typeA, new TestSpec("x"), false);
-    DesiredNode n2 = new DesiredNode(NodeId.of("n2"), typeA, new TestSpec("x"), false);
-    DesiredNode n3 = new DesiredNode(NodeId.of("n3"), typeB, new TestSpec("x"), false);
+    DesiredNode n1 = new DesiredNode(NodeId.of("n1"), new TestSpec("x"), false);
+    DesiredNode n2 = new DesiredNode(NodeId.of("n2"), new TestSpec("x"), false);
+    DesiredNode n3 = new DesiredNode(NodeId.of("n3"), new TestSpec("x"), false);
 
     DesiredStateGraph graph = ImmutableDesiredStateGraph.empty()
         .withNode(n1).withNode(n2).withNode(n3)
@@ -156,7 +156,7 @@ Add to `ImmutableDesiredStateGraphTest`:
 }
 
 @Test void filterByTypes_emptySetProducesEmptyGraph() {
-    DesiredNode n1 = new DesiredNode(NodeId.of("n1"), NodeType.of("a"), new TestSpec("x"), false);
+    DesiredNode n1 = new DesiredNode(NodeId.of("n1"), new TestSpec("x"), false);
     DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(n1);
 
     DesiredStateGraph filtered = graph.filterByTypes(Set.of());
@@ -165,8 +165,8 @@ Add to `ImmutableDesiredStateGraphTest`:
 
 @Test void filterByTypes_allTypesRetainsFullGraph() {
     NodeType typeA = NodeType.of("a");
-    DesiredNode n1 = new DesiredNode(NodeId.of("n1"), typeA, new TestSpec("x"), false);
-    DesiredNode n2 = new DesiredNode(NodeId.of("n2"), typeA, new TestSpec("x"), false);
+    DesiredNode n1 = new DesiredNode(NodeId.of("n1"), new TestSpec("x"), false);
+    DesiredNode n2 = new DesiredNode(NodeId.of("n2"), new TestSpec("x"), false);
     DesiredStateGraph graph = ImmutableDesiredStateGraph.empty()
         .withNode(n1).withNode(n2)
         .withDependency(new Dependency(NodeId.of("n2"), NodeId.of("n1")));
@@ -291,8 +291,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapterA, adapterB));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), false);
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("x"), false);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("x"), false);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("x"), false);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeB);
 
         ActualState result = router.readActual(graph, "tenant-1");
@@ -327,8 +327,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapterA));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), false);
-        var nodeUnknown = new DesiredNode(NodeId.of("u"), NodeType.of("unregistered"), new TestSpec("x"), false);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("x"), false);
+        var nodeUnknown = new DesiredNode(NodeId.of("u"), new TestSpec("x"), false);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeUnknown);
 
         ActualState result = router.readActual(graph, "tenant-1");
@@ -387,8 +387,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapterA, adapterB));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), false);
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("x"), false);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec("x"), false);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec("x"), false);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeB);
 
         router.readActual(graph, "tenant-1");

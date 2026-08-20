@@ -16,7 +16,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class GraphDiffTest {
 
-    private record TestSpec(String value) implements NodeSpec {}
+    private record TestSpec(NodeType nodeType, String value) implements NodeSpec {
+        TestSpec(String value) {this(NodeType.of("test"), value);}
+    }
 
     private DesiredStateGraph graph(DesiredNode... nodes) {
         DesiredStateGraph g = ImmutableDesiredStateGraph.empty();
@@ -27,11 +29,11 @@ class GraphDiffTest {
     }
 
     private DesiredNode node(String id, String spec) {
-        return new DesiredNode(NodeId.of(id), NodeType.of("test"), new TestSpec(spec), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestSpec(spec), HumanGating.NONE);
     }
 
     private DesiredNode node(String id, String type, String spec) {
-        return new DesiredNode(NodeId.of(id), NodeType.of(type), new TestSpec(spec), HumanGating.NONE);
+        return new DesiredNode(NodeId.of(id), new TestSpec(NodeType.of(type), spec), HumanGating.NONE);
     }
 
     @Test
@@ -226,8 +228,8 @@ class GraphDiffTest {
 
     @Test
     void humanGating_change_only_generates_updateNode() {
-        DesiredNode current = new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.NONE);
-        DesiredNode adapted = new DesiredNode(NodeId.of("n1"), NodeType.of("test"), new TestSpec("v1"), HumanGating.DEPROVISION_ONLY);
+        DesiredNode current = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode adapted = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.DEPROVISION_ONLY);
 
         List<GraphMutation> mutations = GraphDiff.computeMutations(graph(current), graph(adapted));
 

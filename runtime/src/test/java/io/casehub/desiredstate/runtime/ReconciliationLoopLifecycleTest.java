@@ -49,7 +49,7 @@ class ReconciliationLoopLifecycleTest {
 
     @Test
     void listenerFiresOnReconciliationCycle() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.ABSENT);
 
@@ -72,7 +72,7 @@ class ReconciliationLoopLifecycleTest {
 
     @Test
     void listenerFiresOnEmptyPlanCycles() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
@@ -95,9 +95,9 @@ class ReconciliationLoopLifecycleTest {
     @Test
     void compareAndSetDesired_succeedsWhenExpectedMatches() {
         DesiredStateGraph graph1 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         DesiredStateGraph graph2 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("b"), new TestSpec(), HumanGating.NONE));
 
         loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
             faultPolicyEngine, () -> Multi.createFrom().nothing())
@@ -113,11 +113,11 @@ class ReconciliationLoopLifecycleTest {
     @Test
     void compareAndSetDesired_failsWhenExpectedDoesNotMatch() {
         DesiredStateGraph graph1 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         DesiredStateGraph graph2 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("b"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("b"), new TestSpec(), HumanGating.NONE));
         DesiredStateGraph graph3 = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("c"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("c"), new TestSpec(), HumanGating.NONE));
 
         loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
             faultPolicyEngine, () -> Multi.createFrom().nothing())
@@ -134,7 +134,7 @@ class ReconciliationLoopLifecycleTest {
     @Test
     void setListener_onRunningTenant() throws Exception {
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty()
-            .withNode(new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE));
+            .withNode(new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE));
         adapter.setStatus(NodeId.of("a"), NodeStatus.PRESENT);
 
         loop = ReconciliationLoop.builder(planner, new MockTransitionExecutor(), adapterRouter,
@@ -153,7 +153,7 @@ class ReconciliationLoopLifecycleTest {
         loop.stop("t1");
     }
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec() implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
 
 }

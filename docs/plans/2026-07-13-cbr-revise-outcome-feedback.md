@@ -534,7 +534,7 @@ Add to existing `GraphDiffTest.java` using `ide_insert_member`:
 ```java
 @Test
 void targetNodeId_addNode() {
-    DesiredNode node = new DesiredNode(new NodeId("n1"), new NodeType("t"), new TestSpec("v"), false);
+    DesiredNode node = new DesiredNode(new NodeId("n1"), new TestSpec("v"), false);
     assertThat(GraphDiff.targetNodeId(new GraphMutation.AddNode(node))).isEqualTo(new NodeId("n1"));
 }
 
@@ -704,7 +704,7 @@ class CbrProposalTrackerTest {
             "src-1", CbrPath.FAULT, Set.of(nodeId), Instant.now()));
 
         var result = new TransitionResult(Map.of());
-        var node = new DesiredNode(nodeId, new NodeType("t"), new TestSpec("v"), false);
+        var node = new DesiredNode(nodeId, new TestSpec("v"), false);
         var graph = factory.of(Map.of(nodeId, node), Set.of());
         var outcomes = tracker.matchOutcomes("t1", result, graph);
 

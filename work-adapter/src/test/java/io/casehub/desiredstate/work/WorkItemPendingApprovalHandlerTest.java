@@ -140,10 +140,10 @@ class WorkItemPendingApprovalHandlerTest {
     // --- helpers ---
 
     private DesiredNode node() {
-        return new DesiredNode(NODE_1, TYPE, SPEC, HumanGating.NONE);
+        return new DesiredNode(NODE_1, SPEC, HumanGating.NONE);
     }
 
-    private record StubSpec() implements NodeSpec {}
+    private record StubSpec() implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
     // --- in-memory WorkItemCreator for testing ---
 

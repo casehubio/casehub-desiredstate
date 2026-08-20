@@ -418,12 +418,10 @@ class CoreTypesTest {
     @Test
     void desiredNode_humanFlag() {
         var spec = new TestSpec("Library", 12);
-        var node = new DesiredNode(
-            new NodeId("library"), new NodeType("room"), spec, false);
+        var node = new DesiredNode(new NodeId("library"), spec, false);
         assertThat(node.requiresHuman()).isFalse();
 
-        var humanNode = new DesiredNode(
-            new NodeId("dragon"), new NodeType("creature"), spec, true);
+        var humanNode = new DesiredNode(new NodeId("dragon"), spec, true);
         assertThat(humanNode.requiresHuman()).isTrue();
     }
 
@@ -556,7 +554,7 @@ class TypesTest {
 
     @Test
     void graphMutation_sealedExhaustive() {
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
+        var node = new DesiredNode(new NodeId("a"), new TestSpec("x"), false);
         GraphMutation mutation = new GraphMutation.AddNode(node);
         String result = switch (mutation) {
             case GraphMutation.AddNode m -> "add:" + m.node().id().value();
@@ -934,7 +932,7 @@ class SpiContractTest {
                 return new DeprovisionResult.Success();
             }
         };
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
+        var node = new DesiredNode(new NodeId("a"), new TestSpec("x"), false);
         assertThat(provisioner.provision(node, null)).isInstanceOf(ProvisionResult.Success.class);
     }
 
@@ -948,7 +946,7 @@ class SpiContractTest {
                 return Uni.createFrom().item(new DeprovisionResult.Success());
             }
         };
-        var node = new DesiredNode(new NodeId("a"), new NodeType("t"), new TestSpec("x"), false);
+        var node = new DesiredNode(new NodeId("a"), new TestSpec("x"), false);
         assertThat(provisioner.provision(node, null).await().indefinitely())
             .isInstanceOf(ProvisionResult.Success.class);
     }
@@ -1242,11 +1240,11 @@ class ImmutableDesiredStateGraphTest {
     }
 
     private DesiredNode node(String id, String type) {
-        return new DesiredNode(new NodeId(id), new NodeType(type), new Spec(id), false);
+        return new DesiredNode(new NodeId(id), new Spec(id), false);
     }
 
     private DesiredNode humanNode(String id) {
-        return new DesiredNode(new NodeId(id), new NodeType("human"), new Spec(id), true);
+        return new DesiredNode(new NodeId(id), new Spec(id), true);
     }
 
     private Dependency dep(String from, String to) {
@@ -1605,7 +1603,7 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             case GraphMutation.UpdateNode m -> {
                 var existing = nodes.get(m.id());
                 if (existing == null) yield this;
-                yield withNode(new DesiredNode(m.id(), existing.type(), m.newSpec(), existing.requiresHuman()));
+                yield withNode(new DesiredNode(m.id(), m.newSpec(), existing.requiresHuman()));
             }
             case GraphMutation.AddDependency m -> withDependency(m.dependency());
             case GraphMutation.RemoveDependency m -> withoutDependency(m.dependency());
@@ -1779,7 +1777,7 @@ class TransitionPlannerTest {
     }
 
     private DesiredNode node(String id) {
-        return new DesiredNode(new NodeId(id), new NodeType("t"), new Spec(id), false);
+        return new DesiredNode(new NodeId(id), new Spec(id), false);
     }
 
     @Test
@@ -1843,8 +1841,8 @@ class TransitionPlannerTest {
     void updatedNode_appearsAsRemovalThenAddition() {
         var oldSpec = new Spec("old");
         var newSpec = new Spec("new");
-        var oldNode = new DesiredNode(new NodeId("a"), new NodeType("t"), oldSpec, false);
-        var newNode = new DesiredNode(new NodeId("a"), new NodeType("t"), newSpec, false);
+        var oldNode = new DesiredNode(new NodeId("a"), oldSpec, false);
+        var newNode = new DesiredNode(new NodeId("a"), newSpec, false);
         var desired = factory.empty().withNode(newNode);
         var actual = new ActualState(Map.of(new NodeId("a"), NodeStatus.PRESENT));
         var plan = planner.plan(desired, actual);
@@ -1885,7 +1883,7 @@ public class TransitionPlanner {
 
         for (var entry : actual.statuses().entrySet()) {
             if (entry.getValue() == NodeStatus.PRESENT && !desired.nodes().containsKey(entry.getKey())) {
-                var node = new DesiredNode(entry.getKey(), new NodeType("unknown"), new UnknownSpec(), false);
+                var node = new DesiredNode(entry.getKey(), new UnknownSpec(), false);
                 toRemove.add(node);
             }
         }
@@ -1999,7 +1997,7 @@ class FaultPolicyEngineTest {
     void singlePolicy_returnsMutations() {
         FaultPolicy rebuild = (evt, graph) -> List.of(
             new GraphMutation.AddNode(
-                new DesiredNode(evt.node(), new NodeType("room"), new Spec("rebuilt"), false)));
+                new DesiredNode(evt.node(), new Spec("rebuilt"), false)));
         var engine = engineWith(rebuild);
         var event = new FaultEvent(new NodeId("lib"), FaultType.NODE_DESTROYED, "raid");
         var result = engine.evaluate(event, emptyGraph());
@@ -2011,10 +2009,10 @@ class FaultPolicyEngineTest {
     void multiplePolicies_mergedMutations() {
         FaultPolicy rebuild = (evt, graph) -> List.of(
             new GraphMutation.AddNode(
-                new DesiredNode(evt.node(), new NodeType("room"), new Spec("rebuilt"), false)));
+                new DesiredNode(evt.node(), new Spec("rebuilt"), false)));
         FaultPolicy alert = (evt, graph) -> List.of(
             new GraphMutation.AddNode(
-                new DesiredNode(new NodeId("alert"), new NodeType("alert"), new Spec("alert"), true)));
+                new DesiredNode(new NodeId("alert"), new Spec("alert"), true)));
         var engine = engineWith(rebuild, alert);
         var event = new FaultEvent(new NodeId("lib"), FaultType.NODE_DESTROYED, "raid");
         var result = engine.evaluate(event, emptyGraph());
@@ -2148,11 +2146,11 @@ class SimpleTransitionExecutorTest {
     record Spec(String name) implements NodeSpec {}
 
     private DesiredNode node(String id) {
-        return new DesiredNode(new NodeId(id), new NodeType("t"), new Spec(id), false);
+        return new DesiredNode(new NodeId(id), new Spec(id), false);
     }
 
     private DesiredNode humanNode(String id) {
-        return new DesiredNode(new NodeId(id), new NodeType("t"), new Spec(id), true);
+        return new DesiredNode(new NodeId(id), new Spec(id), true);
     }
 
     @Test
@@ -2368,7 +2366,7 @@ class ReconciliationLoopTest {
     }
 
     private DesiredNode node(String id) {
-        return new DesiredNode(new NodeId(id), new NodeType("t"), new Spec(id), false);
+        return new DesiredNode(new NodeId(id), new Spec(id), false);
     }
 
     @Test
@@ -2762,7 +2760,7 @@ class TransitionWorkflowGeneratorTest {
     record Spec(String name) implements NodeSpec {}
 
     private DesiredNode node(String id) {
-        return new DesiredNode(new NodeId(id), new NodeType("t"), new Spec(id), false);
+        return new DesiredNode(new NodeId(id), new Spec(id), false);
     }
 
     @Test
@@ -3077,8 +3075,7 @@ class DungeonTest {
     void heroRaidFaultPolicy_rebuildsRoom() {
         var policy = new HeroRaidFaultPolicy();
         var graph = graphFactory.empty()
-            .withNode(new DesiredNode(new NodeId("library"), DungeonNodeTypes.ROOM,
-                new DungeonRoomSpec("library", "Research", 12), false));
+            .withNode(new DesiredNode(new NodeId("library"), new DungeonRoomSpec("library", "Research", 12), false));
 
         var event = new FaultEvent(new NodeId("library"), FaultType.NODE_DESTROYED, "hero raid");
         var mutations = policy.onFault(event, graph);
@@ -3268,24 +3265,18 @@ public class DungeonGoalCompiler implements GoalCompiler<DungeonBlueprint> {
         var graph = factory.empty();
 
         for (var room : blueprint.rooms()) {
-            graph = graph.withNode(new DesiredNode(
-                new NodeId(room.id()), DungeonNodeTypes.ROOM,
-                new DungeonRoomSpec(room.id(), room.description(), room.size()), false));
+            graph = graph.withNode(new DesiredNode(new NodeId(room.id()), new DungeonRoomSpec(room.id(), room.description(), room.size()), false));
         }
 
         for (var creature : blueprint.creatures()) {
-            graph = graph.withNode(new DesiredNode(
-                new NodeId(creature.id()), DungeonNodeTypes.CREATURE,
-                new CreatureSpec(creature.id(), 1), creature.requiresHuman()));
+            graph = graph.withNode(new DesiredNode(new NodeId(creature.id()), new CreatureSpec(creature.id(), 1), creature.requiresHuman()));
             for (var dep : creature.roomDeps()) {
                 graph = graph.withDependency(new Dependency(new NodeId(creature.id()), new NodeId(dep)));
             }
         }
 
         for (var trap : blueprint.traps()) {
-            graph = graph.withNode(new DesiredNode(
-                new NodeId(trap.id()), DungeonNodeTypes.TRAP,
-                new TrapSpec(trap.type(), trap.damage()), false));
+            graph = graph.withNode(new DesiredNode(new NodeId(trap.id()), new TrapSpec(trap.type(), trap.damage()), false));
             graph = graph.withDependency(new Dependency(new NodeId(trap.id()), new NodeId(trap.roomDep())));
         }
 

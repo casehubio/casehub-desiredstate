@@ -34,7 +34,7 @@ class DefaultNodeProvisionerRouterTest {
         var provB = mockProvisioner(Set.of(TYPE_B));
         var router = new DefaultNodeProvisionerRouter(List.of(provA, provB));
 
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("a"), HumanGating.NONE);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "a"), HumanGating.NONE);
         var result = router.provision(nodeA, new ProvisionContext("t1", dummyGraph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
@@ -47,7 +47,7 @@ class DefaultNodeProvisionerRouterTest {
         var prov = mockProvisioner(Set.of(TYPE_A));
         var router = new DefaultNodeProvisionerRouter(List.of(prov));
 
-        var unknown = new DesiredNode(NodeId.of("x"), NodeType.of("unknown"), new TestSpec("x"), HumanGating.NONE);
+        var unknown = new DesiredNode(NodeId.of("x"), new TestSpec(NodeType.of("unknown"), "x"), HumanGating.NONE);
         var result = router.provision(unknown, new ProvisionContext("t1", dummyGraph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Failed.class);
@@ -108,7 +108,7 @@ class DefaultNodeProvisionerRouterTest {
         var provB = mockProvisioner(Set.of(TYPE_B));
         var router = new DefaultNodeProvisionerRouter(List.of(provA, provB));
 
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("b"), HumanGating.NONE);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec(TYPE_B, "b"), HumanGating.NONE);
         var result = router.deprovision(nodeB, new DeprovisionContext("t1", dummyGraph));
 
         assertThat(result).isInstanceOf(DeprovisionResult.Success.class);
@@ -122,5 +122,7 @@ class DefaultNodeProvisionerRouterTest {
         return mock;
     }
 
-    record TestSpec(String value) implements NodeSpec {}
+    record TestSpec(NodeType nodeType, String value) implements NodeSpec {
+        TestSpec(String value) {this(NodeType.of("test"), value);}
+    }
 }

@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DefaultActualStateAdapterRouterTest {
 
-    record TestSpec(String name) implements NodeSpec {}
+    record TestSpec(NodeType nodeType, String name) implements NodeSpec {
+        TestSpec(String name) {this(NodeType.of("test"), name);}
+    }
 
     static final NodeType TYPE_A = NodeType.of("type-a");
     static final NodeType TYPE_B = NodeType.of("type-b");
@@ -46,8 +48,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapterA, adapterB));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), HumanGating.NONE);
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("x"), HumanGating.NONE);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "x"), HumanGating.NONE);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec(TYPE_B, "x"), HumanGating.NONE);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeB);
 
         ActualState result = router.readActual(graph, "tenant-1");
@@ -82,8 +84,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapterA));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), HumanGating.NONE);
-        var nodeUnknown = new DesiredNode(NodeId.of("u"), NodeType.of("unregistered"), new TestSpec("x"), HumanGating.NONE);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "x"), HumanGating.NONE);
+        var nodeUnknown = new DesiredNode(NodeId.of("u"), new TestSpec(NodeType.of("unregistered"), "x"), HumanGating.NONE);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeUnknown);
 
         ActualState result = router.readActual(graph, "tenant-1");
@@ -142,8 +144,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapterA, adapterB));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), HumanGating.NONE);
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("x"), HumanGating.NONE);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "x"), HumanGating.NONE);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec(TYPE_B, "x"), HumanGating.NONE);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeB);
 
         router.readActual(graph, "tenant-1");
@@ -167,8 +169,8 @@ class DefaultActualStateAdapterRouterTest {
         };
 
         var router = new DefaultActualStateAdapterRouter(List.of(adapter));
-        var nodeA = new DesiredNode(NodeId.of("a"), TYPE_A, new TestSpec("x"), HumanGating.NONE);
-        var nodeB = new DesiredNode(NodeId.of("b"), TYPE_B, new TestSpec("x"), HumanGating.NONE);
+        var nodeA = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "x"), HumanGating.NONE);
+        var nodeB = new DesiredNode(NodeId.of("b"), new TestSpec(TYPE_B, "x"), HumanGating.NONE);
         var graph = ImmutableDesiredStateGraph.empty().withNode(nodeA).withNode(nodeB);
 
         router.readActual(graph, "tenant-1");

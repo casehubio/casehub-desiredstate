@@ -51,7 +51,7 @@ class LifecycleManagerTest {
 
     @Test
     void singleGraph_startsReconciliationDirectly() throws Exception {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.makePresent(NodeId.of("a"));
 
@@ -63,8 +63,8 @@ class LifecycleManagerTest {
 
     @Test
     void lifecycle_transitionsOnCompletion() throws Exception {
-        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
-        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), new TestSpec(), HumanGating.NONE);
+        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraph buildGraph = ImmutableDesiredStateGraph.empty().withNode(buildNode);
         DesiredStateGraph defendGraph = ImmutableDesiredStateGraph.empty().withNode(defendNode);
@@ -87,8 +87,8 @@ class LifecycleManagerTest {
 
     @Test
     void lifecycle_staysOnPhaseUntilComplete() throws Exception {
-        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
-        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode buildNode = new DesiredNode(NodeId.of("build"), new TestSpec(), HumanGating.NONE);
+        DesiredNode defendNode = new DesiredNode(NodeId.of("defend"), new TestSpec(), HumanGating.NONE);
 
         DesiredStateGraph buildGraph = ImmutableDesiredStateGraph.empty().withNode(buildNode);
         DesiredStateGraph defendGraph = ImmutableDesiredStateGraph.empty().withNode(defendNode);
@@ -111,7 +111,7 @@ class LifecycleManagerTest {
 
     @Test
     void stop_cleansUpLifecycleState() {
-        DesiredNode node = new DesiredNode(NodeId.of("a"), NodeType.of("t"), new TestSpec(), HumanGating.NONE);
+        DesiredNode node = new DesiredNode(NodeId.of("a"), new TestSpec(), HumanGating.NONE);
         DesiredStateGraph graph = ImmutableDesiredStateGraph.empty().withNode(node);
         adapter.makePresent(NodeId.of("a"));
 
@@ -121,7 +121,10 @@ class LifecycleManagerTest {
         assertThat(loop.activeTenantCount()).isZero();
     }
 
-    private record TestSpec() implements NodeSpec {}
+    private record TestSpec() implements NodeSpec {
+        @Override
+        public NodeType nodeType() {return NodeType.of("t");}
+    }
 
 
 }

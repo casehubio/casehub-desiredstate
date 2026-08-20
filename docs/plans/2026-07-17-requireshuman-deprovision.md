@@ -152,9 +152,7 @@ Use `ide_insert_member` in `NoOpHumanNodeHandlerTest`, position `after` anchor `
 @Test
 void deprovision_returnsSkippedWithConfigurationMessage() {
     NoOpHumanNodeHandler handler = new NoOpHumanNodeHandler();
-    DesiredNode node = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), true);
     DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
         .of(List.of(node), List.of());
     DeprovisionContext context = new DeprovisionContext("tenant1", graph);
@@ -230,9 +228,7 @@ void deprovision_requiresHuman_delegatesToHandler() {
     SimpleTransitionExecutor handlerExecutor =
         new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler());
 
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
 
     DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 
@@ -284,9 +280,7 @@ void deprovision_handlerReceivesCorrectDeprovisionContext() {
     SimpleTransitionExecutor capturingExecutor =
         new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler());
 
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
 
     DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 
@@ -328,9 +322,7 @@ void deprovision_requiresHuman_takesPrecedence_overPendingApprovalHandler() {
     SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
         router, new NoOpHumanNodeHandler(), handler);
 
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec("human"), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), true);
     DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
     TransitionPlan plan = new TransitionPlan(
         List.of(new OrderedStep(humanNode, StepAction.DEPROVISION)),
@@ -474,9 +466,7 @@ Use `ide_insert_member` in `WorkItemHumanNodeHandlerTest`, position `after` anch
 ```java
 @Test
 void deprovision_firstCall_createsWorkItem_returnsSkipped() {
-    DesiredNode node = new DesiredNode(
-        NodeId.of("thermo-1"), NodeType.of("iot-device"), new TestSpec("uninstall"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("thermo-1"), new TestSpec("uninstall"), true);
     DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
     DeprovisionContext context = new DeprovisionContext("tenant1", graph);
 
@@ -511,9 +501,7 @@ void deprovision_subsequentCall_findsActiveWorkItem_doesNotCreateDuplicate() {
         null, null, null, null, "tenant1", null
     );
 
-    DesiredNode node = new DesiredNode(
-        NodeId.of("thermo-1"), NodeType.of("iot-device"), new TestSpec("uninstall"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("thermo-1"), new TestSpec("uninstall"), true);
     DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
     DeprovisionContext context = new DeprovisionContext("tenant1", graph);
 
@@ -534,9 +522,7 @@ Use `ide_insert_member` after previous test:
 ```java
 @Test
 void provision_callerRef_includesActionSuffix() {
-    DesiredNode node = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec("v"), true
-    );
+    DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), true);
     DesiredStateGraph graph = graphFactory.of(List.of(node), List.of());
     ProvisionContext context = new ProvisionContext("tenant1", graph);
 
@@ -653,12 +639,8 @@ Use `ide_insert_member` in `CaseTransitionExecutorTest`, position `after` anchor
 ```java
 @Test
 void humanRemovals_getHumanTaskBindings() {
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec(), true
-    );
-    DesiredNode normalNode = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec(), false
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), true);
+    DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec(), false);
 
     DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
         .of(List.of(humanNode, normalNode), List.of());
@@ -687,12 +669,8 @@ Use `ide_insert_member` after previous test:
 ```java
 @Test
 void humanRemovals_excludedFromPruneWorkflow() {
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec(), true
-    );
-    DesiredNode normalNode = new DesiredNode(
-        NodeId.of("n1"), NodeType.of("test"), new TestSpec(), false
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), true);
+    DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec(), false);
 
     DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
         .of(List.of(humanNode, normalNode), List.of());
@@ -721,9 +699,7 @@ Use `ide_insert_member` after previous test:
 ```java
 @Test
 void humanRemovals_markedAsSkippedInResult() {
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec(), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), true);
 
     DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
         .of(List.of(humanNode), List.of());
@@ -751,9 +727,7 @@ Use `ide_insert_member` after previous test:
 ```java
 @Test
 void humanAdditions_useActionNamespacedBindingNames() {
-    DesiredNode humanNode = new DesiredNode(
-        NodeId.of("h1"), NodeType.of("test"), new TestSpec(), true
-    );
+    DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), true);
 
     DesiredStateGraph graph = new DefaultDesiredStateGraphFactory()
         .of(List.of(humanNode), List.of());

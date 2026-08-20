@@ -377,8 +377,7 @@ class DesiredStateDispatchTest {
         approvalHandler = new MockPendingApprovalHandler();
         callRegistry = new CallableDispatchRegistry();
 
-        testNode = new DesiredNode(
-            NodeId.of("app"), NodeType.of("service"), new TestSpec(), false);
+        testNode = new DesiredNode(NodeId.of("app"), new TestSpec(), false);
 
         DefaultDesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         graph = factory.of(List.of(testNode), List.of());
@@ -816,8 +815,7 @@ New tests:
 ```java
 @Test
 void pendingApproval_nodeSkipped() {
-    DesiredNode node = new DesiredNode(
-        NodeId.of("gated"), NodeType.of("service"), new TestSpec(), false);
+    DesiredNode node = new DesiredNode(NodeId.of("gated"), new TestSpec(), false);
 
     approvalHandler.programCheck(
         NodeId.of("gated"), StepAction.PROVISION,
@@ -842,8 +840,7 @@ void pendingApproval_nodeSkipped() {
 
 @Test
 void rejectedApproval_nodeRejectedAndAcknowledged() {
-    DesiredNode node = new DesiredNode(
-        NodeId.of("rejected"), NodeType.of("service"), new TestSpec(), false);
+    DesiredNode node = new DesiredNode(NodeId.of("rejected"), new TestSpec(), false);
 
     approvalHandler.programCheck(
         NodeId.of("rejected"), StepAction.PROVISION,
@@ -867,8 +864,7 @@ void rejectedApproval_nodeRejectedAndAcknowledged() {
 
 @Test
 void allNodesFiltered_noCaseStarted() {
-    DesiredNode node = new DesiredNode(
-        NodeId.of("pending"), NodeType.of("service"), new TestSpec(), false);
+    DesiredNode node = new DesiredNode(NodeId.of("pending"), new TestSpec(), false);
 
     approvalHandler.programCheck(
         NodeId.of("pending"), StepAction.PROVISION,
@@ -895,10 +891,8 @@ void allNodesFiltered_noCaseStarted() {
 
 @Test
 void mixedPlan_filteredAndAutomated() {
-    DesiredNode pendingNode = new DesiredNode(
-        NodeId.of("gated"), NodeType.of("service"), new TestSpec(), false);
-    DesiredNode autoNode = new DesiredNode(
-        NodeId.of("auto"), NodeType.of("service"), new TestSpec(), false);
+    DesiredNode pendingNode = new DesiredNode(NodeId.of("gated"), new TestSpec(), false);
+    DesiredNode autoNode = new DesiredNode(NodeId.of("auto"), new TestSpec(), false);
 
     approvalHandler.programCheck(
         NodeId.of("gated"), StepAction.PROVISION,
