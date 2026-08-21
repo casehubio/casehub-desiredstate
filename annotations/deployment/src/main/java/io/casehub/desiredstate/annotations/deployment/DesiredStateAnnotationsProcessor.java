@@ -3,6 +3,7 @@ package io.casehub.desiredstate.annotations.deployment;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.DesiredStateGraphRecorder;
 import io.casehub.desiredstate.annotations.runtime.FaultPolicyDescriptor;
+import io.casehub.desiredstate.annotations.runtime.GoalMethodDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
 import io.casehub.desiredstate.annotations.runtime.TierDescriptor;
@@ -46,6 +47,14 @@ public class DesiredStateAnnotationsProcessor {
             "io.casehub.desiredstate.annotations.FaultPolicies");
     private static final DotName NODE_SPEC = DotName.createSimple(
             "io.casehub.desiredstate.api.NodeSpec");
+    private static final DotName GOAL_METHOD = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.GoalMethod");
+    private static final DotName COMPILATION_RESULT = DotName.createSimple(
+            "io.casehub.desiredstate.api.CompilationResult");
+    private static final DotName DESIRED_STATE_GRAPH = DotName.createSimple(
+            "io.casehub.desiredstate.api.DesiredStateGraph");
+    private static final DotName DESIRED_STATE_GRAPH_FACTORY = DotName.createSimple(
+            "io.casehub.desiredstate.api.DesiredStateGraphFactory");
 
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
@@ -60,7 +69,8 @@ public class DesiredStateAnnotationsProcessor {
             ClassInfo dsClass = dsAnn.target().asClass();
             GraphDescriptor descriptor = buildGraphDescriptor(dsAnn, dsClass, index);
 
-            RuntimeValue<GoalCompiler<Void>> runtimeValue = recorder.createGoalCompiler(descriptor);
+            @SuppressWarnings("rawtypes")
+            RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
             syntheticBeans.produce(
                     SyntheticBeanBuildItem.configure(GoalCompiler.class)
@@ -144,8 +154,22 @@ public class DesiredStateAnnotationsProcessor {
 
         collectClassLevelFaultPolicies(dsClass, index, faultPolicies);
 
+        GoalMethodDescriptor goalMethod = null;
+        for (MethodInfo method : dsClass.methods()) {
+            if (method.hasAnnotation(GOAL_METHOD)) {
+                String goalsTypeName = method.parameterType(0).name().toString();
+                boolean returnsCompilationResult =
+                        method.returnType().name().equals(COMPILATION_RESULT);
+                boolean hasFactoryParam = method.parametersCount() >= 3
+                        && method.parameterType(2).name().equals(DESIRED_STATE_GRAPH_FACTORY);
+                goalMethod = new GoalMethodDescriptor(
+                        method.name(), goalsTypeName, returnsCompilationResult, hasFactoryParam);
+                break;
+            }
+        }
+
         return new GraphDescriptor(namespace, name, dsClass.name().toString(),
-                implClassName, nodes, deps, faultPolicies);
+                implClassName, nodes, deps, faultPolicies, goalMethod);
     }
 
     private void collectMethodLevelFaultPolicies(

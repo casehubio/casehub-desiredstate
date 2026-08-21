@@ -85,6 +85,14 @@ class AnnotationReflectionTest {
     }
 
     @Test
+    void goalMethodTargetsMethod() {
+        assertThat(GoalMethod.class.getAnnotation(Retention.class).value())
+                .isEqualTo(RetentionPolicy.RUNTIME);
+        assertThat(GoalMethod.class.getAnnotation(Target.class).value())
+                .containsExactly(ElementType.METHOD);
+    }
+
+    @Test
     void desiredStateQualifierIsQualifier() {
         assertThat(DesiredStateQualifier.class.isAnnotationPresent(
                 jakarta.inject.Qualifier.class)).isTrue();

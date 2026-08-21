@@ -9,4 +9,5 @@ public record GraphDescriptor(
         String implClassName,
         List<NodeDescriptor> nodes,
         List<DependencyDescriptor> dependencies,
-        List<FaultPolicyDescriptor> faultPolicies) {}
+        List<FaultPolicyDescriptor> faultPolicies,
+        GoalMethodDescriptor goalMethod) {}

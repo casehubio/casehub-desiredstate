@@ -42,6 +42,12 @@ public class AnnotationValidationStep {
             "io.casehub.desiredstate.api.FaultEvent");
     private static final DotName DESIRED_STATE_GRAPH = DotName.createSimple(
             "io.casehub.desiredstate.api.DesiredStateGraph");
+    private static final DotName DESIRED_STATE_GRAPH_FACTORY = DotName.createSimple(
+            "io.casehub.desiredstate.api.DesiredStateGraphFactory");
+    private static final DotName COMPILATION_RESULT = DotName.createSimple(
+            "io.casehub.desiredstate.api.CompilationResult");
+    private static final DotName GOAL_METHOD = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.GoalMethod");
 
     @BuildStep
     @Produce(ServiceStartBuildItem.class)
@@ -72,6 +78,7 @@ public class AnnotationValidationStep {
             detectCycles(adjacency, errors);
             validateFaultPolicyFaultTypes(dsClass, index, errors);
             validateTierReviewMethods(dsClass, index, errors);
+            validateGoalMethod(dsClass, index, errors);
 
             if (nodeIds.isEmpty()) {
                 warnings.add("@DesiredState '" + dsClass.name().local()
@@ -180,6 +187,49 @@ public class AnnotationValidationStep {
         inStack.remove(node);
         path.removeLast();
         return false;
+    }
+
+    private void validateGoalMethod(ClassInfo dsClass, IndexView index, List<String> errors) {
+        int count = 0;
+        for (MethodInfo method : dsClass.methods()) {
+            if (!method.hasAnnotation(GOAL_METHOD)) continue;
+            count++;
+
+            String loc = dsClass.name().local() + "#" + method.name();
+
+            if (count > 1) {
+                errors.add(loc + ": multiple @GoalMethod annotations — at most one allowed");
+                continue;
+            }
+
+            if (method.parametersCount() < 2) {
+                errors.add(loc + ": @GoalMethod must accept at least (G goals, DesiredStateGraph base)");
+                continue;
+            }
+
+            if (!method.parameterType(1).name().equals(DESIRED_STATE_GRAPH)) {
+                errors.add(loc + ": @GoalMethod second parameter must be DesiredStateGraph");
+            }
+
+            if (method.parametersCount() == 3
+                    && !method.parameterType(2).name().equals(DESIRED_STATE_GRAPH_FACTORY)) {
+                errors.add(loc + ": @GoalMethod third parameter must be DesiredStateGraphFactory");
+            }
+
+            if (method.parametersCount() > 3) {
+                errors.add(loc + ": @GoalMethod accepts at most 3 parameters"
+                        + " (goals, DesiredStateGraph, DesiredStateGraphFactory)");
+            }
+
+            DotName returnType = method.returnType().name();
+            if (!returnType.equals(DESIRED_STATE_GRAPH) && !returnType.equals(COMPILATION_RESULT)) {
+                errors.add(loc + ": @GoalMethod must return DesiredStateGraph or CompilationResult");
+            }
+
+            if (method.hasAnnotation(NODE)) {
+                errors.add(loc + ": @GoalMethod cannot also be annotated with @Node");
+            }
+        }
     }
 
     private void validateFaultPolicyOnMethod(MethodInfo method, ClassInfo dsClass,
