@@ -33,6 +33,7 @@
         <module>examples/spatial</module>
         <module>examples/expansion</module>
         <module>annotations</module>
+        <module>examples/pipeline-annotated</module>
     </modules>
 
     <properties>

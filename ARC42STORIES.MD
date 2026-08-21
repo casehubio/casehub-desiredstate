@@ -165,6 +165,11 @@ C4Container
     Container(ras_emitter, "ReconciliationEventEmitter", "@ApplicationScoped", "Emits CloudEvents for cycle completion, faults, drift, recovery")
   }
 
+  Container_Boundary(b9, "Layer: Annotations") {
+    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DependsOn, @FaultPolicyDef, descriptors, recorder")
+    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, validation, Gizmo impl, SyntheticBeanBuildItem")
+  }
+
   Rel(planner, api_graph, "Reads desired graph")
   Rel(loop, planner, "Triggers plan")
   Rel(loop, api_exec, "Executes plan")
@@ -173,6 +178,8 @@ C4Container
   Rel(case_exec, api_exec, "Implements TransitionExecutor")
   Rel(work_approval, api_spis, "Implements PendingApprovalHandler")
   Rel(loop, ras_emitter, "Emits CloudEvents")
+  Rel(ann_deploy, ann_runtime, "Reads descriptors")
+  Rel(ann_deploy, api_spis, "Generates GoalCompiler + FaultPolicy beans")
 ```
 
 ### Module structure
@@ -189,6 +196,9 @@ C4Container
 | examples/pipeline/ | casehub-desiredstate-example-pipeline | io.casehub.desiredstate.example.pipeline |
 | examples/spatial/ | casehub-desiredstate-example-spatial | io.casehub.desiredstate.example.spatial |
 | examples/expansion/ | casehub-desiredstate-example-expansion | io.casehub.desiredstate.example.expansion |
+| annotations/runtime/ | casehub-desiredstate-annotations | io.casehub.desiredstate.annotations |
+| annotations/deployment/ | casehub-desiredstate-annotations-deployment | io.casehub.desiredstate.annotations.deployment |
+| examples/pipeline-annotated/ | casehub-desiredstate-example-pipeline-annotated | io.casehub.desiredstate.example.pipeline.annotated |
 
 ---
 
