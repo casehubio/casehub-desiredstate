@@ -1,0 +1,4 @@
+name: casehub-desiredstate-annotations
+description: Annotation-driven desired-state graph declarations for CaseHub
+metadata:
+  status: preview

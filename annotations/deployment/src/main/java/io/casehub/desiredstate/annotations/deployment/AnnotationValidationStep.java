@@ -1,0 +1,293 @@
+package io.casehub.desiredstate.annotations.deployment;
+
+import io.casehub.desiredstate.api.FaultType;
+import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.Produce;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
+import io.quarkus.deployment.builditem.ServiceStartBuildItem;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationValue;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
+import org.jboss.jandex.Type;
+import org.jboss.logging.Logger;
+
+public class AnnotationValidationStep {
+
+    private static final Logger LOG = Logger.getLogger(AnnotationValidationStep.class);
+
+    private static final DotName DESIRED_STATE = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.DesiredState");
+    private static final DotName NODE = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.Node");
+    private static final DotName DEPENDS_ON = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.DependsOn");
+    private static final DotName FAULT_POLICY_DEF = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.FaultPolicyDef");
+    private static final DotName FAULT_POLICIES = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.FaultPolicies");
+    private static final DotName NODE_SPEC = DotName.createSimple(
+            "io.casehub.desiredstate.api.NodeSpec");
+    private static final DotName FAULT_EVENT = DotName.createSimple(
+            "io.casehub.desiredstate.api.FaultEvent");
+    private static final DotName DESIRED_STATE_GRAPH = DotName.createSimple(
+            "io.casehub.desiredstate.api.DesiredStateGraph");
+
+    @BuildStep
+    @Produce(ServiceStartBuildItem.class)
+    void validate(CombinedIndexBuildItem indexBuildItem) {
+        IndexView index = indexBuildItem.getIndex();
+        List<String> errors = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+
+        for (AnnotationInstance dsAnn : index.getAnnotations(DESIRED_STATE)) {
+            ClassInfo dsClass = dsAnn.target().asClass();
+
+            if (!java.lang.reflect.Modifier.isInterface(dsClass.flags())) {
+                errors.add("@DesiredState on '" + dsClass.name().local()
+                        + "' which is not an interface — @DesiredState must annotate an interface");
+                continue;
+            }
+
+            Set<String> nodeIds = new HashSet<>();
+            Map<String, String> nodeIdToMethod = new HashMap<>();
+            Map<String, List<String>> adjacency = new HashMap<>();
+
+            for (MethodInfo method : dsClass.methods()) {
+                validateNodeMethod(method, index, nodeIds, nodeIdToMethod, adjacency, errors, warnings);
+                validateFaultPolicyOnMethod(method, dsClass, index, errors);
+            }
+
+            validateDependsOnRefs(dsClass, nodeIds, errors);
+            detectCycles(adjacency, errors);
+            validateFaultPolicyFaultTypes(dsClass, index, errors);
+            validateTierReviewMethods(dsClass, index, errors);
+
+            if (nodeIds.isEmpty()) {
+                warnings.add("@DesiredState '" + dsClass.name().local()
+                        + "' has no @Node methods — graph will be empty");
+            }
+        }
+
+        for (String warning : warnings) {
+            LOG.warn(warning);
+        }
+
+        if (!errors.isEmpty()) {
+            throw new RuntimeException(
+                    "Annotation validation failed:\n- " + String.join("\n- ", errors));
+        }
+    }
+
+    private void validateNodeMethod(MethodInfo method, IndexView index,
+            Set<String> nodeIds, Map<String, String> nodeIdToMethod,
+            Map<String, List<String>> adjacency, List<String> errors, List<String> warnings) {
+
+        AnnotationInstance nodeAnn = method.annotation(NODE);
+        if (nodeAnn == null) return;
+
+        String loc = method.declaringClass().name().local() + "#" + method.name();
+        String nodeId = nodeAnn.value().asString();
+
+        if (!nodeIdToMethod.containsKey(nodeId)) {
+            nodeIds.add(nodeId);
+            nodeIdToMethod.put(nodeId, method.name());
+        } else {
+            errors.add("Duplicate @Node id '" + nodeId + "' on methods '"
+                    + nodeIdToMethod.get(nodeId) + "' and '" + method.name() + "'");
+        }
+
+        if (!method.hasAnnotation(DotName.createSimple("java.lang.Override"))
+                && !isDefaultMethod(method)) {
+            errors.add("@Node on '" + method.name()
+                    + "' must be a default method returning NodeSpec");
+        }
+
+        Type returnType = method.returnType();
+        if (!implementsNodeSpec(returnType.name(), index)) {
+            errors.add("@Node '" + method.name() + "' return type "
+                    + returnType.name().local() + " does not implement NodeSpec");
+        }
+
+        AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
+        if (dependsOnAnn != null) {
+            List<String> deps = new ArrayList<>();
+            for (String dep : dependsOnAnn.value().asStringArray()) {
+                deps.add(dep);
+            }
+            adjacency.put(nodeId, deps);
+        } else {
+            adjacency.putIfAbsent(nodeId, List.of());
+        }
+    }
+
+    private void validateDependsOnRefs(ClassInfo dsClass, Set<String> nodeIds,
+            List<String> errors) {
+        for (MethodInfo method : dsClass.methods()) {
+            AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
+            if (dependsOnAnn == null) continue;
+
+            AnnotationInstance nodeAnn = method.annotation(NODE);
+            String sourceMethod = method.name();
+            for (String dep : dependsOnAnn.value().asStringArray()) {
+                if (!nodeIds.contains(dep)) {
+                    errors.add("@DependsOn on '" + sourceMethod
+                            + "' references '" + dep + "' which is not declared as @Node");
+                }
+            }
+        }
+    }
+
+    private void detectCycles(Map<String, List<String>> adjacency, List<String> errors) {
+        Set<String> visited = new HashSet<>();
+        Set<String> inStack = new HashSet<>();
+
+        for (String node : adjacency.keySet()) {
+            if (!visited.contains(node)) {
+                Deque<String> path = new ArrayDeque<>();
+                if (hasCycle(node, adjacency, visited, inStack, path)) {
+                    errors.add("Circular dependency detected: " + String.join(" → ", path));
+                }
+            }
+        }
+    }
+
+    private boolean hasCycle(String node, Map<String, List<String>> adjacency,
+            Set<String> visited, Set<String> inStack, Deque<String> path) {
+        visited.add(node);
+        inStack.add(node);
+        path.addLast(node);
+
+        for (String dep : adjacency.getOrDefault(node, List.of())) {
+            if (!visited.contains(dep)) {
+                if (hasCycle(dep, adjacency, visited, inStack, path)) return true;
+            } else if (inStack.contains(dep)) {
+                path.addLast(dep);
+                return true;
+            }
+        }
+
+        inStack.remove(node);
+        path.removeLast();
+        return false;
+    }
+
+    private void validateFaultPolicyOnMethod(MethodInfo method, ClassInfo dsClass,
+            IndexView index, List<String> errors) {
+        AnnotationInstance fpAnn = method.annotation(FAULT_POLICY_DEF);
+        AnnotationInstance fpContainer = method.annotation(FAULT_POLICIES);
+        if (fpAnn == null && fpContainer == null) return;
+
+        AnnotationInstance nodeAnn = method.annotation(NODE);
+        if (nodeAnn == null) {
+            errors.add("@FaultPolicyDef on method '" + method.name()
+                    + "' which is not annotated with @Node — "
+                    + "use @FaultPolicyDef on the interface for cross-type policies");
+        }
+    }
+
+    private void validateFaultPolicyFaultTypes(ClassInfo dsClass, IndexView index,
+            List<String> errors) {
+        Set<String> validFaultTypes = new HashSet<>();
+        for (FaultType ft : FaultType.values()) {
+            validFaultTypes.add(ft.name());
+        }
+
+        for (AnnotationInstance fpAnn : collectAllFaultPolicies(dsClass)) {
+            for (String ft : fpAnn.value("faultTypes").asStringArray()) {
+                if (!validFaultTypes.contains(ft)) {
+                    errors.add("Unknown FaultType '" + ft + "' in @FaultPolicyDef — valid: "
+                            + String.join(", ", validFaultTypes));
+                }
+            }
+        }
+    }
+
+    private void validateTierReviewMethods(ClassInfo dsClass, IndexView index,
+            List<String> errors) {
+        for (AnnotationInstance fpAnn : collectAllFaultPolicies(dsClass)) {
+            AnnotationValue tiersVal = fpAnn.value("tiers");
+            if (tiersVal == null) continue;
+
+            for (AnnotationInstance tierAnn : tiersVal.asNestedArray()) {
+                String reviewName = tierAnn.value("review").asString();
+                MethodInfo reviewMethod = findMethod(dsClass, reviewName);
+
+                if (reviewMethod == null) {
+                    errors.add("@Tier review '" + reviewName
+                            + "' not found on interface " + dsClass.name().local());
+                    continue;
+                }
+
+                if (reviewMethod.parametersCount() != 2
+                        || !reviewMethod.parameterType(0).name().equals(FAULT_EVENT)
+                        || !reviewMethod.parameterType(1).name().equals(DESIRED_STATE_GRAPH)) {
+                    errors.add("Review method '" + reviewName
+                            + "' must accept (FaultEvent, DesiredStateGraph)");
+                }
+
+                if (!implementsNodeSpec(reviewMethod.returnType().name(), index)) {
+                    errors.add("Review method '" + reviewName
+                            + "' return type must implement NodeSpec");
+                }
+            }
+        }
+    }
+
+    private List<AnnotationInstance> collectAllFaultPolicies(ClassInfo dsClass) {
+        List<AnnotationInstance> result = new ArrayList<>();
+        AnnotationInstance single = dsClass.declaredAnnotation(FAULT_POLICY_DEF);
+        if (single != null) result.add(single);
+        AnnotationInstance container = dsClass.declaredAnnotation(FAULT_POLICIES);
+        if (container != null) {
+            for (AnnotationInstance nested : container.value().asNestedArray()) {
+                result.add(nested);
+            }
+        }
+        for (MethodInfo method : dsClass.methods()) {
+            AnnotationInstance methodFp = method.annotation(FAULT_POLICY_DEF);
+            if (methodFp != null) result.add(methodFp);
+            AnnotationInstance methodContainer = method.annotation(FAULT_POLICIES);
+            if (methodContainer != null) {
+                for (AnnotationInstance nested : methodContainer.value().asNestedArray()) {
+                    result.add(nested);
+                }
+            }
+        }
+        return result;
+    }
+
+    private MethodInfo findMethod(ClassInfo classInfo, String name) {
+        for (MethodInfo method : classInfo.methods()) {
+            if (method.name().equals(name)) return method;
+        }
+        return null;
+    }
+
+    private boolean implementsNodeSpec(DotName typeName, IndexView index) {
+        if (typeName.equals(NODE_SPEC)) return true;
+        ClassInfo classInfo = index.getClassByName(typeName);
+        if (classInfo == null) return false;
+        for (DotName iface : classInfo.interfaceNames()) {
+            if (iface.equals(NODE_SPEC)) return true;
+        }
+        if (classInfo.superName() != null) {
+            return implementsNodeSpec(classInfo.superName(), index);
+        }
+        return false;
+    }
+
+    private boolean isDefaultMethod(MethodInfo method) {
+        return (method.flags() & 0x0001) != 0 && !method.isAbstract();
+    }
+}
