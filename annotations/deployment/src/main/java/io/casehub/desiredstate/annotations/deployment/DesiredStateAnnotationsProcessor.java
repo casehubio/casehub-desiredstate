@@ -82,16 +82,24 @@ public class DesiredStateAnnotationsProcessor {
             String graphKey = descriptor.namespace() + ":" + descriptor.name();
             interfaceGraphKeys.add(graphKey);
 
+            List<NodeDescriptor.ClassNode> classNodes = classNodesByGraph.getOrDefault(graphKey, List.of());
+            if (!classNodes.isEmpty()) {
+                List<NodeDescriptor> mergedNodes = new ArrayList<>(descriptor.nodes());
+                mergedNodes.addAll(classNodes);
+
+                List<DependencyDescriptor> mergedDeps = new ArrayList<>(descriptor.dependencies());
+                mergedDeps.addAll(resolveClassDependencies(classNodes, index));
+
+                descriptor = new GraphDescriptor(descriptor.namespace(), descriptor.name(),
+                        descriptor.interfaceName(), descriptor.implClassName(),
+                        mergedNodes, mergedDeps, descriptor.faultPolicies(), descriptor.goalMethod());
+            }
+
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
-            syntheticBeans.produce(
-                    SyntheticBeanBuildItem.configure(GoalCompiler.class)
-                                          .scope(ApplicationScoped.class)
-                                          .unremovable()
-                                          .setRuntimeInit()
-                                          .runtimeValue(runtimeValue)
-                                          .done());
+            registerGoalCompilerBean(runtimeValue, descriptor.namespace(),
+                    descriptor.name(), syntheticBeans);
 
             for (FaultPolicyDescriptor fpd : descriptor.faultPolicies()) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -122,13 +130,7 @@ public class DesiredStateAnnotationsProcessor {
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
-            syntheticBeans.produce(
-                    SyntheticBeanBuildItem.configure(GoalCompiler.class)
-                                          .scope(ApplicationScoped.class)
-                                          .unremovable()
-                                          .setRuntimeInit()
-                                          .runtimeValue(runtimeValue)
-                                          .done());
+            registerGoalCompilerBean(runtimeValue, ns, nm, syntheticBeans);
         }
     }
 
@@ -157,6 +159,20 @@ public class DesiredStateAnnotationsProcessor {
             }
         }
     }
+
+    @SuppressWarnings("rawtypes")
+    private void registerGoalCompilerBean(
+            RuntimeValue<GoalCompiler> runtimeValue, String namespace, String name,
+            BuildProducer<SyntheticBeanBuildItem> syntheticBeans) {
+        syntheticBeans.produce(
+                SyntheticBeanBuildItem.configure(GoalCompiler.class)
+                                      .scope(ApplicationScoped.class)
+                                      .unremovable()
+                                      .setRuntimeInit()
+                                      .runtimeValue(runtimeValue)
+                                      .done());
+    }
+
 
     private Map<String, List<NodeDescriptor.ClassNode>> scanDeclareNodes(IndexView index) {
         Map<String, List<NodeDescriptor.ClassNode>> byGraph = new HashMap<>();
