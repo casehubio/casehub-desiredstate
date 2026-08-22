@@ -113,6 +113,11 @@ public class DesiredStateGraphRecorder {
                     .map(NodeType::of)
                     .collect(Collectors.toSet());
 
+            if (nodeTypes.isEmpty() && descriptor.sourceClassName() != null
+                    && instance instanceof NodeSpec nodeSpec) {
+                nodeTypes = Set.of(nodeSpec.nodeType());
+            }
+
             Set<NodeType> ignoreTypes = descriptor.ignoreTypes().stream()
                     .map(NodeType::of)
                     .collect(Collectors.toSet());

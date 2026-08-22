@@ -98,8 +98,7 @@ public class DesiredStateAnnotationsProcessor {
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
-            registerGoalCompilerBean(runtimeValue, descriptor.namespace(),
-                    descriptor.name(), syntheticBeans);
+            registerGoalCompilerBean(runtimeValue, syntheticBeans);
 
             for (FaultPolicyDescriptor fpd : descriptor.faultPolicies()) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -123,14 +122,28 @@ public class DesiredStateAnnotationsProcessor {
 
             List<NodeDescriptor>       nodes = new ArrayList<>(entry.getValue());
             List<DependencyDescriptor> deps  = resolveClassDependencies(entry.getValue(), index);
+            List<FaultPolicyDescriptor> classFaultPolicies = collectClassFaultPolicies(entry.getValue(), index);
 
             GraphDescriptor descriptor = new GraphDescriptor(ns, nm, null, null,
-                                                             nodes, deps, List.of(), null);
+                                                             nodes, deps, classFaultPolicies, null);
 
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
-            registerGoalCompilerBean(runtimeValue, ns, nm, syntheticBeans);
+            registerGoalCompilerBean(runtimeValue, syntheticBeans);
+
+            for (FaultPolicyDescriptor fpd : classFaultPolicies) {
+                RuntimeValue<ThresholdFaultPolicy> policyValue =
+                        recorder.createFaultPolicy(fpd, null);
+
+                syntheticBeans.produce(
+                        SyntheticBeanBuildItem.configure(io.casehub.desiredstate.api.FaultPolicy.class)
+                                .scope(ApplicationScoped.class)
+                                .unremovable()
+                                .setRuntimeInit()
+                                .runtimeValue(policyValue)
+                                .done());
+            }
         }
     }
 
@@ -162,7 +175,7 @@ public class DesiredStateAnnotationsProcessor {
 
     @SuppressWarnings("rawtypes")
     private void registerGoalCompilerBean(
-            RuntimeValue<GoalCompiler> runtimeValue, String namespace, String name,
+            RuntimeValue<GoalCompiler> runtimeValue,
             BuildProducer<SyntheticBeanBuildItem> syntheticBeans) {
         syntheticBeans.produce(
                 SyntheticBeanBuildItem.configure(GoalCompiler.class)
@@ -220,6 +233,52 @@ public class DesiredStateAnnotationsProcessor {
             }
         }
         return deps;
+    }
+
+    private List<FaultPolicyDescriptor> collectClassFaultPolicies(
+            List<NodeDescriptor.ClassNode> classNodes, IndexView index) {
+        List<FaultPolicyDescriptor> policies = new ArrayList<>();
+        for (NodeDescriptor.ClassNode cn : classNodes) {
+            ClassInfo classInfo = index.getClassByName(DotName.createSimple(cn.className()));
+            if (classInfo == null) {continue;}
+
+            AnnotationInstance single = classInfo.declaredAnnotation(FAULT_POLICY_DEF);
+            if (single != null) {
+                policies.add(buildFaultPolicyDescriptor(single, index, cn.className()));
+            }
+            AnnotationInstance container = classInfo.declaredAnnotation(FAULT_POLICIES);
+            if (container != null) {
+                for (AnnotationInstance nested : container.value().asNestedArray()) {
+                    policies.add(buildFaultPolicyDescriptor(nested, index, cn.className()));
+                }
+            }
+        }
+        return policies;
+    }
+
+    private FaultPolicyDescriptor buildFaultPolicyDescriptor(
+            AnnotationInstance fpAnn, IndexView index, String sourceClassName) {
+        List<String>    faultTypes   = Arrays.asList(fpAnn.value("faultTypes").asStringArray());
+        AnnotationValue nodeTypesVal = fpAnn.value("nodeTypes");
+        List<String> nodeTypes = nodeTypesVal != null
+                                 ? Arrays.asList(nodeTypesVal.asStringArray()) : List.of();
+        AnnotationValue ignoreTypesVal = fpAnn.value("ignoreTypes");
+        List<String> ignoreTypes = ignoreTypesVal != null
+                                   ? Arrays.asList(ignoreTypesVal.asStringArray()) : List.of();
+        String namespace = stringValueOrDefault(fpAnn, index, "namespace", "");
+
+        List<TierDescriptor> tiers    = new ArrayList<>();
+        AnnotationValue      tiersVal = fpAnn.value("tiers");
+        if (tiersVal != null) {
+            for (AnnotationInstance tierAnn : tiersVal.asNestedArray()) {
+                int    threshold = tierAnn.value("threshold").asInt();
+                String review    = tierAnn.value("review").asString();
+                tiers.add(new TierDescriptor(threshold, review));
+            }
+        }
+
+        return new FaultPolicyDescriptor(faultTypes, nodeTypes, ignoreTypes, namespace, tiers,
+                                         sourceClassName);
     }
 
 
@@ -302,27 +361,7 @@ public class DesiredStateAnnotationsProcessor {
 
     private FaultPolicyDescriptor buildFaultPolicyDescriptor(
             AnnotationInstance fpAnn, IndexView index) {
-
-        List<String> faultTypes = Arrays.asList(fpAnn.value("faultTypes").asStringArray());
-        AnnotationValue nodeTypesVal = fpAnn.value("nodeTypes");
-        List<String> nodeTypes = nodeTypesVal != null
-                ? Arrays.asList(nodeTypesVal.asStringArray()) : List.of();
-        AnnotationValue ignoreTypesVal = fpAnn.value("ignoreTypes");
-        List<String> ignoreTypes = ignoreTypesVal != null
-                ? Arrays.asList(ignoreTypesVal.asStringArray()) : List.of();
-        String namespace = stringValueOrDefault(fpAnn, index, "namespace", "");
-
-        List<TierDescriptor> tiers = new ArrayList<>();
-        AnnotationValue tiersVal = fpAnn.value("tiers");
-        if (tiersVal != null) {
-            for (AnnotationInstance tierAnn : tiersVal.asNestedArray()) {
-                int threshold = tierAnn.value("threshold").asInt();
-                String review = tierAnn.value("review").asString();
-                tiers.add(new TierDescriptor(threshold, review));
-            }
-        }
-
-        return new FaultPolicyDescriptor(faultTypes, nodeTypes, ignoreTypes, namespace, tiers, null);
+        return buildFaultPolicyDescriptor(fpAnn, index, null);
     }
 
     private List<AnnotationInstance> collectFaultPolicyAnnotations(MethodInfo method) {
