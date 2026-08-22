@@ -150,7 +150,7 @@ class MedallionPipelineTest {
         for (Method method : iface.getDeclaredMethods()) {
             Node nodeAnn = method.getAnnotation(Node.class);
             if (nodeAnn != null) {
-                nodes.add(new NodeDescriptor(nodeAnn.value(), method.getName(),
+                nodes.add(new NodeDescriptor.InterfaceNode(nodeAnn.value(), method.getName(),
                         method.getReturnType().getName(), nodeAnn.humanGating()));
 
                 DependsOn dependsOn = method.getAnnotation(DependsOn.class);
@@ -173,7 +173,7 @@ class MedallionPipelineTest {
                     Arrays.asList(fpAnn.nodeTypes()),
                     Arrays.asList(fpAnn.ignoreTypes()),
                     fpAnn.namespace(),
-                    tiers));
+                    tiers, null));
         }
 
         return new GraphDescriptor(ds.namespace(), ds.name(),

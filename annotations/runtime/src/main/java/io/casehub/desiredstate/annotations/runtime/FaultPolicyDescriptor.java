@@ -7,4 +7,5 @@ public record FaultPolicyDescriptor(
         List<String> nodeTypes,
         List<String> ignoreTypes,
         String namespace,
-        List<TierDescriptor> tiers) {}
+        List<TierDescriptor> tiers,
+        String sourceClassName) {}

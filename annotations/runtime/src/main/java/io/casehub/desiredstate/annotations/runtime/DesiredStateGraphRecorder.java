@@ -14,13 +14,14 @@ import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ThresholdFaultPolicy;
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.runtime.annotations.Recorder;
+import org.jboss.logging.Logger;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.jboss.logging.Logger;
 
 @Recorder
 public class DesiredStateGraphRecorder {
@@ -90,8 +91,10 @@ public class DesiredStateGraphRecorder {
     public RuntimeValue<ThresholdFaultPolicy> createFaultPolicy(
             FaultPolicyDescriptor descriptor, String implClassName) {
         try {
+            String className = descriptor.sourceClassName() != null
+                    ? descriptor.sourceClassName() : implClassName;
             Class<?> implClass = Thread.currentThread().getContextClassLoader()
-                    .loadClass(implClassName);
+                    .loadClass(className);
             Object instance = implClass.getDeclaredConstructor().newInstance();
 
             Set<FaultType> faultTypes = descriptor.faultTypes().stream()
@@ -151,11 +154,21 @@ public class DesiredStateGraphRecorder {
 
     private static List<DesiredNode> buildNodes(Class<?> implClass, Object instance,
             GraphDescriptor descriptor) throws Exception {
-        List<DesiredNode> nodes = new ArrayList<>();
+        ClassLoader       classLoader = Thread.currentThread().getContextClassLoader();
+        List<DesiredNode> nodes       = new ArrayList<>();
         for (NodeDescriptor nd : descriptor.nodes()) {
-            Method method = implClass.getMethod(nd.methodName());
-            NodeSpec spec = (NodeSpec) method.invoke(instance);
-            nodes.add(new DesiredNode(NodeId.of(nd.id()), spec, nd.humanGating()));
+            switch (nd) {
+                case NodeDescriptor.InterfaceNode in -> {
+                    Method   method = implClass.getMethod(in.methodName());
+                    NodeSpec spec   = (NodeSpec) method.invoke(instance);
+                    nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating()));
+                }
+                case NodeDescriptor.ClassNode cn -> {
+                    Class<?> nodeClass = classLoader.loadClass(cn.className());
+                    NodeSpec spec      = (NodeSpec) nodeClass.getDeclaredConstructor().newInstance();
+                    nodes.add(new DesiredNode(NodeId.of(cn.id()), spec, spec.humanGating()));
+                }
+            }
         }
         return List.copyOf(nodes);
     }

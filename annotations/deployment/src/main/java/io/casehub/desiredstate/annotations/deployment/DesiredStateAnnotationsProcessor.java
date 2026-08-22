@@ -138,7 +138,7 @@ public class DesiredStateAnnotationsProcessor {
                 String nodeId = nodeAnn.value().asString();
                 HumanGating gating = resolveHumanGating(nodeAnn, index);
 
-                nodes.add(new NodeDescriptor(nodeId, method.name(),
+                nodes.add(new NodeDescriptor.InterfaceNode(nodeId, method.name(),
                         method.returnType().name().toString(), gating));
 
                 AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
@@ -220,7 +220,7 @@ public class DesiredStateAnnotationsProcessor {
             }
         }
 
-        return new FaultPolicyDescriptor(faultTypes, nodeTypes, ignoreTypes, namespace, tiers);
+        return new FaultPolicyDescriptor(faultTypes, nodeTypes, ignoreTypes, namespace, tiers, null);
     }
 
     private List<AnnotationInstance> collectFaultPolicyAnnotations(MethodInfo method) {
