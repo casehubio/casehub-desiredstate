@@ -5,14 +5,6 @@ import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.Produce;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.ServiceStartBuildItem;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
@@ -21,6 +13,15 @@ import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 import org.jboss.logging.Logger;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class AnnotationValidationStep {
 
@@ -48,6 +49,9 @@ public class AnnotationValidationStep {
             "io.casehub.desiredstate.api.CompilationResult");
     private static final DotName GOAL_METHOD = DotName.createSimple(
             "io.casehub.desiredstate.annotations.GoalMethod");
+    private static final DotName DECLARE_NODE = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.DeclareNode");
+
 
     @BuildStep
     @Produce(ServiceStartBuildItem.class)
@@ -86,6 +90,8 @@ public class AnnotationValidationStep {
             }
         }
 
+        validateDeclareNodes(index, errors);
+
         for (String warning : warnings) {
             LOG.warn(warning);
         }
@@ -95,6 +101,46 @@ public class AnnotationValidationStep {
                     "Annotation validation failed:\n- " + String.join("\n- ", errors));
         }
     }
+
+    private void validateDeclareNodes(IndexView index, List<String> errors) {
+        for (AnnotationInstance dnAnn : index.getAnnotations(DECLARE_NODE)) {
+            ClassInfo classInfo = dnAnn.target().asClass();
+            String    className = classInfo.name().local();
+
+            if (java.lang.reflect.Modifier.isInterface(classInfo.flags())) {
+                errors.add("@DeclareNode on interface '" + className
+                           + "' — use @DesiredState for interfaces");
+                continue;
+            }
+            if (java.lang.reflect.Modifier.isAbstract(classInfo.flags())) {
+                errors.add("@DeclareNode on abstract class '" + className
+                           + "' — must be concrete");
+                continue;
+            }
+            if (!implementsNodeSpec(classInfo.name(), index)) {
+                errors.add("@DeclareNode on '" + className
+                           + "' which does not implement NodeSpec");
+                continue;
+            }
+
+            if (classInfo.hasAnnotation(DESIRED_STATE)) {
+                errors.add("'" + className
+                           + "' has both @DeclareNode and @DesiredState — use one or the other");
+            }
+
+            for (MethodInfo method : classInfo.methods()) {
+                if (method.hasAnnotation(GOAL_METHOD)) {
+                    errors.add("@GoalMethod on @DeclareNode class '" + className
+                               + "' — @GoalMethod requires a @DesiredState interface");
+                }
+                if (method.hasAnnotation(NODE)) {
+                    errors.add("@Node on @DeclareNode class '" + className
+                               + "' — @Node is for @DesiredState interfaces");
+                }
+            }
+        }
+    }
+
 
     private void validateNodeMethod(MethodInfo method, IndexView index,
             Set<String> nodeIds, Map<String, String> nodeIdToMethod,
