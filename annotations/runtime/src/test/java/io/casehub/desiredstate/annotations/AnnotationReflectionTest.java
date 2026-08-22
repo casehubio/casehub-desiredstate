@@ -1,14 +1,15 @@
 package io.casehub.desiredstate.annotations;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import io.casehub.desiredstate.api.HumanGating;
+import org.junit.jupiter.api.Test;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class AnnotationReflectionTest {
 
@@ -50,11 +51,15 @@ class AnnotationReflectionTest {
     @Test
     void dependsOnTargetsMethod() {
         assertThat(DependsOn.class.getAnnotation(Target.class).value())
-                .containsExactly(ElementType.METHOD);
+                .containsExactlyInAnyOrder(ElementType.METHOD, ElementType.TYPE);
         assertThat(DependsOn.class.getDeclaredMethods())
                 .anySatisfy(m -> {
                     assertThat(m.getName()).isEqualTo("value");
                     assertThat(m.getReturnType()).isEqualTo(String[].class);
+                });
+        assertThat(DependsOn.class.getDeclaredMethods())
+                .anySatisfy(m -> {
+                    assertThat(m.getName()).isEqualTo("nodes");
                 });
     }
 

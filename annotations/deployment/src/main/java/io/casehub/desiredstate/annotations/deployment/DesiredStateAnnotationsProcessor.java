@@ -23,15 +23,20 @@ import io.quarkus.gizmo.MethodCreator;
 import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.runtime.RuntimeValue;
 import jakarta.enterprise.context.ApplicationScoped;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class DesiredStateAnnotationsProcessor {
 
@@ -55,6 +60,9 @@ public class DesiredStateAnnotationsProcessor {
             "io.casehub.desiredstate.api.DesiredStateGraph");
     private static final DotName DESIRED_STATE_GRAPH_FACTORY = DotName.createSimple(
             "io.casehub.desiredstate.api.DesiredStateGraphFactory");
+    private static final DotName DECLARE_NODE                = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.DeclareNode");
+
 
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
@@ -62,23 +70,28 @@ public class DesiredStateAnnotationsProcessor {
             CombinedIndexBuildItem indexBuildItem,
             DesiredStateGraphRecorder recorder,
             BuildProducer<SyntheticBeanBuildItem> syntheticBeans) {
-
         IndexView index = indexBuildItem.getIndex();
 
+        Map<String, List<NodeDescriptor.ClassNode>> classNodesByGraph  = scanDeclareNodes(index);
+        Set<String>                                 interfaceGraphKeys = new HashSet<>();
+
         for (AnnotationInstance dsAnn : index.getAnnotations(DESIRED_STATE)) {
-            ClassInfo dsClass = dsAnn.target().asClass();
+            ClassInfo       dsClass    = dsAnn.target().asClass();
             GraphDescriptor descriptor = buildGraphDescriptor(dsAnn, dsClass, index);
+
+            String graphKey = descriptor.namespace() + ":" + descriptor.name();
+            interfaceGraphKeys.add(graphKey);
 
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
             syntheticBeans.produce(
                     SyntheticBeanBuildItem.configure(GoalCompiler.class)
-                            .scope(ApplicationScoped.class)
-                            .unremovable()
-                            .setRuntimeInit()
-                            .runtimeValue(runtimeValue)
-                            .done());
+                                          .scope(ApplicationScoped.class)
+                                          .unremovable()
+                                          .setRuntimeInit()
+                                          .runtimeValue(runtimeValue)
+                                          .done());
 
             for (FaultPolicyDescriptor fpd : descriptor.faultPolicies()) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -86,12 +99,36 @@ public class DesiredStateAnnotationsProcessor {
 
                 syntheticBeans.produce(
                         SyntheticBeanBuildItem.configure(io.casehub.desiredstate.api.FaultPolicy.class)
-                                .scope(ApplicationScoped.class)
-                                .unremovable()
-                                .setRuntimeInit()
-                                .runtimeValue(policyValue)
-                                .done());
+                                              .scope(ApplicationScoped.class)
+                                              .unremovable()
+                                              .setRuntimeInit()
+                                              .runtimeValue(policyValue)
+                                              .done());
             }
+        }
+
+        for (var entry : classNodesByGraph.entrySet()) {
+            if (interfaceGraphKeys.contains(entry.getKey())) {continue;}
+            String[] parts = entry.getKey().split(":", 2);
+            String   ns    = parts[0];
+            String   nm    = parts.length > 1 ? parts[1] : "";
+
+            List<NodeDescriptor>       nodes = new ArrayList<>(entry.getValue());
+            List<DependencyDescriptor> deps  = resolveClassDependencies(entry.getValue(), index);
+
+            GraphDescriptor descriptor = new GraphDescriptor(ns, nm, null, null,
+                                                             nodes, deps, List.of(), null);
+
+            @SuppressWarnings("rawtypes")
+            RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
+
+            syntheticBeans.produce(
+                    SyntheticBeanBuildItem.configure(GoalCompiler.class)
+                                          .scope(ApplicationScoped.class)
+                                          .unremovable()
+                                          .setRuntimeInit()
+                                          .runtimeValue(runtimeValue)
+                                          .done());
         }
     }
 
@@ -120,6 +157,55 @@ public class DesiredStateAnnotationsProcessor {
             }
         }
     }
+
+    private Map<String, List<NodeDescriptor.ClassNode>> scanDeclareNodes(IndexView index) {
+        Map<String, List<NodeDescriptor.ClassNode>> byGraph = new HashMap<>();
+        for (AnnotationInstance ann : index.getAnnotations(DECLARE_NODE)) {
+            ClassInfo classInfo = ann.target().asClass();
+            String    namespace = stringValueOrDefault(ann, index, "namespace", "");
+            String    name      = stringValueOrDefault(ann, index, "name", "");
+            String    id        = ann.value("id").asString();
+            String    graphKey  = namespace + ":" + name;
+            byGraph.computeIfAbsent(graphKey, k -> new ArrayList<>())
+                   .add(new NodeDescriptor.ClassNode(id, classInfo.name().toString()));
+        }
+        return byGraph;
+    }
+
+    private List<DependencyDescriptor> resolveClassDependencies(
+            List<NodeDescriptor.ClassNode> classNodes, IndexView index) {
+        List<DependencyDescriptor> deps = new ArrayList<>();
+        for (NodeDescriptor.ClassNode cn : classNodes) {
+            ClassInfo classInfo = index.getClassByName(DotName.createSimple(cn.className()));
+            if (classInfo == null) {continue;}
+
+            AnnotationInstance dependsOnAnn = classInfo.declaredAnnotation(DEPENDS_ON);
+            if (dependsOnAnn == null) {continue;}
+
+            AnnotationValue stringDeps = dependsOnAnn.value();
+            if (stringDeps != null) {
+                for (String dep : stringDeps.asStringArray()) {
+                    deps.add(new DependencyDescriptor(cn.id(), dep));
+                }
+            }
+
+            AnnotationValue classDeps = dependsOnAnn.value("nodes");
+            if (classDeps != null) {
+                for (var classRef : classDeps.asClassArray()) {
+                    ClassInfo targetClass = index.getClassByName(classRef.name());
+                    if (targetClass != null) {
+                        AnnotationInstance targetAnn = targetClass.declaredAnnotation(DECLARE_NODE);
+                        if (targetAnn != null) {
+                            String targetId = targetAnn.value("id").asString();
+                            deps.add(new DependencyDescriptor(cn.id(), targetId));
+                        }
+                    }
+                }
+            }
+        }
+        return deps;
+    }
+
 
     private GraphDescriptor buildGraphDescriptor(
             AnnotationInstance dsAnn, ClassInfo dsClass, IndexView index) {

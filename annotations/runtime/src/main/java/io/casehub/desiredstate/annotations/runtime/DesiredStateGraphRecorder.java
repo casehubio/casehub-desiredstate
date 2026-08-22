@@ -31,13 +31,20 @@ public class DesiredStateGraphRecorder {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public RuntimeValue<GoalCompiler> createGoalCompiler(GraphDescriptor descriptor) {
         try {
+            List<Dependency> capturedDeps = buildDependencies(descriptor);
+
+            if (descriptor.implClassName() == null) {
+                List<DesiredNode> capturedNodes = buildClassOnlyNodes(descriptor);
+                return new RuntimeValue<>((GoalCompiler) (goals, factory) ->
+                                                                 CompilationResult.single(factory.of(capturedNodes, capturedDeps)));
+            }
+
             Class<?> implClass = Thread.currentThread().getContextClassLoader()
-                    .loadClass(descriptor.implClassName());
+                                       .loadClass(descriptor.implClassName());
             Object instance = implClass.getDeclaredConstructor().newInstance();
 
-            List<DesiredNode> capturedNodes = buildNodes(implClass, instance, descriptor);
-            List<Dependency> capturedDeps = buildDependencies(descriptor);
-            List<Method> graphCustomizers = findGraphCustomizers(implClass);
+            List<DesiredNode> capturedNodes    = buildNodes(implClass, instance, descriptor);
+            List<Method>      graphCustomizers = findGraphCustomizers(implClass);
 
             if (descriptor.goalMethod() == null) {
                 return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
@@ -49,18 +56,18 @@ public class DesiredStateGraphRecorder {
                         return CompilationResult.single(graph);
                     } catch (Exception e) {
                         throw new RuntimeException("Failed to compile annotated graph: "
-                                + descriptor.interfaceName(), e);
+                                                   + descriptor.interfaceName(), e);
                     }
                 });
             }
 
             GoalMethodDescriptor gmd = descriptor.goalMethod();
             Class<?> goalsType = Thread.currentThread().getContextClassLoader()
-                    .loadClass(gmd.goalsTypeName());
+                                       .loadClass(gmd.goalsTypeName());
             Method goalMethod = gmd.hasFactoryParam()
-                    ? implClass.getMethod(gmd.methodName(), goalsType,
-                            DesiredStateGraph.class, DesiredStateGraphFactory.class)
-                    : implClass.getMethod(gmd.methodName(), goalsType, DesiredStateGraph.class);
+                                ? implClass.getMethod(gmd.methodName(), goalsType,
+                                                      DesiredStateGraph.class, DesiredStateGraphFactory.class)
+                                : implClass.getMethod(gmd.methodName(), goalsType, DesiredStateGraph.class);
 
             return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
                 try {
@@ -70,8 +77,8 @@ public class DesiredStateGraphRecorder {
                     }
 
                     Object result = gmd.hasFactoryParam()
-                            ? goalMethod.invoke(instance, goals, base, factory)
-                            : goalMethod.invoke(instance, goals, base);
+                                    ? goalMethod.invoke(instance, goals, base, factory)
+                                    : goalMethod.invoke(instance, goals, base);
 
                     if (gmd.returnsCompilationResult()) {
                         return (CompilationResult) result;
@@ -79,12 +86,13 @@ public class DesiredStateGraphRecorder {
                     return CompilationResult.single((DesiredStateGraph) result);
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to compile composable graph: "
-                            + descriptor.interfaceName(), e);
+                                               + descriptor.interfaceName(), e);
                 }
             });
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize annotated desired-state graph: "
-                    + descriptor.interfaceName(), e);
+                                       + (descriptor.interfaceName() != null ? descriptor.interfaceName()
+                                                                             : descriptor.namespace() + ":" + descriptor.name()), e);
         }
     }
 
@@ -172,6 +180,25 @@ public class DesiredStateGraphRecorder {
         }
         return List.copyOf(nodes);
     }
+
+    private static List<DesiredNode> buildClassOnlyNodes(GraphDescriptor descriptor) {
+        ClassLoader       classLoader = Thread.currentThread().getContextClassLoader();
+        List<DesiredNode> nodes       = new ArrayList<>();
+        for (NodeDescriptor nd : descriptor.nodes()) {
+            if (nd instanceof NodeDescriptor.ClassNode cn) {
+                try {
+                    Class<?> nodeClass = classLoader.loadClass(cn.className());
+                    NodeSpec spec      = (NodeSpec) nodeClass.getDeclaredConstructor().newInstance();
+                    nodes.add(new DesiredNode(NodeId.of(cn.id()), spec, spec.humanGating()));
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to instantiate @DeclareNode class: "
+                                               + cn.className(), e);
+                }
+            }
+        }
+        return List.copyOf(nodes);
+    }
+
 
     private static List<Dependency> buildDependencies(GraphDescriptor descriptor) {
         List<Dependency> deps = new ArrayList<>();
