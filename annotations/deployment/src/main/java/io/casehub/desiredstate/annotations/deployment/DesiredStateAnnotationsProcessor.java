@@ -90,9 +90,12 @@ public class DesiredStateAnnotationsProcessor {
                 List<DependencyDescriptor> mergedDeps = new ArrayList<>(descriptor.dependencies());
                 mergedDeps.addAll(resolveClassDependencies(classNodes, index));
 
+                List<FaultPolicyDescriptor> mergedPolicies = new ArrayList<>(descriptor.faultPolicies());
+                mergedPolicies.addAll(collectClassFaultPolicies(classNodes, index));
+
                 descriptor = new GraphDescriptor(descriptor.namespace(), descriptor.name(),
                         descriptor.interfaceName(), descriptor.implClassName(),
-                        mergedNodes, mergedDeps, descriptor.faultPolicies(), descriptor.goalMethod());
+                        mergedNodes, mergedDeps, mergedPolicies, descriptor.goalMethod());
             }
 
             @SuppressWarnings("rawtypes")
@@ -310,8 +313,25 @@ public class DesiredStateAnnotationsProcessor {
 
                 AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
                 if (dependsOnAnn != null) {
-                    for (String dep : dependsOnAnn.value().asStringArray()) {
-                        deps.add(new DependencyDescriptor(nodeId, dep));
+                    AnnotationValue stringDeps = dependsOnAnn.value();
+                    if (stringDeps != null) {
+                        for (String dep : stringDeps.asStringArray()) {
+                            deps.add(new DependencyDescriptor(nodeId, dep));
+                        }
+                    }
+
+                    AnnotationValue classDeps = dependsOnAnn.value("nodes");
+                    if (classDeps != null) {
+                        for (var classRef : classDeps.asClassArray()) {
+                            ClassInfo targetClass = index.getClassByName(classRef.name());
+                            if (targetClass != null) {
+                                AnnotationInstance targetAnn = targetClass.declaredAnnotation(DECLARE_NODE);
+                                if (targetAnn != null) {
+                                    String targetId = targetAnn.value("id").asString();
+                                    deps.add(new DependencyDescriptor(nodeId, targetId));
+                                }
+                            }
+                        }
                     }
                 }
 

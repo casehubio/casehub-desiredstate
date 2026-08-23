@@ -175,8 +175,11 @@ public class AnnotationValidationStep {
         AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
         if (dependsOnAnn != null) {
             List<String> deps = new ArrayList<>();
-            for (String dep : dependsOnAnn.value().asStringArray()) {
-                deps.add(dep);
+            AnnotationValue stringDeps = dependsOnAnn.value();
+            if (stringDeps != null) {
+                for (String dep : stringDeps.asStringArray()) {
+                    deps.add(dep);
+                }
             }
             adjacency.put(nodeId, deps);
         } else {
@@ -192,10 +195,13 @@ public class AnnotationValidationStep {
 
             AnnotationInstance nodeAnn = method.annotation(NODE);
             String sourceMethod = method.name();
-            for (String dep : dependsOnAnn.value().asStringArray()) {
-                if (!nodeIds.contains(dep)) {
-                    errors.add("@DependsOn on '" + sourceMethod
-                            + "' references '" + dep + "' which is not declared as @Node");
+            AnnotationValue stringDeps = dependsOnAnn.value();
+            if (stringDeps != null) {
+                for (String dep : stringDeps.asStringArray()) {
+                    if (!nodeIds.contains(dep)) {
+                        errors.add("@DependsOn on '" + sourceMethod
+                                + "' references '" + dep + "' which is not declared as @Node");
+                    }
                 }
             }
         }
