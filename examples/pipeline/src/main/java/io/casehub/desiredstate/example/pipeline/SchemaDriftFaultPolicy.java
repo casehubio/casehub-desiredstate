@@ -22,7 +22,6 @@ public class SchemaDriftFaultPolicy implements FaultPolicy {
 
 
     private final FaultPolicy reviewPolicy = FaultPolicy.addReviewNode(
-            PipelineNodeTypes.HUMAN_REVIEW,
             (event, graph) -> new HumanReviewSpec(event.node(), event.detail(), "Schema drift requires approval"));
 
     public List<GraphMutation> onFault(String tenancyId, FaultEvent event, DesiredStateGraph current, ActualState actual) {

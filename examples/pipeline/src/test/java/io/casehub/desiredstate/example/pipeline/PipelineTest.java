@@ -316,9 +316,9 @@ class PipelineTest {
     void provisionFailure_fullEscalationChain() {
         ThresholdFaultPolicy policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                .tier(4, FaultPolicy.addReviewNode(PipelineNodeTypes.AI_REVIEW,
+                .tier(4, FaultPolicy.addReviewNode(
                         (event, current) -> new AiReviewSpec(event.node(), event.detail())), PipelineNodeTypes.AI_REVIEW)
-                .tier(7, FaultPolicy.addReviewNode(PipelineNodeTypes.HUMAN_REVIEW,
+                .tier(7, FaultPolicy.addReviewNode(
                         (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
                 .build();
 
@@ -372,9 +372,9 @@ class PipelineTest {
     void provisionFailure_belowEscalation_noHumanReview() {
         ThresholdFaultPolicy policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                .tier(4, FaultPolicy.addReviewNode(PipelineNodeTypes.AI_REVIEW,
+                .tier(4, FaultPolicy.addReviewNode(
                         (event, current) -> new AiReviewSpec(event.node(), event.detail())), PipelineNodeTypes.AI_REVIEW)
-                .tier(7, FaultPolicy.addReviewNode(PipelineNodeTypes.HUMAN_REVIEW,
+                .tier(7, FaultPolicy.addReviewNode(
                         (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
                 .build();
 

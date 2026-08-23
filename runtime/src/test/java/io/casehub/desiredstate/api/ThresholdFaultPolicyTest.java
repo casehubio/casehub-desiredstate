@@ -234,7 +234,7 @@ class ThresholdFaultPolicyTest {
         var store = new InMemoryFaultCountStore();
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                         .tier(2, FaultPolicy.addReviewNode(REVIEW,
+                                         .tier(2, FaultPolicy.addReviewNode(
                                                  (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
                                          .faultCountStore(store)
                                          .namespace("test-policy")

@@ -18,8 +18,4 @@ public interface FaultPolicy {
         };
     }
 
-    @Deprecated(forRemoval = true)
-    static FaultPolicy addReviewNode(NodeType reviewType, ReviewSpecFactory specFactory) {
-        return addReviewNode(specFactory);
-    }
 }

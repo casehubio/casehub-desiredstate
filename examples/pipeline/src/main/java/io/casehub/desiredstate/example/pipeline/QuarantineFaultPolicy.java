@@ -21,7 +21,6 @@ public class QuarantineFaultPolicy implements FaultPolicy {
 
     private final PipelineWorld world;
     private final FaultPolicy   reviewPolicy = FaultPolicy.addReviewNode(
-            PipelineNodeTypes.HUMAN_REVIEW,
             (event, graph) -> new HumanReviewSpec(event.node(), event.detail(), "Quarantined data requires manual review"));
 
 
