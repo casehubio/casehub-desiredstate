@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,46 +52,95 @@ public class AnnotationValidationStep {
             "io.casehub.desiredstate.annotations.GoalMethod");
     private static final DotName DECLARE_NODE = DotName.createSimple(
             "io.casehub.desiredstate.annotations.DeclareNode");
+    private static final DotName CUSTOMIZE    = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.Customize");
 
 
     @BuildStep
     @Produce(ServiceStartBuildItem.class)
     void validate(CombinedIndexBuildItem indexBuildItem) {
-        IndexView index = indexBuildItem.getIndex();
-        List<String> errors = new ArrayList<>();
+        IndexView    index    = indexBuildItem.getIndex();
+        List<String> errors   = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
+
+        Map<String, MergedGraph> graphsByKey     = new LinkedHashMap<>();
+        Map<String, String>      interfacesByKey = new HashMap<>();
 
         for (AnnotationInstance dsAnn : index.getAnnotations(DESIRED_STATE)) {
             ClassInfo dsClass = dsAnn.target().asClass();
 
             if (!java.lang.reflect.Modifier.isInterface(dsClass.flags())) {
                 errors.add("@DesiredState on '" + dsClass.name().local()
-                        + "' which is not an interface — @DesiredState must annotate an interface");
+                           + "' which is not an interface — @DesiredState must annotate an interface");
                 continue;
             }
 
-            Set<String> nodeIds = new HashSet<>();
+            String graphKey = resolveGraphKey(dsAnn, index);
+
+            String existingIface = interfacesByKey.put(graphKey, dsClass.name().local());
+            if (existingIface != null) {
+                errors.add("Multiple @DesiredState interfaces with graph key '"
+                           + graphKey + "': " + existingIface + " and " + dsClass.name().local()
+                           + " — use a single interface per graph,"
+                           + " with @DeclareNode classes for extension nodes");
+                continue;
+            }
+
+            MergedGraph mg = graphsByKey.computeIfAbsent(graphKey, k -> new MergedGraph(graphKey));
+
+            Set<String>         localNodeIds   = new HashSet<>();
             Map<String, String> nodeIdToMethod = new HashMap<>();
-            Map<String, List<String>> adjacency = new HashMap<>();
 
             for (MethodInfo method : dsClass.methods()) {
-                validateNodeMethod(method, index, nodeIds, nodeIdToMethod, adjacency, errors, warnings);
+                AnnotationInstance nodeAnn = method.annotation(NODE);
+                if (nodeAnn != null) {
+                    String nodeId = nodeAnn.value().asString();
+
+                    if (!nodeIdToMethod.containsKey(nodeId)) {
+                        localNodeIds.add(nodeId);
+                        nodeIdToMethod.put(nodeId, method.name());
+                    } else {
+                        errors.add("Duplicate @Node id '" + nodeId + "' on methods '"
+                                   + nodeIdToMethod.get(nodeId) + "' and '" + method.name() + "'");
+                    }
+
+                    if (!method.hasAnnotation(DotName.createSimple("java.lang.Override"))
+                        && !isDefaultMethod(method)) {
+                        errors.add("@Node on '" + method.name()
+                                   + "' must be a default method returning NodeSpec");
+                    }
+
+                    Type returnType = method.returnType();
+                    if (!implementsNodeSpec(returnType.name(), index)) {
+                        errors.add("@Node '" + method.name() + "' return type "
+                                   + returnType.name().local() + " does not implement NodeSpec");
+                    }
+
+                    mg.addNode(nodeId, "interface method "
+                                       + dsClass.name().local() + "#" + method.name());
+                    collectDepsIntoMergedGraph(method, index, nodeId, mg, errors, warnings);
+                }
+
                 validateFaultPolicyOnMethod(method, dsClass, index, errors);
             }
 
-            validateDependsOnRefs(dsClass, nodeIds, errors);
-            detectCycles(adjacency, errors);
             validateFaultPolicyFaultTypes(dsClass, index, errors);
             validateTierReviewMethods(dsClass, index, errors);
             validateGoalMethod(dsClass, index, errors);
 
-            if (nodeIds.isEmpty()) {
+            if (localNodeIds.isEmpty()) {
                 warnings.add("@DesiredState '" + dsClass.name().local()
-                        + "' has no @Node methods — graph will be empty");
+                             + "' has no @Node methods — graph will be empty");
             }
         }
 
-        validateDeclareNodes(index, errors);
+        validateDeclareNodes(index, graphsByKey, errors, warnings);
+
+        for (MergedGraph mg : graphsByKey.values()) {
+            mg.validateDuplicateIds(errors);
+            mg.validateDependencyRefs(errors);
+            mg.detectCycles(errors);
+        }
 
         for (String warning : warnings) {
             LOG.warn(warning);
@@ -99,146 +149,132 @@ public class AnnotationValidationStep {
         if (!errors.isEmpty()) {
             throw new RuntimeException(
                     "Annotation validation failed:\n- " + String.join("\n- ", errors));
-        }
-    }
+        }}
 
-    private void validateDeclareNodes(IndexView index, List<String> errors) {
+    private void validateDeclareNodes(IndexView index,
+            Map<String, MergedGraph> graphsByKey,
+            List<String> errors, List<String> warnings) {
         for (AnnotationInstance dnAnn : index.getAnnotations(DECLARE_NODE)) {
             ClassInfo classInfo = dnAnn.target().asClass();
-            String    className = classInfo.name().local();
+            String className = classInfo.name().local();
 
             if (java.lang.reflect.Modifier.isInterface(classInfo.flags())) {
                 errors.add("@DeclareNode on interface '" + className
-                           + "' — use @DesiredState for interfaces");
+                        + "' — use @DesiredState for interfaces");
                 continue;
             }
             if (java.lang.reflect.Modifier.isAbstract(classInfo.flags())) {
                 errors.add("@DeclareNode on abstract class '" + className
-                           + "' — must be concrete");
+                        + "' — must be concrete");
                 continue;
             }
             if (!implementsNodeSpec(classInfo.name(), index)) {
                 errors.add("@DeclareNode on '" + className
-                           + "' which does not implement NodeSpec");
+                        + "' which does not implement NodeSpec");
                 continue;
             }
 
             if (classInfo.hasAnnotation(DESIRED_STATE)) {
                 errors.add("'" + className
-                           + "' has both @DeclareNode and @DesiredState — use one or the other");
+                        + "' has both @DeclareNode and @DesiredState — use one or the other");
             }
 
             for (MethodInfo method : classInfo.methods()) {
                 if (method.hasAnnotation(GOAL_METHOD)) {
                     errors.add("@GoalMethod on @DeclareNode class '" + className
-                               + "' — @GoalMethod requires a @DesiredState interface");
+                            + "' — @GoalMethod requires a @DesiredState interface");
                 }
                 if (method.hasAnnotation(NODE)) {
                     errors.add("@Node on @DeclareNode class '" + className
-                               + "' — @Node is for @DesiredState interfaces");
+                            + "' — @Node is for @DesiredState interfaces");
+                }
+                if (method.hasAnnotation(CUSTOMIZE)) {
+                    errors.add("@Customize on @DeclareNode class '" + className
+                            + "' — @Customize requires a @DesiredState interface");
                 }
             }
-        }
-    }
 
+            String graphKey = resolveGraphKey(dnAnn, index);
+            MergedGraph mg = graphsByKey.computeIfAbsent(graphKey, k -> new MergedGraph(graphKey));
+            String nodeId = dnAnn.value("id").asString();
+            mg.addNode(nodeId, "@DeclareNode class " + className);
 
-    private void validateNodeMethod(MethodInfo method, IndexView index,
-            Set<String> nodeIds, Map<String, String> nodeIdToMethod,
-            Map<String, List<String>> adjacency, List<String> errors, List<String> warnings) {
-
-        AnnotationInstance nodeAnn = method.annotation(NODE);
-        if (nodeAnn == null) return;
-
-        String loc = method.declaringClass().name().local() + "#" + method.name();
-        String nodeId = nodeAnn.value().asString();
-
-        if (!nodeIdToMethod.containsKey(nodeId)) {
-            nodeIds.add(nodeId);
-            nodeIdToMethod.put(nodeId, method.name());
-        } else {
-            errors.add("Duplicate @Node id '" + nodeId + "' on methods '"
-                    + nodeIdToMethod.get(nodeId) + "' and '" + method.name() + "'");
-        }
-
-        if (!method.hasAnnotation(DotName.createSimple("java.lang.Override"))
-                && !isDefaultMethod(method)) {
-            errors.add("@Node on '" + method.name()
-                    + "' must be a default method returning NodeSpec");
-        }
-
-        Type returnType = method.returnType();
-        if (!implementsNodeSpec(returnType.name(), index)) {
-            errors.add("@Node '" + method.name() + "' return type "
-                    + returnType.name().local() + " does not implement NodeSpec");
-        }
-
-        AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
-        if (dependsOnAnn != null) {
-            List<String> deps = new ArrayList<>();
-            AnnotationValue stringDeps = dependsOnAnn.value();
-            if (stringDeps != null) {
-                for (String dep : stringDeps.asStringArray()) {
-                    deps.add(dep);
+            AnnotationInstance dependsOnAnn = classInfo.declaredAnnotation(DEPENDS_ON);
+            if (dependsOnAnn != null) {
+                AnnotationValue stringDeps = dependsOnAnn.value();
+                if (stringDeps != null) {
+                    for (String dep : stringDeps.asStringArray()) {
+                        mg.addDependency(nodeId, dep);
+                    }
                 }
-            }
-            adjacency.put(nodeId, deps);
-        } else {
-            adjacency.putIfAbsent(nodeId, List.of());
-        }
-    }
-
-    private void validateDependsOnRefs(ClassInfo dsClass, Set<String> nodeIds,
-            List<String> errors) {
-        for (MethodInfo method : dsClass.methods()) {
-            AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
-            if (dependsOnAnn == null) continue;
-
-            AnnotationInstance nodeAnn = method.annotation(NODE);
-            String sourceMethod = method.name();
-            AnnotationValue stringDeps = dependsOnAnn.value();
-            if (stringDeps != null) {
-                for (String dep : stringDeps.asStringArray()) {
-                    if (!nodeIds.contains(dep)) {
-                        errors.add("@DependsOn on '" + sourceMethod
-                                + "' references '" + dep + "' which is not declared as @Node");
+                AnnotationValue classDeps = dependsOnAnn.value("nodes");
+                if (classDeps != null) {
+                    for (var classRef : classDeps.asClassArray()) {
+                        ClassInfo targetClass = index.getClassByName(classRef.name());
+                        if (targetClass == null) {
+                            warnings.add("@DependsOn(nodes) on '" + className
+                                    + "' references '" + classRef.name().local()
+                                    + "' which is not in the Jandex index"
+                                    + " (if the class is in an external JAR,"
+                                    + " ensure a Jandex index is generated)");
+                        } else if (targetClass.declaredAnnotation(DECLARE_NODE) == null) {
+                            errors.add("@DependsOn(nodes) on '" + className
+                                    + "' references '" + classRef.name().local()
+                                    + "' which has no @DeclareNode annotation");
+                        } else if (!implementsNodeSpec(classRef.name(), index)) {
+                            errors.add("@DependsOn(nodes) on '" + className
+                                    + "' references '" + classRef.name().local()
+                                    + "' which does not implement NodeSpec");
+                        } else {
+                            mg.addDependency(nodeId,
+                                    targetClass.declaredAnnotation(DECLARE_NODE)
+                                               .value("id").asString());
+                        }
                     }
                 }
             }
         }
     }
 
-    private void detectCycles(Map<String, List<String>> adjacency, List<String> errors) {
-        Set<String> visited = new HashSet<>();
-        Set<String> inStack = new HashSet<>();
 
-        for (String node : adjacency.keySet()) {
-            if (!visited.contains(node)) {
-                Deque<String> path = new ArrayDeque<>();
-                if (hasCycle(node, adjacency, visited, inStack, path)) {
-                    errors.add("Circular dependency detected: " + String.join(" → ", path));
+    private void collectDepsIntoMergedGraph(MethodInfo method, IndexView index,
+            String sourceNodeId, MergedGraph mg,
+            List<String> errors, List<String> warnings) {
+        AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
+        if (dependsOnAnn == null) return;
+
+        AnnotationValue stringDeps = dependsOnAnn.value();
+        if (stringDeps != null) {
+            for (String dep : stringDeps.asStringArray()) {
+                mg.addDependency(sourceNodeId, dep);
+            }
+        }
+
+        AnnotationValue classDeps = dependsOnAnn.value("nodes");
+        if (classDeps != null) {
+            for (var classRef : classDeps.asClassArray()) {
+                ClassInfo targetClass = index.getClassByName(classRef.name());
+                if (targetClass == null) {
+                    warnings.add("@DependsOn(nodes) on '" + sourceNodeId
+                            + "' references '" + classRef.name().local()
+                            + "' which is not in the Jandex index"
+                            + " (if the class is in an external JAR,"
+                            + " ensure a Jandex index is generated)");
+                } else if (targetClass.declaredAnnotation(DECLARE_NODE) == null) {
+                    errors.add("@DependsOn(nodes) on '" + sourceNodeId
+                            + "' references '" + classRef.name().local()
+                            + "' which has no @DeclareNode annotation");
+                } else if (!implementsNodeSpec(classRef.name(), index)) {
+                    errors.add("@DependsOn(nodes) on '" + sourceNodeId
+                            + "' references '" + classRef.name().local()
+                            + "' which does not implement NodeSpec");
+                } else {
+                    mg.addDependency(sourceNodeId,
+                            targetClass.declaredAnnotation(DECLARE_NODE)
+                                       .value("id").asString());
                 }
             }
         }
-    }
-
-    private boolean hasCycle(String node, Map<String, List<String>> adjacency,
-            Set<String> visited, Set<String> inStack, Deque<String> path) {
-        visited.add(node);
-        inStack.add(node);
-        path.addLast(node);
-
-        for (String dep : adjacency.getOrDefault(node, List.of())) {
-            if (!visited.contains(dep)) {
-                if (hasCycle(dep, adjacency, visited, inStack, path)) return true;
-            } else if (inStack.contains(dep)) {
-                path.addLast(dep);
-                return true;
-            }
-        }
-
-        inStack.remove(node);
-        path.removeLast();
-        return false;
     }
 
     private void validateGoalMethod(ClassInfo dsClass, IndexView index, List<String> errors) {
@@ -392,4 +428,93 @@ public class AnnotationValidationStep {
     private boolean isDefaultMethod(MethodInfo method) {
         return (method.flags() & 0x0001) != 0 && !method.isAbstract();
     }
+
+    private String resolveGraphKey(AnnotationInstance ann, IndexView index) {
+        String ns = stringValueOrDefault(ann, index, "namespace", "");
+        String nm = stringValueOrDefault(ann, index, "name", "");
+        return ns + ":" + nm;
+    }
+
+    private static String stringValueOrDefault(
+            AnnotationInstance ann, IndexView index, String name, String defaultValue) {
+        AnnotationValue value = ann.valueWithDefault(index, name);
+        if (value == null) {return defaultValue;}
+        String s = value.asString();
+        return s != null ? s : defaultValue;
+    }
+
+    static class MergedGraph {
+        final String                    graphKey;
+        final Map<String, String>       nodeIdToSource  = new LinkedHashMap<>();
+        final List<String>              duplicateErrors = new ArrayList<>();
+        final Map<String, List<String>> adjacency       = new HashMap<>();
+
+        MergedGraph(String graphKey) {
+            this.graphKey = graphKey;
+        }
+
+        void addNode(String nodeId, String source) {
+            String existing = nodeIdToSource.putIfAbsent(nodeId, source);
+            if (existing != null) {
+                duplicateErrors.add("Duplicate node id '" + nodeId
+                                    + "' in graph '" + graphKey + "' — declared on "
+                                    + existing + " and " + source);
+            }
+        }
+
+        void addDependency(String fromId, String toId) {
+            adjacency.computeIfAbsent(fromId, k -> new ArrayList<>()).add(toId);
+        }
+
+        void validateDuplicateIds(List<String> errors) {
+            errors.addAll(duplicateErrors);
+        }
+
+        void validateDependencyRefs(List<String> errors) {
+            for (var entry : adjacency.entrySet()) {
+                for (String dep : entry.getValue()) {
+                    if (!nodeIdToSource.containsKey(dep)) {
+                        errors.add("@DependsOn on '" + entry.getKey()
+                                   + "' in graph '" + graphKey + "' references '"
+                                   + dep + "' which is not declared as @Node or @DeclareNode");
+                    }
+                }
+            }
+        }
+
+        void detectCycles(List<String> errors) {
+            Set<String> visited = new HashSet<>();
+            Set<String> inStack = new HashSet<>();
+            for (String node : adjacency.keySet()) {
+                if (!visited.contains(node)) {
+                    Deque<String> path = new ArrayDeque<>();
+                    if (hasCycle(node, visited, inStack, path)) {
+                        errors.add("Circular dependency detected in graph '"
+                                   + graphKey + "': " + String.join(" → ", path));
+                    }
+                }
+            }
+        }
+
+        private boolean hasCycle(String node, Set<String> visited,
+                                 Set<String> inStack, Deque<String> path) {
+            visited.add(node);
+            inStack.add(node);
+            path.addLast(node);
+
+            for (String dep : adjacency.getOrDefault(node, List.of())) {
+                if (!visited.contains(dep)) {
+                    if (hasCycle(dep, visited, inStack, path)) {return true;}
+                } else if (inStack.contains(dep)) {
+                    path.addLast(dep);
+                    return true;
+                }
+            }
+
+            inStack.remove(node);
+            path.removeLast();
+            return false;
+        }
+    }
+
 }
