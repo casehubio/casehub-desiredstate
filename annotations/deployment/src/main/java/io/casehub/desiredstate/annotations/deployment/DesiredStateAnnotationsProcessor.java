@@ -98,7 +98,7 @@ public class DesiredStateAnnotationsProcessor {
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
-            registerGoalCompilerBean(runtimeValue, syntheticBeans);
+            registerGoalCompilerBean(runtimeValue, syntheticBeans, descriptor.namespace(), descriptor.name());
 
             for (FaultPolicyDescriptor fpd : descriptor.faultPolicies()) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -130,7 +130,7 @@ public class DesiredStateAnnotationsProcessor {
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
-            registerGoalCompilerBean(runtimeValue, syntheticBeans);
+            registerGoalCompilerBean(runtimeValue, syntheticBeans, descriptor.namespace(), descriptor.name());
 
             for (FaultPolicyDescriptor fpd : classFaultPolicies) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -176,15 +176,21 @@ public class DesiredStateAnnotationsProcessor {
     @SuppressWarnings("rawtypes")
     private void registerGoalCompilerBean(
             RuntimeValue<GoalCompiler> runtimeValue,
-            BuildProducer<SyntheticBeanBuildItem> syntheticBeans) {
+            BuildProducer<SyntheticBeanBuildItem> syntheticBeans,
+            String namespace, String name) {
         syntheticBeans.produce(
                 SyntheticBeanBuildItem.configure(GoalCompiler.class)
                                       .scope(ApplicationScoped.class)
                                       .unremovable()
                                       .setRuntimeInit()
                                       .runtimeValue(runtimeValue)
-                                      .done());
-    }
+                                      .addQualifier(jakarta.enterprise.inject.Default.class)
+                                      .addQualifier()
+                                      .annotation(io.casehub.desiredstate.annotations.DesiredStateQualifier.class)
+                                      .addValue("namespace", namespace)
+                                      .addValue("name", name)
+                                      .done()
+                                      .done());}
 
 
     private Map<String, List<NodeDescriptor.ClassNode>> scanDeclareNodes(IndexView index) {
