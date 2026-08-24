@@ -317,9 +317,9 @@ class PipelineTest {
         ThresholdFaultPolicy policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                 .tier(4, FaultPolicy.addReviewNode(
-                        (event, current) -> new AiReviewSpec(event.node(), event.detail())), PipelineNodeTypes.AI_REVIEW)
+                        (event, current) -> new AiReviewSpec(event.node(), event.detail())))
                 .tier(7, FaultPolicy.addReviewNode(
-                        (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
+                        (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")))
                 .build();
 
         DesiredNode ingestNode = new DesiredNode(NodeId.of("ingest"), new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);
@@ -373,9 +373,9 @@ class PipelineTest {
         ThresholdFaultPolicy policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                 .tier(4, FaultPolicy.addReviewNode(
-                        (event, current) -> new AiReviewSpec(event.node(), event.detail())), PipelineNodeTypes.AI_REVIEW)
+                        (event, current) -> new AiReviewSpec(event.node(), event.detail())))
                 .tier(7, FaultPolicy.addReviewNode(
-                        (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")), PipelineNodeTypes.HUMAN_REVIEW)
+                        (event, current) -> new HumanReviewSpec(event.node(), event.detail(), "Escalated")))
                 .build();
 
         DesiredNode ingestNode = new DesiredNode(NodeId.of("ingest"), new IngestionSpec("clickstream", 1000, "json"), HumanGating.NONE);

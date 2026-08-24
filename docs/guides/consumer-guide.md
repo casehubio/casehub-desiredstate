@@ -113,7 +113,7 @@ SPI: `onFault(String tenancyId, FaultEvent event, DesiredStateGraph current, Act
 
 **FaultType enum:** `NODE_DESTROYED`, `NODE_DEGRADED`, `PROVISION_FAILED`, `DEPROVISION_FAILED`, `HUMAN_NODE_TIMEOUT`, `DEPENDENCY_UNAVAILABLE`, `APPROVAL_REJECTED`.
 
-Static factory: `FaultPolicy.addReviewNode(ReviewSpecFactory)` -- creates a review node with dependency edge to the faulted node, `HumanGating.ALL`, and ID derived from `ReviewSpec.nodeType().value()` (e.g. `NodeType.of("ai-review")` produces `"ai-review-n1"`).
+Static factory: `FaultPolicy.addReviewNode(ReviewSpecFactory) → TypedFaultPolicy` -- creates a review node with dependency edge to the faulted node, `HumanGating.ALL`, and ID derived from `ReviewSpec.nodeType().value()`. Returns `TypedFaultPolicy` with eagerly-captured `outputNodeType()`. Runtime consistency assertion guards probe-vs-actual NodeType mismatch (e.g. `NodeType.of("ai-review")` produces `"ai-review-n1"`).
 
 `FaultPolicyEngine` discovers all `FaultPolicy` beans via CDI, runs all matching, merges mutations, and detects conflicts (`ConflictingMutationException`).
 
@@ -125,8 +125,8 @@ Reusable `FaultPolicy` in the API module -- counts faults per node via pluggable
 ThresholdFaultPolicy.builder()
     .faultTypes(Set.of(FaultType.PROVISION_FAILED))
     .nodeTypes(Set.of(NodeType.of("compute")))    // optional filter
-    .tier(4, addReviewNode(aiSpec), AI_REVIEW)
-    .tier(7, addReviewNode(humanSpec), HUMAN_REVIEW)
+    .tier(4, addReviewNode(aiSpec))
+    .tier(7, addReviewNode(humanSpec))
     .faultCountStore(store)                         // optional; defaults to InMemoryFaultCountStore
     .namespace("provision-escalation")              // required when custom store provided
     .build();

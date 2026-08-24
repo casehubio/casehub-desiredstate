@@ -9,11 +9,10 @@ import java.util.stream.Collectors;
 
 public class ThresholdFaultPolicy implements FaultPolicy {
 
-    public record Tier(int threshold, FaultPolicy action, NodeType nodeType) {
+    public record Tier(int threshold, TypedFaultPolicy action) {
         public Tier {
             if (threshold < 1) throw new IllegalArgumentException("threshold must be >= 1, got " + threshold);
             Objects.requireNonNull(action, "action is required");
-            Objects.requireNonNull(nodeType, "nodeType is required");
         }
     }
 
@@ -31,7 +30,7 @@ public class ThresholdFaultPolicy implements FaultPolicy {
         Set<NodeType> merged = new HashSet<>();
         if (builder.ignoreTypes != null) merged.addAll(builder.ignoreTypes);
         for (Tier tier : builder.tiers) {
-            merged.add(tier.nodeType());
+            merged.add(tier.action().outputNodeType());
         }
         this.ignoreTypes = Set.copyOf(merged);
 
@@ -82,7 +81,7 @@ public class ThresholdFaultPolicy implements FaultPolicy {
             }
 
             if (i > 0) {
-                NodeType previousNodeType = tiers.get(i - 1).nodeType();
+                NodeType previousNodeType = tiers.get(i - 1).action().outputNodeType();
                 boolean previousTierPresent = current.dependentsOf(event.node()).stream()
                         .map(depId -> current.nodes().get(depId))
                         .filter(Objects::nonNull)
@@ -113,8 +112,8 @@ public class ThresholdFaultPolicy implements FaultPolicy {
         public Builder faultTypes(Set<FaultType> faultTypes) { this.faultTypes = faultTypes; return this; }
         public Builder nodeTypes(Set<NodeType> nodeTypes) { this.nodeTypes = nodeTypes; return this; }
         public Builder ignoreTypes(Set<NodeType> ignoreTypes) { this.ignoreTypes = ignoreTypes; return this; }
-        public Builder tier(int threshold, FaultPolicy action, NodeType nodeType) {
-            this.tiers.add(new Tier(threshold, action, nodeType));
+        public Builder tier(int threshold, TypedFaultPolicy action) {
+            this.tiers.add(new Tier(threshold, action));
             return this;
         }
         public Builder faultCountStore(FaultCountStore store) { this.store = store; return this; }

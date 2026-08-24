@@ -134,7 +134,6 @@ public class DesiredStateGraphRecorder {
             for (TierDescriptor td : descriptor.tiers()) {
                 Method reviewMethod = implClass.getMethod(td.reviewMethodName(),
                         FaultEvent.class, DesiredStateGraph.class);
-                NodeType tierNodeType = probeReviewNodeType(instance, reviewMethod);
                 builder.tier(td.threshold(),
                         io.casehub.desiredstate.api.FaultPolicy.addReviewNode(
                                 (event, graph) -> {
@@ -144,8 +143,7 @@ public class DesiredStateGraphRecorder {
                                         throw new RuntimeException("Review method invocation failed: "
                                                 + reviewMethod.getName(), e);
                                     }
-                                }),
-                        tierNodeType);
+                                }));
             }
 
             for (Method m : implClass.getMethods()) {
@@ -227,16 +225,5 @@ public class DesiredStateGraphRecorder {
         return customizers;
     }
 
-    private static NodeType probeReviewNodeType(Object instance, Method reviewMethod) {
-        try {
-            NodeSpec probeSpec = (NodeSpec) reviewMethod.invoke(instance,
-                    new FaultEvent(NodeId.of("__probe__"), FaultType.PROVISION_FAILED, "probe"),
-                    null);
-            return probeSpec.nodeType();
-        } catch (Exception e) {
-            LOG.warnf("Could not probe review method '%s' for NodeType — using method name as fallback",
-                    reviewMethod.getName());
-            return NodeType.of(reviewMethod.getName());
-        }
-    }
+
 }

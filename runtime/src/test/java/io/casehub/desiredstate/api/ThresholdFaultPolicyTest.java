@@ -37,7 +37,7 @@ class ThresholdFaultPolicyTest {
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                 .nodeTypes(Set.of(TARGET))
                 .tier(threshold, FaultPolicy.addReviewNode(
-                        (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
+                        (event, current) -> new TestReviewSpec(event.node(), event.detail())))
                 .build();
     }
 
@@ -119,7 +119,7 @@ class ThresholdFaultPolicyTest {
         var policy = ThresholdFaultPolicy.builder()
                 .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                 .tier(1, FaultPolicy.addReviewNode(
-                        (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
+                        (event, current) -> new TestReviewSpec(event.node(), event.detail())))
                 .build();
         var graph = graphWith("n1", OTHER);
         var event = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
@@ -166,7 +166,7 @@ class ThresholdFaultPolicyTest {
     @Test
     void builderRequiresFaultTypes() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
-                .tier(1, (t, e, g, a) -> List.of(), NodeType.of("x"))
+                .tier(1, TypedFaultPolicy.of(NodeType.of("x"), (t, e, g, a) -> List.of()))
                 .build())
                 .isInstanceOf(NullPointerException.class);
     }
@@ -183,7 +183,7 @@ class ThresholdFaultPolicyTest {
     void builderRejectsZeroThreshold() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
                                                      .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                                     .tier(0, (t, e, g, a) -> List.of(), NodeType.of("x"))
+                                                     .tier(0, TypedFaultPolicy.of(NodeType.of("x"), (t, e, g, a) -> List.of()))
                                                      .build())
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("threshold");
@@ -235,7 +235,7 @@ class ThresholdFaultPolicyTest {
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                                          .tier(2, FaultPolicy.addReviewNode(
-                                                 (event, current) -> new TestReviewSpec(event.node(), event.detail())), REVIEW)
+                                                 (event, current) -> new TestReviewSpec(event.node(), event.detail())))
                                          .faultCountStore(store)
                                          .namespace("test-policy")
                                          .build();
@@ -252,7 +252,7 @@ class ThresholdFaultPolicyTest {
         var store = new InMemoryFaultCountStore();
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                         .tier(3, (t, e, g, a) -> List.of(), NodeType.of("escalation"))
+                                         .tier(3, TypedFaultPolicy.of(NodeType.of("escalation"), (t, e, g, a) -> List.of()))
                                          .faultCountStore(store)
                                          .namespace("test")
                                          .build();
@@ -273,7 +273,7 @@ class ThresholdFaultPolicyTest {
         var store = new InMemoryFaultCountStore();
         var policy = ThresholdFaultPolicy.builder()
                                          .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                         .tier(3, (t, e, g, a) -> List.of(), NodeType.of("escalation"))
+                                         .tier(3, TypedFaultPolicy.of(NodeType.of("escalation"), (t, e, g, a) -> List.of()))
                                          .faultCountStore(store)
                                          .namespace("test")
                                          .build();
@@ -311,7 +311,7 @@ class ThresholdFaultPolicyTest {
     void builder_requiresNamespaceForCustomStore() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
                                                      .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                                     .tier(1, (t, e, g, a) -> List.of(), NodeType.of("x"))
+                                                     .tier(1, TypedFaultPolicy.of(NodeType.of("x"), (t, e, g, a) -> List.of()))
                                                      .faultCountStore(new InMemoryFaultCountStore())
                                                      .build())
                 .isInstanceOf(IllegalArgumentException.class)
@@ -337,9 +337,9 @@ class ThresholdFaultPolicyTest {
                                    .faultTypes(Set.of(FaultType.PROVISION_FAILED))
                                    .nodeTypes(Set.of(TARGET))
                                    .tier(3, FaultPolicy.addReviewNode(
-                                                                      (event, current) -> new AiReviewSpec(event.node())), AI_REVIEW)
+                                                                      (event, current) -> new AiReviewSpec(event.node())))
                                    .tier(6, FaultPolicy.addReviewNode(
-                                                                      (event, current) -> new HumanReviewSpec(event.node())), HUMAN_REVIEW)
+                                                                      (event, current) -> new HumanReviewSpec(event.node())))
                                    .build();
     }
 
@@ -440,10 +440,51 @@ class ThresholdFaultPolicyTest {
     void multiTier_builderRejectsNonAscendingThresholds() {
         assertThatThrownBy(() -> ThresholdFaultPolicy.builder()
                                                      .faultTypes(Set.of(FaultType.PROVISION_FAILED))
-                                                     .tier(5, (t, e, g, a) -> List.of(), AI_REVIEW)
-                                                     .tier(3, (t, e, g, a) -> List.of(), HUMAN_REVIEW)
+                                                     .tier(5, TypedFaultPolicy.of(AI_REVIEW, (t, e, g, a) -> List.of()))
+                                                     .tier(3, TypedFaultPolicy.of(HUMAN_REVIEW, (t, e, g, a) -> List.of()))
                                                      .build())
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+
+    @Test
+    void typedFaultPolicy_of_wrapsDelegate() {
+        NodeType         type     = NodeType.of("test-type");
+        FaultPolicy      delegate = (t, e, g, a) -> List.of();
+        TypedFaultPolicy typed    = TypedFaultPolicy.of(type, delegate);
+
+        assertThat(typed.outputNodeType()).isEqualTo(type);
+        assertThat(typed.onFault("t1", new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "x"),
+                                 graphFactory.of(List.of(), List.of()), EMPTY_ACTUAL)).isEmpty();
+    }
+
+    @Test
+    void addReviewNode_returnsTypedFaultPolicy_withCorrectNodeType() {
+        TypedFaultPolicy policy = FaultPolicy.addReviewNode(
+                (event, current) -> new TestReviewSpec(event.node(), event.detail()));
+        assertThat(policy.outputNodeType()).isEqualTo(REVIEW);
+    }
+
+    @Test
+    void addReviewNode_inconsistentNodeType_throwsOnFault() {
+        ReviewSpecFactory inconsistentFactory = new ReviewSpecFactory() {
+            @Override
+            public NodeSpec create(FaultEvent event, DesiredStateGraph current) {
+                if (current == null) {return new TestReviewSpec(event.node(), "probe");}
+                return new TestNodeSpec(NodeType.of("wrong-type"));
+            }
+
+            @Override
+            public NodeType nodeType() {return REVIEW;}
+        };
+        TypedFaultPolicy policy = FaultPolicy.addReviewNode(inconsistentFactory);
+        var              graph  = graphWith("n1", TARGET);
+        var              event  = new FaultEvent(NodeId.of("n1"), FaultType.PROVISION_FAILED, "fail");
+
+        assertThatThrownBy(() -> policy.onFault("t1", event, graph, EMPTY_ACTUAL))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("consistent NodeType");
+    }
+
 
 }
