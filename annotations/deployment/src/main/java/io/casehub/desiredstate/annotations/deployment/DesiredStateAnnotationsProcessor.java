@@ -95,7 +95,8 @@ public class DesiredStateAnnotationsProcessor {
 
                 descriptor = new GraphDescriptor(descriptor.namespace(), descriptor.name(),
                         descriptor.interfaceName(), descriptor.implClassName(),
-                        mergedNodes, mergedDeps, mergedPolicies, descriptor.goalMethod());
+                        mergedNodes, mergedDeps, mergedPolicies, descriptor.goalMethod(),
+                        descriptor.graphRules());
             }
 
             @SuppressWarnings("rawtypes")
@@ -128,7 +129,7 @@ public class DesiredStateAnnotationsProcessor {
             List<FaultPolicyDescriptor> classFaultPolicies = collectClassFaultPolicies(entry.getValue(), index);
 
             GraphDescriptor descriptor = new GraphDescriptor(ns, nm, null, null,
-                                                             nodes, deps, classFaultPolicies, null);
+                                                             nodes, deps, classFaultPolicies, null, List.of());
 
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
@@ -356,7 +357,7 @@ public class DesiredStateAnnotationsProcessor {
         }
 
         return new GraphDescriptor(namespace, name, dsClass.name().toString(),
-                implClassName, nodes, deps, faultPolicies, goalMethod);
+                implClassName, nodes, deps, faultPolicies, goalMethod, List.of());
     }
 
     private void collectMethodLevelFaultPolicies(

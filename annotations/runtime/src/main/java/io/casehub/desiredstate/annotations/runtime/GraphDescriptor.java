@@ -10,4 +10,5 @@ public record GraphDescriptor(
         List<NodeDescriptor> nodes,
         List<DependencyDescriptor> dependencies,
         List<FaultPolicyDescriptor> faultPolicies,
-        GoalMethodDescriptor goalMethod) {}
+        GoalMethodDescriptor goalMethod,
+        List<GraphRuleDescriptor> graphRules) {}
