@@ -1,13 +1,12 @@
 package io.casehub.desiredstate.annotations;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
-@Target({})
-public @interface Tier {
-    int threshold();
-    String review();
-    String nodeType() default "";
+@Target({ElementType.TYPE, ElementType.METHOD})
+public @interface GraphInvariant {
+    String[] graph() default {};
 }

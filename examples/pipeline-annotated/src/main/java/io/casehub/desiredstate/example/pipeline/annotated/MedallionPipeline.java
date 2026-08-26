@@ -2,7 +2,9 @@ package io.casehub.desiredstate.example.pipeline.annotated;
 
 import io.casehub.desiredstate.annotations.DependsOn;
 import io.casehub.desiredstate.annotations.DesiredState;
+import io.casehub.desiredstate.annotations.DirectDep;
 import io.casehub.desiredstate.annotations.FaultPolicyDef;
+import io.casehub.desiredstate.annotations.GraphInvariant;
 import io.casehub.desiredstate.annotations.GraphRule;
 import io.casehub.desiredstate.annotations.Match;
 import io.casehub.desiredstate.annotations.Node;
@@ -33,8 +35,8 @@ import java.util.List;
         faultTypes = {"PROVISION_FAILED"},
         nodeTypes = {"transformer", "sink"},
         tiers = {
-                @Tier(threshold = 3, review = "createAiReview"),
-                @Tier(threshold = 5, review = "createHumanReview")
+                @Tier(threshold = 3, review = "createAiReview", nodeType = "ai-review"),
+                @Tier(threshold = 5, review = "createHumanReview", nodeType = "human-review")
         }
 )
 public interface MedallionPipeline {
@@ -111,5 +113,14 @@ public interface MedallionPipeline {
                 new DesiredNode(NodeId.of("monitor-" + sink.id().value()),
                         new MonitorSpec(sink.id().value()), HumanGating.NONE),
                 sink.id());
+    }
+
+    // --- Graph invariant: every sink must have an upstream transformer ---
+
+    @GraphInvariant
+    static void everySinkHasUpstream(
+            @Match(type = "sink") DesiredNode sink,
+            @DirectDep(type = "transformer", of = "sink",
+                    direction = Direction.DEPENDENCIES) DesiredNode upstream) {
     }
 }

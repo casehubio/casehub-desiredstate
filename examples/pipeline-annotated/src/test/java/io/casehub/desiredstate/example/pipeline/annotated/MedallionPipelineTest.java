@@ -184,7 +184,7 @@ class MedallionPipelineTest {
         for (FaultPolicyDef fpAnn : iface.getAnnotationsByType(FaultPolicyDef.class)) {
             List<TierDescriptor> tiers = new ArrayList<>();
             for (Tier tier : fpAnn.tiers()) {
-                tiers.add(new TierDescriptor(tier.threshold(), tier.review()));
+                tiers.add(new TierDescriptor(tier.threshold(), tier.review(), tier.nodeType()));
             }
             faultPolicies.add(new FaultPolicyDescriptor(
                     Arrays.asList(fpAnn.faultTypes()),
@@ -221,6 +221,6 @@ class MedallionPipelineTest {
 
         return new GraphDescriptor(ds.namespace(), ds.name(),
                 iface.getName(), MedallionPipelineImpl.class.getName(),
-                nodes, deps, faultPolicies, null, graphRules);
+                nodes, deps, faultPolicies, null, graphRules, List.of());
     }
 }

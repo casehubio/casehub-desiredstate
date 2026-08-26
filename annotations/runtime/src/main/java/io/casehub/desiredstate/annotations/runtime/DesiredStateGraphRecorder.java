@@ -101,6 +101,15 @@ public class DesiredStateGraphRecorder {
                                                                          applyGraphRulesToResult(inner.compile(goals, factory), resolvedRules));
             }
 
+            if (!descriptor.graphInvariants().isEmpty()) {
+                List<ResolvedGraphInvariant> resolvedInvariants = resolveInvariants(descriptor.graphInvariants());
+                GraphInvariantEngine invariantEngine = new GraphInvariantEngine();
+                @SuppressWarnings("rawtypes")
+                GoalCompiler inner = runtimeValue.getValue();
+                runtimeValue = new RuntimeValue<>((GoalCompiler) (goals, factory) ->
+                        validateInvariantsOnResult(inner.compile(goals, factory), resolvedInvariants, invariantEngine));
+            }
+
             return runtimeValue;
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize annotated desired-state graph: "
@@ -122,6 +131,51 @@ public class DesiredStateGraphRecorder {
                 yield CompilationResult.lifecycle(rewritten);
             }
         };
+    }
+
+    private CompilationResult validateInvariantsOnResult(CompilationResult result,
+            List<ResolvedGraphInvariant> invariants, GraphInvariantEngine engine) {
+        switch (result) {
+            case CompilationResult.SingleGraph sg -> engine.validate(sg.graph(), invariants);
+            case CompilationResult.Lifecycle lc -> {
+                for (Phase phase : lc.phases()) {
+                    engine.validate(phase.graph(), invariants);
+                }
+            }
+        }
+        return result;
+    }
+
+    private List<ResolvedGraphInvariant> resolveInvariants(List<GraphInvariantDescriptor> descriptors) {
+        List<ResolvedGraphInvariant> invariants = new ArrayList<>();
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        for (GraphInvariantDescriptor gid : descriptors) {
+            try {
+                Class<?> cls = classLoader.loadClass(gid.sourceClassName());
+                Object instance = java.lang.reflect.Modifier.isInterface(cls.getModifiers())
+                        ? null : cls.getDeclaredConstructor().newInstance();
+                Method method = findInvariantMethod(cls, gid);
+                invariants.add(new ResolvedGraphInvariant(gid.methodName(), method,
+                        instance, gid.imperative(), gid.patterns()));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to resolve graph invariant: "
+                        + gid.methodName(), e);
+            }
+        }
+        return invariants;
+    }
+
+    private Method findInvariantMethod(Class<?> cls, GraphInvariantDescriptor gid)
+            throws NoSuchMethodException {
+        if (gid.imperative()) {
+            return cls.getMethod(gid.methodName(), DesiredStateGraph.class);
+        }
+        Class<?>[] paramTypes = new Class<?>[gid.patterns().size()];
+        for (int i = 0; i < gid.patterns().size(); i++) {
+            paramTypes[i] = gid.patterns().get(i).kind() == PatternKind.NOT_EXISTS
+                    ? Void.class : io.casehub.desiredstate.api.DesiredNode.class;
+        }
+        return cls.getMethod(gid.methodName(), paramTypes);
     }
 
     private List<ResolvedGraphRule> resolveRules(List<GraphRuleDescriptor> descriptors) {
@@ -194,16 +248,28 @@ public class DesiredStateGraphRecorder {
             for (TierDescriptor td : descriptor.tiers()) {
                 Method reviewMethod = implClass.getMethod(td.reviewMethodName(),
                         FaultEvent.class, DesiredStateGraph.class);
+                io.casehub.desiredstate.api.ReviewSpecFactory reviewFactory = (event, graph) -> {
+                    try {
+                        return (NodeSpec) reviewMethod.invoke(instance, event, graph);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Review method invocation failed: "
+                                + reviewMethod.getName(), e);
+                    }
+                };
+                if (!td.nodeType().isEmpty()) {
+                    NodeType declaredType = NodeType.of(td.nodeType());
+                    io.casehub.desiredstate.api.ReviewSpecFactory delegate = reviewFactory;
+                    reviewFactory = new io.casehub.desiredstate.api.ReviewSpecFactory() {
+                        @Override
+                        public NodeSpec create(FaultEvent event, DesiredStateGraph graph) {
+                            return delegate.create(event, graph);
+                        }
+                        @Override
+                        public NodeType nodeType() { return declaredType; }
+                    };
+                }
                 builder.tier(td.threshold(),
-                        io.casehub.desiredstate.api.FaultPolicy.addReviewNode(
-                                (event, graph) -> {
-                                    try {
-                                        return (NodeSpec) reviewMethod.invoke(instance, event, graph);
-                                    } catch (Exception e) {
-                                        throw new RuntimeException("Review method invocation failed: "
-                                                + reviewMethod.getName(), e);
-                                    }
-                                }));
+                        io.casehub.desiredstate.api.FaultPolicy.addReviewNode(reviewFactory));
             }
 
             for (Method m : implClass.getMethods()) {

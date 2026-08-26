@@ -30,7 +30,7 @@ class GraphRuleTypesTest {
     @Test
     void graphRuleDefaultGraphIsEmpty() throws Exception {
         var graphMethod = GraphRule.class.getMethod("graph");
-        assertThat(graphMethod.getDefaultValue()).isEqualTo("");
+        assertThat((String[]) graphMethod.getDefaultValue()).isEmpty();
     }
 
     @Test

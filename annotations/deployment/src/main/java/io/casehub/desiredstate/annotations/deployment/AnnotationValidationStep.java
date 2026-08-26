@@ -1,11 +1,13 @@
 package io.casehub.desiredstate.annotations.deployment;
 
+import io.casehub.desiredstate.annotations.runtime.GraphPatternMatcher;
 import io.casehub.desiredstate.api.FaultType;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.Produce;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.ServiceStartBuildItem;
 import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
@@ -56,6 +58,16 @@ public class AnnotationValidationStep {
             "io.casehub.desiredstate.annotations.Customize");
     private static final DotName GRAPH_RULE   = DotName.createSimple(
             "io.casehub.desiredstate.annotations.GraphRule");
+    private static final DotName GRAPH_INVARIANT = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.GraphInvariant");
+    private static final DotName MATCH        = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.Match");
+    private static final DotName DIRECT_DEP   = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.DirectDep");
+    private static final DotName REACHES      = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.Reaches");
+    private static final DotName NOT_EXISTS   = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.NotExists");
     private static final DotName JAVA_LIST    = DotName.createSimple("java.util.List");
 
 
@@ -130,7 +142,8 @@ public class AnnotationValidationStep {
             validateFaultPolicyFaultTypes(dsClass, index, errors);
             validateTierReviewMethods(dsClass, index, errors);
             validateGoalMethod(dsClass, index, errors);
-            validateGraphRules(dsClass, errors);
+            validateGraphRules(dsClass, index, errors);
+            validateGraphInvariants(dsClass, index, errors);
 
             if (localNodeIds.isEmpty()) {
                 warnings.add("@DesiredState '" + dsClass.name().local()
@@ -139,6 +152,7 @@ public class AnnotationValidationStep {
         }
 
         validateDeclareNodes(index, graphsByKey, errors, warnings);
+        validateStandaloneGraphRules(index, interfacesByKey.keySet(), errors, warnings);
 
         for (MergedGraph mg : graphsByKey.values()) {
             mg.validateDuplicateIds(errors);
@@ -324,7 +338,7 @@ public class AnnotationValidationStep {
         }
     }
 
-    private void validateGraphRules(ClassInfo dsClass, List<String> errors) {
+    private void validateGraphRules(ClassInfo dsClass, IndexView index, List<String> errors) {
         for (MethodInfo method : dsClass.methods()) {
             if (!method.hasAnnotation(GRAPH_RULE)) {continue;}
 
@@ -336,9 +350,165 @@ public class AnnotationValidationStep {
                 errors.add("@GraphRule '" + method.name() + "' in " + dsClass.name().local()
                            + " must return List<GraphMutation>");
             }
+            validatePatternParameters(method, dsClass.name().local(), index, "GraphRule", errors);
         }
     }
 
+    private void validatePatternParameters(MethodInfo method, String className,
+            IndexView index, String annotationName, List<String> errors) {
+        if (method.parametersCount() == 1
+                && method.parameterType(0).name().equals(DESIRED_STATE_GRAPH)) {
+            return;
+        }
+        if (method.parametersCount() == 0) return;
+
+        boolean hasPatternAnnotations = false;
+        for (var ann : method.annotations()) {
+            if (ann.target().kind() == AnnotationTarget.Kind.METHOD_PARAMETER) {
+                DotName n = ann.name();
+                if (n.equals(MATCH) || n.equals(DIRECT_DEP) || n.equals(REACHES)
+                        || n.equals(NOT_EXISTS)) {
+                    hasPatternAnnotations = true;
+                    break;
+                }
+            }
+        }
+        if (!hasPatternAnnotations && method.parametersCount() == 1) {
+            errors.add("@" + annotationName + " '" + method.name() + "' imperative method "
+                    + "first parameter must be DesiredStateGraph");
+            return;
+        }
+
+        java.util.LinkedHashSet<String> paramNames = new java.util.LinkedHashSet<>();
+        String previousParamName = null;
+        for (int i = 0; i < method.parametersCount(); i++) {
+            String paramName = method.parameterName(i);
+            paramNames.add(paramName);
+
+            for (var ann : method.annotations()) {
+                if (ann.target().kind() != AnnotationTarget.Kind.METHOD_PARAMETER) continue;
+                if (ann.target().asMethodParameter().position() != i) continue;
+
+                DotName annName = ann.name();
+
+                if (annName.equals(DIRECT_DEP) || annName.equals(REACHES)) {
+                    String of = stringValueOrDefault(ann, index, "of", "");
+                    if (of.isEmpty() && previousParamName == null) {
+                        errors.add("@" + annName.local() + " on parameter '"
+                                + paramName + "' uses sequential chaining but has no "
+                                + "preceding parameter — use @Match as the first "
+                                + "parameter or specify 'of' explicitly");
+                    }
+                    if (!of.isEmpty() && !paramNames.contains(of)) {
+                        errors.add("@" + annName.local() + " 'of' references '"
+                                + of + "' — no parameter named '" + of + "' in "
+                                + method.name());
+                    }
+                }
+
+                if (annName.equals(NOT_EXISTS)) {
+                    String of = stringValueOrDefault(ann, index, "of", "");
+                    if (!of.isEmpty()) {
+                        AnnotationValue dirVal = ann.value("direction");
+                        if (dirVal == null) {
+                            errors.add("@NotExists on parameter '" + paramName
+                                    + "' specifies 'of' without explicit direction "
+                                    + "— DEPENDENCIES and DEPENDENTS have opposite "
+                                    + "semantics; specify direction");
+                        }
+                        if (!paramNames.contains(of)) {
+                            errors.add("@NotExists 'of' references '" + of
+                                    + "' — no parameter named '" + of + "' in "
+                                    + method.name());
+                        }
+                    }
+                }
+            }
+            previousParamName = paramName;
+        }
+    }
+
+    private void validateGraphInvariants(ClassInfo dsClass, IndexView index,
+            List<String> errors) {
+        for (MethodInfo method : dsClass.methods()) {
+            if (!method.hasAnnotation(GRAPH_INVARIANT)) continue;
+
+            if (!java.lang.reflect.Modifier.isStatic(method.flags())) {
+                errors.add("@GraphInvariant on '" + method.name() + "' in "
+                        + dsClass.name().local() + " must be a static method");
+            }
+
+            boolean isImperative = method.parametersCount() == 1
+                    && method.parameterType(0).name().equals(DESIRED_STATE_GRAPH);
+            if (!isImperative && !method.returnType().name().toString().equals("void")) {
+                errors.add("@GraphInvariant '" + method.name()
+                        + "' parameterized method must return void");
+            }
+
+            validatePatternParameters(method, dsClass.name().local(), index, "GraphInvariant", errors);
+        }
+    }
+
+    private void validateStandaloneGraphRules(IndexView index,
+            Set<String> knownGraphKeys, List<String> errors, List<String> warnings) {
+        for (AnnotationInstance grAnn : index.getAnnotations(GRAPH_RULE)) {
+            if (grAnn.target().kind() != AnnotationTarget.Kind.CLASS) continue;
+            ClassInfo classInfo = grAnn.target().asClass();
+
+            if (java.lang.reflect.Modifier.isAbstract(classInfo.flags())
+                    || java.lang.reflect.Modifier.isInterface(classInfo.flags())) {
+                errors.add("@GraphRule class " + classInfo.name().local()
+                        + " must be concrete with a no-arg constructor");
+                continue;
+            }
+
+            boolean hasNoArgCtor = classInfo.constructors().stream()
+                    .anyMatch(c -> c.parametersCount() == 0);
+            if (!hasNoArgCtor) {
+                errors.add("@GraphRule class " + classInfo.name().local()
+                        + " must be concrete with a no-arg constructor");
+                continue;
+            }
+
+            AnnotationValue graphVal = grAnn.value("graph");
+            if (graphVal == null || graphVal.asStringArray().length == 0) {
+                errors.add("@GraphRule on class " + classInfo.name().local()
+                        + " requires graph attribute");
+                continue;
+            }
+
+            String[] patterns = graphVal.asStringArray();
+            boolean hasInclude = false;
+            for (String p : patterns) {
+                if (!p.startsWith("!")) { hasInclude = true; break; }
+            }
+            if (!hasInclude) {
+                errors.add("@GraphRule on class " + classInfo.name().local()
+                        + " graph has no include patterns — at least one non-! entry required");
+                continue;
+            }
+
+            boolean matchesAny = knownGraphKeys.stream()
+                    .anyMatch(k -> GraphPatternMatcher.matches(patterns, k));
+            if (!matchesAny) {
+                warnings.add("@GraphRule class " + classInfo.name().local()
+                        + " graph '" + String.join(", ", patterns)
+                        + "' does not match any declared graph");
+            }
+
+            for (MethodInfo method : classInfo.methods()) {
+                if (!method.hasAnnotation(GRAPH_RULE)) continue;
+                if (!java.lang.reflect.Modifier.isPublic(method.flags())) {
+                    errors.add("@GraphRule on '" + method.name() + "' in "
+                            + classInfo.name().local() + " must be public");
+                }
+                if (!method.returnType().name().equals(JAVA_LIST)) {
+                    errors.add("@GraphRule '" + method.name() + "' in "
+                            + classInfo.name().local() + " must return List<GraphMutation>");
+                }
+            }
+        }
+    }
 
     private void validateFaultPolicyOnMethod(MethodInfo method, ClassInfo dsClass,
             IndexView index, List<String> errors) {

@@ -1,3 +1,3 @@
 package io.casehub.desiredstate.annotations.runtime;
 
-public record TierDescriptor(int threshold, String reviewMethodName) {}
+public record TierDescriptor(int threshold, String reviewMethodName, String nodeType) {}
