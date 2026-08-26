@@ -2,10 +2,14 @@ package io.casehub.desiredstate.annotations.deployment;
 
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.DesiredStateGraphRecorder;
+import io.casehub.desiredstate.annotations.runtime.Direction;
 import io.casehub.desiredstate.annotations.runtime.FaultPolicyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GoalMethodDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
+import io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
+import io.casehub.desiredstate.annotations.runtime.PatternKind;
+import io.casehub.desiredstate.annotations.runtime.PatternParameterDescriptor;
 import io.casehub.desiredstate.annotations.runtime.TierDescriptor;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.HumanGating;
@@ -24,6 +28,7 @@ import io.quarkus.gizmo.MethodDescriptor;
 import io.quarkus.runtime.RuntimeValue;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
@@ -62,6 +67,16 @@ public class DesiredStateAnnotationsProcessor {
             "io.casehub.desiredstate.api.DesiredStateGraphFactory");
     private static final DotName DECLARE_NODE                = DotName.createSimple(
             "io.casehub.desiredstate.annotations.DeclareNode");
+    private static final DotName GRAPH_RULE = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.GraphRule");
+    private static final DotName MATCH = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.Match");
+    private static final DotName DIRECT_DEP = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.DirectDep");
+    private static final DotName REACHES = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.Reaches");
+    private static final DotName NOT_EXISTS = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.NotExists");
 
 
     @BuildStep
@@ -356,8 +371,15 @@ public class DesiredStateAnnotationsProcessor {
             }
         }
 
+        List<GraphRuleDescriptor> graphRules = new ArrayList<>();
+        for (MethodInfo method : dsClass.methods()) {
+            if (method.hasAnnotation(GRAPH_RULE)) {
+                graphRules.add(buildGraphRuleDescriptor(method, index, dsClass.name().toString()));
+            }
+        }
+
         return new GraphDescriptor(namespace, name, dsClass.name().toString(),
-                implClassName, nodes, deps, faultPolicies, goalMethod, List.of());
+                implClassName, nodes, deps, faultPolicies, goalMethod, graphRules);
     }
 
     private void collectMethodLevelFaultPolicies(
@@ -412,6 +434,60 @@ public class DesiredStateAnnotationsProcessor {
         if (gatingVal == null) return HumanGating.NONE;
         return HumanGating.valueOf(gatingVal.asEnum());
     }
+
+    private GraphRuleDescriptor buildGraphRuleDescriptor(MethodInfo method, IndexView index,
+                                                         String sourceClassName) {
+        if (method.parametersCount() == 1
+            && method.parameterType(0).name().equals(DESIRED_STATE_GRAPH)) {
+            return new GraphRuleDescriptor(method.name(), true, List.of(), sourceClassName);
+        }
+
+        List<PatternParameterDescriptor> patterns = new ArrayList<>();
+        for (int i = 0; i < method.parametersCount(); i++) {
+            PatternParameterDescriptor ppd = buildPatternForParameter(method, i, index);
+            if (ppd != null) {
+                patterns.add(ppd);
+            }
+        }
+        return new GraphRuleDescriptor(method.name(), false, patterns, sourceClassName);
+    }
+
+    private PatternParameterDescriptor buildPatternForParameter(MethodInfo method, int paramIndex,
+                                                                IndexView index) {
+        for (AnnotationInstance ann : method.annotations()) {
+            if (ann.target().kind() != AnnotationTarget.Kind.METHOD_PARAMETER) {continue;}
+            if (ann.target().asMethodParameter().position() != paramIndex) {continue;}
+
+            DotName annName = ann.name();
+            if (annName.equals(MATCH)) {
+                return new PatternParameterDescriptor(
+                        PatternKind.MATCH, ann.value("type").asString(), "", Direction.DEPENDENCIES);
+            }
+            if (annName.equals(DIRECT_DEP)) {
+                return new PatternParameterDescriptor(
+                        PatternKind.DIRECT_DEP,
+                        ann.value("type").asString(),
+                        ann.valueWithDefault(index, "of").asString(),
+                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()));
+            }
+            if (annName.equals(REACHES)) {
+                return new PatternParameterDescriptor(
+                        PatternKind.REACHES,
+                        ann.value("type").asString(),
+                        ann.valueWithDefault(index, "of").asString(),
+                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()));
+            }
+            if (annName.equals(NOT_EXISTS)) {
+                return new PatternParameterDescriptor(
+                        PatternKind.NOT_EXISTS,
+                        ann.value("type").asString(),
+                        ann.valueWithDefault(index, "of").asString(),
+                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()));
+            }
+        }
+        return null;
+    }
+
 
     private static String stringValueOrDefault(
             AnnotationInstance ann, IndexView index, String name, String defaultValue) {

@@ -11,6 +11,7 @@ import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.Phase;
 import io.casehub.desiredstate.api.ThresholdFaultPolicy;
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.runtime.annotations.Recorder;
@@ -32,69 +33,128 @@ public class DesiredStateGraphRecorder {
     public RuntimeValue<GoalCompiler> createGoalCompiler(GraphDescriptor descriptor) {
         try {
             List<Dependency> capturedDeps = buildDependencies(descriptor);
+            @SuppressWarnings("rawtypes")
+            RuntimeValue<GoalCompiler> runtimeValue;
 
             if (descriptor.implClassName() == null) {
                 List<DesiredNode> capturedNodes = buildClassOnlyNodes(descriptor);
-                return new RuntimeValue<>((GoalCompiler) (goals, factory) ->
-                                                                 CompilationResult.single(factory.of(capturedNodes, capturedDeps)));
-            }
+                runtimeValue = new RuntimeValue<>((GoalCompiler) (goals, factory) ->
+                                                                         CompilationResult.single(factory.of(capturedNodes, capturedDeps)));
+            } else {
+                Class<?> implClass = Thread.currentThread().getContextClassLoader()
+                                           .loadClass(descriptor.implClassName());
+                Object instance = implClass.getDeclaredConstructor().newInstance();
 
-            Class<?> implClass = Thread.currentThread().getContextClassLoader()
-                                       .loadClass(descriptor.implClassName());
-            Object instance = implClass.getDeclaredConstructor().newInstance();
+                List<DesiredNode> capturedNodes    = buildNodes(implClass, instance, descriptor);
+                List<Method>      graphCustomizers = findGraphCustomizers(implClass);
 
-            List<DesiredNode> capturedNodes    = buildNodes(implClass, instance, descriptor);
-            List<Method>      graphCustomizers = findGraphCustomizers(implClass);
-
-            if (descriptor.goalMethod() == null) {
-                return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
-                    try {
-                        DesiredStateGraph graph = factory.of(capturedNodes, capturedDeps);
-                        for (Method customizer : graphCustomizers) {
-                            graph = (DesiredStateGraph) customizer.invoke(null, graph);
+                if (descriptor.goalMethod() == null) {
+                    runtimeValue = new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
+                        try {
+                            DesiredStateGraph graph = factory.of(capturedNodes, capturedDeps);
+                            for (Method customizer : graphCustomizers) {
+                                graph = (DesiredStateGraph) customizer.invoke(null, graph);
+                            }
+                            return CompilationResult.single(graph);
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to compile annotated graph: "
+                                                       + descriptor.interfaceName(), e);
                         }
-                        return CompilationResult.single(graph);
-                    } catch (Exception e) {
-                        throw new RuntimeException("Failed to compile annotated graph: "
-                                                   + descriptor.interfaceName(), e);
-                    }
-                });
+                    });
+                } else {
+                    GoalMethodDescriptor gmd = descriptor.goalMethod();
+                    Class<?> goalsType = Thread.currentThread().getContextClassLoader()
+                                               .loadClass(gmd.goalsTypeName());
+                    Method goalMethod = gmd.hasFactoryParam()
+                                        ? implClass.getMethod(gmd.methodName(), goalsType,
+                                                              DesiredStateGraph.class, DesiredStateGraphFactory.class)
+                                        : implClass.getMethod(gmd.methodName(), goalsType, DesiredStateGraph.class);
+
+                    runtimeValue = new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
+                        try {
+                            DesiredStateGraph base = factory.of(capturedNodes, capturedDeps);
+                            for (Method customizer : graphCustomizers) {
+                                base = (DesiredStateGraph) customizer.invoke(null, base);
+                            }
+
+                            Object result = gmd.hasFactoryParam()
+                                            ? goalMethod.invoke(instance, goals, base, factory)
+                                            : goalMethod.invoke(instance, goals, base);
+
+                            if (gmd.returnsCompilationResult()) {
+                                return (CompilationResult) result;
+                            }
+                            return CompilationResult.single((DesiredStateGraph) result);
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to compile composable graph: "
+                                                       + descriptor.interfaceName(), e);
+                        }
+                    });
+                }
             }
 
-            GoalMethodDescriptor gmd = descriptor.goalMethod();
-            Class<?> goalsType = Thread.currentThread().getContextClassLoader()
-                                       .loadClass(gmd.goalsTypeName());
-            Method goalMethod = gmd.hasFactoryParam()
-                                ? implClass.getMethod(gmd.methodName(), goalsType,
-                                                      DesiredStateGraph.class, DesiredStateGraphFactory.class)
-                                : implClass.getMethod(gmd.methodName(), goalsType, DesiredStateGraph.class);
+            if (!descriptor.graphRules().isEmpty()) {
+                List<ResolvedGraphRule> resolvedRules = resolveRules(descriptor.graphRules());
+                @SuppressWarnings("rawtypes")
+                GoalCompiler inner = runtimeValue.getValue();
+                runtimeValue = new RuntimeValue<>((GoalCompiler) (goals, factory) ->
+                                                                         applyGraphRulesToResult(inner.compile(goals, factory), resolvedRules));
+            }
 
-            return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
-                try {
-                    DesiredStateGraph base = factory.of(capturedNodes, capturedDeps);
-                    for (Method customizer : graphCustomizers) {
-                        base = (DesiredStateGraph) customizer.invoke(null, base);
-                    }
-
-                    Object result = gmd.hasFactoryParam()
-                                    ? goalMethod.invoke(instance, goals, base, factory)
-                                    : goalMethod.invoke(instance, goals, base);
-
-                    if (gmd.returnsCompilationResult()) {
-                        return (CompilationResult) result;
-                    }
-                    return CompilationResult.single((DesiredStateGraph) result);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to compile composable graph: "
-                                               + descriptor.interfaceName(), e);
-                }
-            });
+            return runtimeValue;
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize annotated desired-state graph: "
                                        + (descriptor.interfaceName() != null ? descriptor.interfaceName()
                                                                              : descriptor.namespace() + ":" + descriptor.name()), e);
-        }
+        }}
+
+    private CompilationResult applyGraphRulesToResult(CompilationResult result,
+                                                      List<ResolvedGraphRule> rules) {
+        GraphRuleEngine engine = new GraphRuleEngine();
+        return switch (result) {
+            case CompilationResult.SingleGraph sg -> CompilationResult.single(engine.evaluate(sg.graph(), rules));
+            case CompilationResult.Lifecycle lc -> {
+                List<Phase> rewritten = new ArrayList<>();
+                for (Phase phase : lc.phases()) {
+                    rewritten.add(new Phase(phase.id(),
+                                            engine.evaluate(phase.graph(), rules), phase.completionCondition()));
+                }
+                yield CompilationResult.lifecycle(rewritten);
+            }
+        };
     }
+
+    private List<ResolvedGraphRule> resolveRules(List<GraphRuleDescriptor> descriptors) {
+        List<ResolvedGraphRule> rules       = new ArrayList<>();
+        ClassLoader             classLoader = Thread.currentThread().getContextClassLoader();
+        for (GraphRuleDescriptor grd : descriptors) {
+            try {
+                Class<?> ruleClass = classLoader.loadClass(grd.sourceClassName());
+                Object ruleInstance = java.lang.reflect.Modifier.isInterface(ruleClass.getModifiers())
+                                      ? null
+                                      : ruleClass.getDeclaredConstructor().newInstance();
+                Method ruleMethod = findRuleMethod(ruleClass, grd);
+                rules.add(new ResolvedGraphRule(grd.methodName(), ruleMethod, ruleInstance,
+                                                grd.imperative(), grd.patterns()));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to resolve graph rule: " + grd.methodName(), e);
+            }
+        }
+        return rules;
+    }
+
+    private Method findRuleMethod(Class<?> ruleClass, GraphRuleDescriptor grd) throws NoSuchMethodException {
+        if (grd.imperative()) {
+            return ruleClass.getMethod(grd.methodName(), DesiredStateGraph.class);
+        }
+        Class<?>[] paramTypes = new Class<?>[grd.patterns().size()];
+        for (int i = 0; i < grd.patterns().size(); i++) {
+            paramTypes[i] = grd.patterns().get(i).kind() == PatternKind.NOT_EXISTS
+                            ? Void.class : DesiredNode.class;
+        }
+        return ruleClass.getMethod(grd.methodName(), paramTypes);
+    }
+
 
     public RuntimeValue<ThresholdFaultPolicy> createFaultPolicy(
             FaultPolicyDescriptor descriptor, String implClassName) {
