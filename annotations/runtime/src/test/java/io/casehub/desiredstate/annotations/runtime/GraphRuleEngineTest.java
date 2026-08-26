@@ -184,4 +184,167 @@ class GraphRuleEngineTest {
                 List.of(imperativeRule("contradictoryEdgeRule1"), imperativeRule("contradictoryEdgeRule2"))))
                 .isInstanceOf(ConflictingMutationException.class);
     }
+
+    // --- Parameterized rule helpers ---
+
+    private ResolvedGraphRule parameterizedRule(String methodName,
+            List<PatternParameterDescriptor> patterns) {
+        try {
+            Class<?>[] paramTypes = new Class<?>[patterns.size()];
+            for (int i = 0; i < patterns.size(); i++) {
+                paramTypes[i] = patterns.get(i).kind() == PatternKind.NOT_EXISTS
+                        ? Void.class : DesiredNode.class;
+            }
+            Method m = GraphRuleEngineTest.class.getDeclaredMethod(methodName, paramTypes);
+            return new ResolvedGraphRule(methodName, m, null, false, patterns);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // --- Parameterized rule method implementations ---
+
+    static List<GraphMutation> addValidatorForTransformer(DesiredNode transformer) {
+        return List.of(new GraphMutation.AddNode(
+                new DesiredNode(NodeId.of("validator-" + transformer.id().value()),
+                        new Spec("validator", "validator"), HumanGating.NONE)));
+    }
+
+    @Test
+    void matchBindsNodesByType() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx1"), new Spec("tx1", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("tx2"), new Spec("tx2", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("src"), new Spec("src", "source"), HumanGating.NONE)),
+                List.of());
+        var rule = parameterizedRule("addValidatorForTransformer", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("validator-tx1"));
+        assertThat(result.nodes()).containsKey(NodeId.of("validator-tx2"));
+        assertThat(result.nodes()).doesNotContainKey(NodeId.of("validator-src"));
+    }
+
+    static List<GraphMutation> bindDirectDep(DesiredNode matched, DesiredNode dep) {
+        return List.of(new GraphMutation.AddNode(
+                new DesiredNode(NodeId.of("found-" + dep.id().value()),
+                        new Spec("found", "found"), HumanGating.NONE)));
+    }
+
+    @Test
+    void directDepBindsDirectDependency() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("src"), new Spec("src", "source"), HumanGating.NONE)),
+                List.of(new Dependency(NodeId.of("tx"), NodeId.of("src"))));
+        var rule = parameterizedRule("bindDirectDep", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.DIRECT_DEP, "source", "", Direction.DEPENDENCIES)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("found-src"));
+    }
+
+    @Test
+    void directDepDependentsDirection() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("src"), new Spec("src", "source"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE)),
+                List.of(new Dependency(NodeId.of("tx"), NodeId.of("src"))));
+        var rule = parameterizedRule("bindDirectDep", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "source", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.DIRECT_DEP, "transformer", "", Direction.DEPENDENTS)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("found-tx"));
+    }
+
+    static List<GraphMutation> bindReachable(DesiredNode matched, DesiredNode reached) {
+        return List.of(new GraphMutation.AddNode(
+                new DesiredNode(NodeId.of("reached-" + reached.id().value()),
+                        new Spec("reached", "reached"), HumanGating.NONE)));
+    }
+
+    @Test
+    void reachesFindsTransitiveNode() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("mid"), new Spec("mid", "middle"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("src"), new Spec("src", "source"), HumanGating.NONE)),
+                List.of(new Dependency(NodeId.of("tx"), NodeId.of("mid")),
+                        new Dependency(NodeId.of("mid"), NodeId.of("src"))));
+        var rule = parameterizedRule("bindReachable", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.REACHES, "source", "", Direction.DEPENDENCIES)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("reached-src"));
+    }
+
+    static List<GraphMutation> guardedRule(DesiredNode transformer, Void guard) {
+        return List.of(new GraphMutation.AddNode(
+                new DesiredNode(NodeId.of("validator-" + transformer.id().value()),
+                        new Spec("validator", "validator"), HumanGating.NONE)));
+    }
+
+    @Test
+    void notExistsGlobalGuardPreventsRule() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("v"), new Spec("v", "validator"), HumanGating.NONE)),
+                List.of());
+        var rule = parameterizedRule("guardedRule", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "validator", "", Direction.DEPENDENCIES)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).hasSize(2);
+    }
+
+    @Test
+    void notExistsGlobalGuardAllowsRuleWhenAbsent() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE)),
+                List.of());
+        var rule = parameterizedRule("guardedRule", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "validator", "", Direction.DEPENDENCIES)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("validator-tx"));
+    }
+
+    @Test
+    void notExistsRelationalGuardChecksNamedBinding() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("v"), new Spec("v", "validator"), HumanGating.NONE)),
+                List.of(new Dependency(NodeId.of("v"), NodeId.of("tx"))));
+        var rule = parameterizedRule("guardedRule", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "validator", "transformer", Direction.DEPENDENTS)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).hasSize(2);
+    }
+
+    @Test
+    void notExistsRelationalGuardAllowsWhenNoRelation() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE),
+                new DesiredNode(NodeId.of("v"), new Spec("v", "validator"), HumanGating.NONE)),
+                List.of());
+        var rule = parameterizedRule("guardedRule", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "validator", "transformer", Direction.DEPENDENTS)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("validator-tx"));
+    }
+
+    @Test
+    void fixedPointConvergenceWithGuard() {
+        var graph = factory.of(List.of(
+                new DesiredNode(NodeId.of("tx"), new Spec("tx", "transformer"), HumanGating.NONE)),
+                List.of());
+        var rule = parameterizedRule("guardedRule", List.of(
+                new PatternParameterDescriptor(PatternKind.MATCH, "transformer", "", Direction.DEPENDENCIES),
+                new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "validator", "", Direction.DEPENDENCIES)));
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).containsKey(NodeId.of("validator-tx"));
+        assertThat(result.nodes()).hasSize(2);
+    }
 }
