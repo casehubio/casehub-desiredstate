@@ -7,11 +7,18 @@ import io.casehub.desiredstate.annotations.DesiredState;
 import io.casehub.desiredstate.annotations.FaultPolicyDef;
 import io.casehub.desiredstate.annotations.Node;
 import io.casehub.desiredstate.annotations.Tier;
+import io.casehub.desiredstate.annotations.GraphRule;
+import io.casehub.desiredstate.annotations.Match;
+import io.casehub.desiredstate.annotations.NotExists;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.DesiredStateGraphRecorder;
+import io.casehub.desiredstate.annotations.runtime.Direction;
 import io.casehub.desiredstate.annotations.runtime.FaultPolicyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
+import io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
+import io.casehub.desiredstate.annotations.runtime.PatternKind;
+import io.casehub.desiredstate.annotations.runtime.PatternParameterDescriptor;
 import io.casehub.desiredstate.annotations.runtime.TierDescriptor;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.Dependency;
@@ -23,6 +30,7 @@ import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.example.pipeline.DataSourceSpec;
 import io.casehub.desiredstate.example.pipeline.PipelineNodeTypes;
 import io.casehub.desiredstate.example.pipeline.TransformerSpec;
@@ -60,7 +68,7 @@ class MedallionPipelineTest {
         assertThat(result).isInstanceOf(CompilationResult.SingleGraph.class);
 
         DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
-        assertThat(graph.nodes()).hasSize(8);
+        assertThat(graph.nodes()).hasSize(9);
     }
 
     @Test
@@ -114,6 +122,16 @@ class MedallionPipelineTest {
                 .contains(NodeId.of("quality-validator"));
         assertThat(graph.dependenciesOf(NodeId.of("warehouse-sink")))
                 .contains(NodeId.of("aggregate-tx"));
+    }
+
+    @Test
+    void graphRuleAddsMonitorNode() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.nodes()).containsKey(NodeId.of("monitor-warehouse-sink"));
+        assertThat(graph.nodes().get(NodeId.of("monitor-warehouse-sink")).type())
+                .isEqualTo(NodeType.of("monitor"));
+        assertThat(graph.dependenciesOf(NodeId.of("monitor-warehouse-sink")))
+                .contains(NodeId.of("warehouse-sink"));
     }
 
     @Test
@@ -176,8 +194,33 @@ class MedallionPipelineTest {
                     tiers, null));
         }
 
+        List<GraphRuleDescriptor> graphRules = new ArrayList<>();
+        for (Method method : iface.getDeclaredMethods()) {
+            GraphRule grAnn = method.getAnnotation(GraphRule.class);
+            if (grAnn != null) {
+                List<PatternParameterDescriptor> patterns = new ArrayList<>();
+                for (java.lang.reflect.Parameter param : method.getParameters()) {
+                    Match matchAnn = param.getAnnotation(Match.class);
+                    if (matchAnn != null) {
+                        patterns.add(new PatternParameterDescriptor(
+                                PatternKind.MATCH, matchAnn.type(), "", Direction.DEPENDENCIES));
+                    }
+                    NotExists notExistsAnn = param.getAnnotation(NotExists.class);
+                    if (notExistsAnn != null) {
+                        patterns.add(new PatternParameterDescriptor(
+                                PatternKind.NOT_EXISTS, notExistsAnn.type(),
+                                notExistsAnn.of(), notExistsAnn.direction()));
+                    }
+                }
+                boolean imperative = method.getParameterCount() == 1
+                        && method.getParameterTypes()[0] == io.casehub.desiredstate.api.DesiredStateGraph.class;
+                graphRules.add(new GraphRuleDescriptor(
+                        method.getName(), imperative, patterns, iface.getName()));
+            }
+        }
+
         return new GraphDescriptor(ds.namespace(), ds.name(),
                 iface.getName(), MedallionPipelineImpl.class.getName(),
-                nodes, deps, faultPolicies, null, List.of());
+                nodes, deps, faultPolicies, null, graphRules);
     }
 }

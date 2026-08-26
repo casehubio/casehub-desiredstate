@@ -166,8 +166,8 @@ C4Container
   }
 
   Container_Boundary(b9, "Layer: Annotations") {
-    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, descriptors, recorder")
-    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, cross-model validation (MergedGraph), Gizmo impl, SyntheticBeanBuildItem with @DesiredStateQualifier")
+    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, @GraphRule (@Match, @DirectDep, @Reaches, @NotExists), GraphRuleEngine, descriptors, recorder")
+    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, @GraphRule scanning, cross-model validation (MergedGraph), Gizmo impl, SyntheticBeanBuildItem with @DesiredStateQualifier")
   }
 
   Rel(planner, api_graph, "Reads desired graph")

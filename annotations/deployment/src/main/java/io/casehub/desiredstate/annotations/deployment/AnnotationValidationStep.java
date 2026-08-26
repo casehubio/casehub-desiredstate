@@ -54,6 +54,9 @@ public class AnnotationValidationStep {
             "io.casehub.desiredstate.annotations.DeclareNode");
     private static final DotName CUSTOMIZE    = DotName.createSimple(
             "io.casehub.desiredstate.annotations.Customize");
+    private static final DotName GRAPH_RULE   = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.GraphRule");
+    private static final DotName JAVA_LIST    = DotName.createSimple("java.util.List");
 
 
     @BuildStep
@@ -127,6 +130,7 @@ public class AnnotationValidationStep {
             validateFaultPolicyFaultTypes(dsClass, index, errors);
             validateTierReviewMethods(dsClass, index, errors);
             validateGoalMethod(dsClass, index, errors);
+            validateGraphRules(dsClass, errors);
 
             if (localNodeIds.isEmpty()) {
                 warnings.add("@DesiredState '" + dsClass.name().local()
@@ -319,6 +323,22 @@ public class AnnotationValidationStep {
             }
         }
     }
+
+    private void validateGraphRules(ClassInfo dsClass, List<String> errors) {
+        for (MethodInfo method : dsClass.methods()) {
+            if (!method.hasAnnotation(GRAPH_RULE)) {continue;}
+
+            if (!java.lang.reflect.Modifier.isStatic(method.flags())) {
+                errors.add("@GraphRule on '" + method.name() + "' in " + dsClass.name().local()
+                           + " must be a static method");
+            }
+            if (!method.returnType().name().equals(JAVA_LIST)) {
+                errors.add("@GraphRule '" + method.name() + "' in " + dsClass.name().local()
+                           + " must return List<GraphMutation>");
+            }
+        }
+    }
+
 
     private void validateFaultPolicyOnMethod(MethodInfo method, ClassInfo dsClass,
             IndexView index, List<String> errors) {

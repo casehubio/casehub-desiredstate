@@ -3,11 +3,19 @@ package io.casehub.desiredstate.example.pipeline.annotated;
 import io.casehub.desiredstate.annotations.DependsOn;
 import io.casehub.desiredstate.annotations.DesiredState;
 import io.casehub.desiredstate.annotations.FaultPolicyDef;
+import io.casehub.desiredstate.annotations.GraphRule;
+import io.casehub.desiredstate.annotations.Match;
 import io.casehub.desiredstate.annotations.Node;
+import io.casehub.desiredstate.annotations.NotExists;
+import io.casehub.desiredstate.annotations.runtime.Direction;
 import io.casehub.desiredstate.annotations.Tier;
+import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
+import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.GraphMutations;
 import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.example.pipeline.AiReviewSpec;
 import io.casehub.desiredstate.example.pipeline.CleanserSpec;
 import io.casehub.desiredstate.example.pipeline.DataSourceSpec;
@@ -91,5 +99,17 @@ public interface MedallionPipeline {
 
     default HumanReviewSpec createHumanReview(FaultEvent event, DesiredStateGraph graph) {
         return new HumanReviewSpec(event.node(), event.detail(), "Requires manual review");
+    }
+
+    // --- Graph rule: ensure every sink has a monitoring node ---
+
+    @GraphRule
+    static List<GraphMutation> ensureMonitoring(
+            @Match(type = "sink") DesiredNode sink,
+            @NotExists(type = "monitor", of = "sink", direction = Direction.DEPENDENTS) Void guard) {
+        return GraphMutations.addNodeDependingOn(
+                new DesiredNode(NodeId.of("monitor-" + sink.id().value()),
+                        new MonitorSpec(sink.id().value()), HumanGating.NONE),
+                sink.id());
     }
 }
