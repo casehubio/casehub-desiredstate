@@ -20,6 +20,8 @@ import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.deployment.GeneratedClassGizmoAdaptor;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.Produce;
+import io.quarkus.deployment.builditem.ServiceStartBuildItem;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
@@ -47,54 +49,62 @@ import java.util.Set;
 
 public class DesiredStateAnnotationsProcessor {
 
-    private static final DotName DESIRED_STATE = DotName.createSimple(
+    private static final DotName DESIRED_STATE               = DotName.createSimple(
             "io.casehub.desiredstate.annotations.DesiredState");
-    private static final DotName NODE = DotName.createSimple(
+    private static final DotName NODE                        = DotName.createSimple(
             "io.casehub.desiredstate.annotations.Node");
-    private static final DotName DEPENDS_ON = DotName.createSimple(
+    private static final DotName DEPENDS_ON                  = DotName.createSimple(
             "io.casehub.desiredstate.annotations.DependsOn");
-    private static final DotName FAULT_POLICY_DEF = DotName.createSimple(
+    private static final DotName FAULT_POLICY_DEF            = DotName.createSimple(
             "io.casehub.desiredstate.annotations.FaultPolicyDef");
-    private static final DotName FAULT_POLICIES = DotName.createSimple(
+    private static final DotName FAULT_POLICIES              = DotName.createSimple(
             "io.casehub.desiredstate.annotations.FaultPolicies");
-    private static final DotName NODE_SPEC = DotName.createSimple(
+    private static final DotName NODE_SPEC                   = DotName.createSimple(
             "io.casehub.desiredstate.api.NodeSpec");
-    private static final DotName GOAL_METHOD = DotName.createSimple(
+    private static final DotName GOAL_METHOD                 = DotName.createSimple(
             "io.casehub.desiredstate.annotations.GoalMethod");
-    private static final DotName COMPILATION_RESULT = DotName.createSimple(
+    private static final DotName COMPILATION_RESULT          = DotName.createSimple(
             "io.casehub.desiredstate.api.CompilationResult");
-    private static final DotName DESIRED_STATE_GRAPH = DotName.createSimple(
+    private static final DotName DESIRED_STATE_GRAPH         = DotName.createSimple(
             "io.casehub.desiredstate.api.DesiredStateGraph");
     private static final DotName DESIRED_STATE_GRAPH_FACTORY = DotName.createSimple(
             "io.casehub.desiredstate.api.DesiredStateGraphFactory");
     private static final DotName DECLARE_NODE                = DotName.createSimple(
             "io.casehub.desiredstate.annotations.DeclareNode");
-    private static final DotName GRAPH_RULE = DotName.createSimple(
+    private static final DotName GRAPH_RULE                  = DotName.createSimple(
             "io.casehub.desiredstate.annotations.GraphRule");
-    private static final DotName MATCH = DotName.createSimple(
+    private static final DotName MATCH                       = DotName.createSimple(
             "io.casehub.desiredstate.annotations.Match");
-    private static final DotName DIRECT_DEP = DotName.createSimple(
+    private static final DotName DIRECT_DEP                  = DotName.createSimple(
             "io.casehub.desiredstate.annotations.DirectDep");
-    private static final DotName REACHES = DotName.createSimple(
+    private static final DotName REACHES                     = DotName.createSimple(
             "io.casehub.desiredstate.annotations.Reaches");
-    private static final DotName NOT_EXISTS = DotName.createSimple(
+    private static final DotName NOT_EXISTS                  = DotName.createSimple(
             "io.casehub.desiredstate.annotations.NotExists");
-    private static final DotName GRAPH_INVARIANT = DotName.createSimple(
+    private static final DotName GRAPH_INVARIANT             = DotName.createSimple(
             "io.casehub.desiredstate.annotations.GraphInvariant");
 
+    private static String stringValueOrDefault(
+            AnnotationInstance ann, IndexView index, String name, String defaultValue) {
+        AnnotationValue value = ann.valueWithDefault(index, name);
+        if (value == null) {return defaultValue;}
+        String s = value.asString();
+        return s != null ? s : defaultValue;
+    }
 
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
     void generateDesiredStateGraphs(
             CombinedIndexBuildItem indexBuildItem,
             DesiredStateGraphRecorder recorder,
-            BuildProducer<SyntheticBeanBuildItem> syntheticBeans) {
+            BuildProducer<SyntheticBeanBuildItem> syntheticBeans,
+            BuildProducer<DesiredStateGraphBuildItem> graphItems) {
         IndexView index = indexBuildItem.getIndex();
 
         Map<String, List<NodeDescriptor.ClassNode>> classNodesByGraph  = scanDeclareNodes(index);
         Set<String>                                 interfaceGraphKeys = new HashSet<>();
 
-        List<Map.Entry<String[], List<GraphRuleDescriptor>>> standaloneRules = scanStandaloneGraphRules(index);
+        List<Map.Entry<String[], List<GraphRuleDescriptor>>>      standaloneRules      = scanStandaloneGraphRules(index);
         List<Map.Entry<String[], List<GraphInvariantDescriptor>>> standaloneInvariants = scanStandaloneGraphInvariants(index);
 
         for (AnnotationInstance dsAnn : index.getAnnotations(DESIRED_STATE)) {
@@ -117,12 +127,12 @@ public class DesiredStateAnnotationsProcessor {
                 }
             }
             if (mergedRules.size() != descriptor.graphRules().size()
-                    || mergedInvariants.size() != descriptor.graphInvariants().size()) {
+                || mergedInvariants.size() != descriptor.graphInvariants().size()) {
                 descriptor = new GraphDescriptor(descriptor.namespace(), descriptor.name(),
-                        descriptor.interfaceName(), descriptor.implClassName(),
-                        descriptor.nodes(), descriptor.dependencies(),
-                        descriptor.faultPolicies(), descriptor.goalMethod(), mergedRules,
-                        mergedInvariants);
+                                                 descriptor.interfaceName(), descriptor.implClassName(),
+                                                 descriptor.nodes(), descriptor.dependencies(),
+                                                 descriptor.faultPolicies(), descriptor.goalMethod(), mergedRules,
+                                                 mergedInvariants);
             }
 
             List<NodeDescriptor.ClassNode> classNodes = classNodesByGraph.getOrDefault(graphKey, List.of());
@@ -137,15 +147,18 @@ public class DesiredStateAnnotationsProcessor {
                 mergedPolicies.addAll(collectClassFaultPolicies(classNodes, index));
 
                 descriptor = new GraphDescriptor(descriptor.namespace(), descriptor.name(),
-                        descriptor.interfaceName(), descriptor.implClassName(),
-                        mergedNodes, mergedDeps, mergedPolicies, descriptor.goalMethod(),
-                        descriptor.graphRules(), descriptor.graphInvariants());
+                                                 descriptor.interfaceName(), descriptor.implClassName(),
+                                                 mergedNodes, mergedDeps, mergedPolicies, descriptor.goalMethod(),
+                                                 descriptor.graphRules(), descriptor.graphInvariants());
             }
 
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
             registerGoalCompilerBean(runtimeValue, syntheticBeans, descriptor.namespace(), descriptor.name());
+            graphItems.produce(new DesiredStateGraphBuildItem(
+                    descriptor.namespace(), descriptor.name(),
+                    "annotation:" + dsClass.name().toString()));
 
             for (FaultPolicyDescriptor fpd : descriptor.faultPolicies()) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -167,8 +180,8 @@ public class DesiredStateAnnotationsProcessor {
             String   ns    = parts[0];
             String   nm    = parts.length > 1 ? parts[1] : "";
 
-            List<NodeDescriptor>       nodes = new ArrayList<>(entry.getValue());
-            List<DependencyDescriptor> deps  = resolveClassDependencies(entry.getValue(), index);
+            List<NodeDescriptor>        nodes              = new ArrayList<>(entry.getValue());
+            List<DependencyDescriptor>  deps               = resolveClassDependencies(entry.getValue(), index);
             List<FaultPolicyDescriptor> classFaultPolicies = collectClassFaultPolicies(entry.getValue(), index);
 
             GraphDescriptor descriptor = new GraphDescriptor(ns, nm, null, null,
@@ -178,6 +191,7 @@ public class DesiredStateAnnotationsProcessor {
             RuntimeValue<GoalCompiler> runtimeValue = recorder.createGoalCompiler(descriptor);
 
             registerGoalCompilerBean(runtimeValue, syntheticBeans, descriptor.namespace(), descriptor.name());
+            graphItems.produce(new DesiredStateGraphBuildItem(ns, nm, "class-node:" + entry.getKey()));
 
             for (FaultPolicyDescriptor fpd : classFaultPolicies) {
                 RuntimeValue<ThresholdFaultPolicy> policyValue =
@@ -185,11 +199,11 @@ public class DesiredStateAnnotationsProcessor {
 
                 syntheticBeans.produce(
                         SyntheticBeanBuildItem.configure(io.casehub.desiredstate.api.FaultPolicy.class)
-                                .scope(ApplicationScoped.class)
-                                .unremovable()
-                                .setRuntimeInit()
-                                .runtimeValue(policyValue)
-                                .done());
+                                              .scope(ApplicationScoped.class)
+                                              .unremovable()
+                                              .setRuntimeInit()
+                                              .runtimeValue(policyValue)
+                                              .done());
             }
         }
     }
@@ -202,14 +216,14 @@ public class DesiredStateAnnotationsProcessor {
         IndexView index = indexBuildItem.getIndex();
 
         for (AnnotationInstance dsAnn : index.getAnnotations(DESIRED_STATE)) {
-            ClassInfo dsClass = dsAnn.target().asClass();
-            String implClassName = dsClass.name().toString() + "_DesiredStateImpl";
+            ClassInfo dsClass       = dsAnn.target().asClass();
+            String    implClassName = dsClass.name().toString() + "_DesiredStateImpl";
 
             try (ClassCreator creator = ClassCreator.builder()
-                    .classOutput(new GeneratedClassGizmoAdaptor(generatedClasses, true))
-                    .className(implClassName)
-                    .interfaces(dsClass.name().toString())
-                    .build()) {
+                                                    .classOutput(new GeneratedClassGizmoAdaptor(generatedClasses, true))
+                                                    .className(implClassName)
+                                                    .interfaces(dsClass.name().toString())
+                                                    .build()) {
 
                 try (MethodCreator ctor = creator.getMethodCreator("<init>", void.class)) {
                     ctor.invokeSpecialMethod(
@@ -237,8 +251,8 @@ public class DesiredStateAnnotationsProcessor {
                                       .addValue("namespace", namespace)
                                       .addValue("name", name)
                                       .done()
-                                      .done());}
-
+                                      .done());
+    }
 
     private Map<String, List<NodeDescriptor.ClassNode>> scanDeclareNodes(IndexView index) {
         Map<String, List<NodeDescriptor.ClassNode>> byGraph = new HashMap<>();
@@ -335,26 +349,25 @@ public class DesiredStateAnnotationsProcessor {
                                          sourceClassName);
     }
 
-
     private GraphDescriptor buildGraphDescriptor(
             AnnotationInstance dsAnn, ClassInfo dsClass, IndexView index) {
 
-        String namespace = stringValueOrDefault(dsAnn, index, "namespace", "");
-        String name = stringValueOrDefault(dsAnn, index, "name", "");
+        String namespace     = stringValueOrDefault(dsAnn, index, "namespace", "");
+        String name          = stringValueOrDefault(dsAnn, index, "name", "");
         String implClassName = dsClass.name().toString() + "_DesiredStateImpl";
 
-        List<NodeDescriptor> nodes = new ArrayList<>();
-        List<DependencyDescriptor> deps = new ArrayList<>();
+        List<NodeDescriptor>        nodes         = new ArrayList<>();
+        List<DependencyDescriptor>  deps          = new ArrayList<>();
         List<FaultPolicyDescriptor> faultPolicies = new ArrayList<>();
 
         for (MethodInfo method : dsClass.methods()) {
             AnnotationInstance nodeAnn = method.annotation(NODE);
             if (nodeAnn != null) {
-                String nodeId = nodeAnn.value().asString();
+                String      nodeId = nodeAnn.value().asString();
                 HumanGating gating = resolveHumanGating(nodeAnn, index);
 
                 nodes.add(new NodeDescriptor.InterfaceNode(nodeId, method.name(),
-                        method.returnType().name().toString(), gating));
+                                                           method.returnType().name().toString(), gating));
 
                 AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
                 if (dependsOnAnn != null) {
@@ -393,14 +406,14 @@ public class DesiredStateAnnotationsProcessor {
                 boolean returnsCompilationResult =
                         method.returnType().name().equals(COMPILATION_RESULT);
                 boolean hasFactoryParam = method.parametersCount() >= 3
-                        && method.parameterType(2).name().equals(DESIRED_STATE_GRAPH_FACTORY);
+                                          && method.parameterType(2).name().equals(DESIRED_STATE_GRAPH_FACTORY);
                 goalMethod = new GoalMethodDescriptor(
                         method.name(), goalsTypeName, returnsCompilationResult, hasFactoryParam);
                 break;
             }
         }
 
-        List<GraphRuleDescriptor> graphRules = new ArrayList<>();
+        List<GraphRuleDescriptor>      graphRules      = new ArrayList<>();
         List<GraphInvariantDescriptor> graphInvariants = new ArrayList<>();
         for (MethodInfo method : dsClass.methods()) {
             if (method.hasAnnotation(GRAPH_RULE)) {
@@ -412,7 +425,7 @@ public class DesiredStateAnnotationsProcessor {
         }
 
         return new GraphDescriptor(namespace, name, dsClass.name().toString(),
-                implClassName, nodes, deps, faultPolicies, goalMethod, graphRules, graphInvariants);
+                                   implClassName, nodes, deps, faultPolicies, goalMethod, graphRules, graphInvariants);
     }
 
     private void collectMethodLevelFaultPolicies(
@@ -448,7 +461,7 @@ public class DesiredStateAnnotationsProcessor {
 
     private List<AnnotationInstance> collectFaultPolicyAnnotations(MethodInfo method) {
         List<AnnotationInstance> result = new ArrayList<>();
-        AnnotationInstance single = method.annotation(FAULT_POLICY_DEF);
+        AnnotationInstance       single = method.annotation(FAULT_POLICY_DEF);
         if (single != null) {
             result.add(single);
         }
@@ -464,7 +477,7 @@ public class DesiredStateAnnotationsProcessor {
 
     private HumanGating resolveHumanGating(AnnotationInstance nodeAnn, IndexView index) {
         AnnotationValue gatingVal = nodeAnn.valueWithDefault(index, "humanGating");
-        if (gatingVal == null) return HumanGating.NONE;
+        if (gatingVal == null) {return HumanGating.NONE;}
         return HumanGating.valueOf(gatingVal.asEnum());
     }
 
@@ -486,9 +499,9 @@ public class DesiredStateAnnotationsProcessor {
     }
 
     private GraphInvariantDescriptor buildGraphInvariantDescriptor(MethodInfo method,
-                                                                    IndexView index, String sourceClassName) {
+                                                                   IndexView index, String sourceClassName) {
         if (method.parametersCount() == 1
-                && method.parameterType(0).name().equals(DESIRED_STATE_GRAPH)) {
+            && method.parameterType(0).name().equals(DESIRED_STATE_GRAPH)) {
             return new GraphInvariantDescriptor(method.name(), true, List.of(), sourceClassName);
         }
 
@@ -538,24 +551,23 @@ public class DesiredStateAnnotationsProcessor {
         return null;
     }
 
-
     private List<Map.Entry<String[], List<GraphRuleDescriptor>>> scanStandaloneGraphRules(IndexView index) {
         List<Map.Entry<String[], List<GraphRuleDescriptor>>> result = new ArrayList<>();
         for (AnnotationInstance grAnn : index.getAnnotations(GRAPH_RULE)) {
-            if (grAnn.target().kind() != AnnotationTarget.Kind.CLASS) continue;
-            ClassInfo classInfo = grAnn.target().asClass();
-            AnnotationValue graphVal = grAnn.value("graph");
-            if (graphVal == null) continue;
+            if (grAnn.target().kind() != AnnotationTarget.Kind.CLASS) {continue;}
+            ClassInfo       classInfo = grAnn.target().asClass();
+            AnnotationValue graphVal  = grAnn.value("graph");
+            if (graphVal == null) {continue;}
             String[] graphPatterns = graphVal.asStringArray();
-            if (graphPatterns.length == 0) continue;
+            if (graphPatterns.length == 0) {continue;}
 
             List<GraphRuleDescriptor> classRules = new ArrayList<>();
             for (MethodInfo method : classInfo.methods()) {
                 if (method.hasAnnotation(GRAPH_RULE)
-                        && !java.lang.reflect.Modifier.isStatic(method.flags())
-                        && java.lang.reflect.Modifier.isPublic(method.flags())) {
+                    && !java.lang.reflect.Modifier.isStatic(method.flags())
+                    && java.lang.reflect.Modifier.isPublic(method.flags())) {
                     classRules.add(buildGraphRuleDescriptor(method, index,
-                            classInfo.name().toString()));
+                                                            classInfo.name().toString()));
                 }
             }
             if (!classRules.isEmpty()) {
@@ -568,20 +580,20 @@ public class DesiredStateAnnotationsProcessor {
     private List<Map.Entry<String[], List<GraphInvariantDescriptor>>> scanStandaloneGraphInvariants(IndexView index) {
         List<Map.Entry<String[], List<GraphInvariantDescriptor>>> result = new ArrayList<>();
         for (AnnotationInstance giAnn : index.getAnnotations(GRAPH_INVARIANT)) {
-            if (giAnn.target().kind() != AnnotationTarget.Kind.CLASS) continue;
-            ClassInfo classInfo = giAnn.target().asClass();
-            AnnotationValue graphVal = giAnn.value("graph");
-            if (graphVal == null) continue;
+            if (giAnn.target().kind() != AnnotationTarget.Kind.CLASS) {continue;}
+            ClassInfo       classInfo = giAnn.target().asClass();
+            AnnotationValue graphVal  = giAnn.value("graph");
+            if (graphVal == null) {continue;}
             String[] graphPatterns = graphVal.asStringArray();
-            if (graphPatterns.length == 0) continue;
+            if (graphPatterns.length == 0) {continue;}
 
             List<GraphInvariantDescriptor> classInvariants = new ArrayList<>();
             for (MethodInfo method : classInfo.methods()) {
                 if (method.hasAnnotation(GRAPH_INVARIANT)
-                        && !java.lang.reflect.Modifier.isStatic(method.flags())
-                        && java.lang.reflect.Modifier.isPublic(method.flags())) {
+                    && !java.lang.reflect.Modifier.isStatic(method.flags())
+                    && java.lang.reflect.Modifier.isPublic(method.flags())) {
                     classInvariants.add(buildGraphInvariantDescriptor(method, index,
-                            classInfo.name().toString()));
+                                                                      classInfo.name().toString()));
                 }
             }
             if (!classInvariants.isEmpty()) {
@@ -589,13 +601,5 @@ public class DesiredStateAnnotationsProcessor {
             }
         }
         return result;
-    }
-
-    private static String stringValueOrDefault(
-            AnnotationInstance ann, IndexView index, String name, String defaultValue) {
-        AnnotationValue value = ann.valueWithDefault(index, name);
-        if (value == null) return defaultValue;
-        String s = value.asString();
-        return s != null ? s : defaultValue;
     }
 }
