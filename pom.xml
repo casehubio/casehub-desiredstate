@@ -35,6 +35,7 @@
         <module>annotations</module>
         <module>yaml</module>
         <module>examples/pipeline-annotated</module>
+        <module>examples/pipeline-yaml</module>
     </modules>
 
     <properties>
