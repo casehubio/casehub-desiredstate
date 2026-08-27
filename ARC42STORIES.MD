@@ -39,6 +39,7 @@
 | CaseHub platform | Foundation-tier module — no upward dependencies |
 | casehub-engine | Engine adapter provides case-backed durability and visualization |
 | casehub-ops | Production domain implementations consume this runtime |
+| Operators | Declaration language (YAML, TS) must cover Terraform + Ansible use cases without requiring Java |
 
 **Quality goals:**
 
@@ -48,6 +49,7 @@
 | 2 | SPI completeness | Every extension point a domain needs is an SPI, not a runtime change |
 | 3 | Ordering correctness | Pruning before growing, leaves-first removal, roots-first addition |
 | 4 | Fault composability | Multiple fault policies compose without shared state |
+| 5 | Declaration surface coverage | YAML, TypeScript, and Java annotations all compile to `GraphDescriptor` → identical runtime behaviour |
 
 ---
 
@@ -104,6 +106,10 @@ C4Context
 | Event-driven + periodic reconciliation | Events catch immediate drift; periodic re-sync catches silent drift |
 | CDI displacement (`@DefaultBean`) | SimpleTransitionExecutor is the default; CaseTransitionExecutor displaces it by classpath presence |
 | Algebraic graph composition | `overlay()` (union) and `connect()` (all-leaves → all-roots) from Alga; enables compositional goal building |
+| Four declaration surfaces | Visual graph editor (primary operator UX), YAML (universal serialisation), TypeScript DSL (DevOps), Java annotations (platform developer) — all converge on `GraphDescriptor` IR. Runtime is surface-agnostic |
+| Drools for runtime rules | YAML/operator-facing graph rules use Drools as backend (current version); annotation path keeps lightweight custom engine. Target: Drools everywhere with next Drools version |
+| Unified declarative + imperative | Graph declares what should exist (Terraform concern); transition executor handles lifecycle steps (Ansible concern). One state model, one fault model, one reconciliation loop — resolves the Terraform + Ansible split |
+| Graph language as policy | `@GraphRule` and `@GraphInvariant` provide static analysis and runtime enforcement using the same pattern vocabulary. No separate policy tool needed |
 
 ### Layer taxonomy
 
@@ -117,6 +123,7 @@ C4Context
 | L6 Domain Examples | examples/dungeon/, examples/pipeline/, examples/spatial/ | Teaching examples implementing all SPIs |
 | L7 Work Adapter | work-adapter/ | WorkItem-backed HumanNodeHandler + PendingApprovalHandler — bridge to casehub-work |
 | L8 RAS Adapter | ras-adapter/ | RAS bridge — Ganglia for aggregate fault detection, CloudEvent emission for reconciliation patterns |
+| L9 Declaration Surfaces | annotations/, yaml/ (planned), ts-dsl/ (planned) | Multi-surface graph declaration: Java annotations (delivered), YAML operator surface (planned), TypeScript DSL (planned). All compile to `GraphDescriptor` → `GoalCompiler`. Drools-backed rule evaluation for YAML path |
 
 ### Chapter sequencing rationale
 
@@ -165,9 +172,11 @@ C4Container
     Container(ras_emitter, "ReconciliationEventEmitter", "@ApplicationScoped", "Emits CloudEvents for cycle completion, faults, drift, recovery")
   }
 
-  Container_Boundary(b9, "Layer: Annotations") {
-    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, @GraphRule (@Match, @DirectDep, @Reaches, @NotExists), GraphRuleEngine, descriptors, recorder")
-    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, @GraphRule scanning, cross-model validation (MergedGraph), Gizmo impl, SyntheticBeanBuildItem with @DesiredStateQualifier")
+  Container_Boundary(b9, "Layer: L9 Declaration Surfaces") {
+    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, @GraphRule, @GraphInvariant, GraphRuleEngine, GraphInvariantEngine, PatternMatchingSupport, GraphPatternMatcher, descriptors, recorder")
+    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, @GraphRule/@GraphInvariant scanning (interface + standalone), cross-model validation (MergedGraph), parameter validation, Gizmo impl, SyntheticBeanBuildItem")
+    Container(yaml_surface, "YAML Surface", "Planned", "YAML → GraphDescriptor pipeline. Conditional/iterated subgraph inclusion. Drools-backed rule evaluation")
+    Container(ts_surface, "TypeScript DSL", "Planned", "Constrained TS DSL → GraphDescriptor. Type-safe graph declarations with IDE support")
   }
 
   Rel(planner, api_graph, "Reads desired graph")
@@ -281,7 +290,7 @@ casehub-desiredstate is a library, not a standalone application. It deploys as M
 
 | Journey | Description | Chapters | Status |
 |---|---|---|---|
-| Generic Desired-State Runtime | Build a domain-agnostic desired-state management system, prove genericity through distinct domains, evolve toward production capability | 9 | In progress |
+| Generic Desired-State Runtime | Build a domain-agnostic desired-state management system, prove genericity through distinct domains, evolve toward production capability | 10 | In progress |
 
 ```mermaid
 flowchart LR
@@ -293,6 +302,7 @@ flowchart LR
   C6 --> C7["C7: Worker Foundation\nL1,L2,L6"]
   C5 --> C8["C8: Approval-Gated\nProvisioning\nL1,L2,L3,L5,L7"]
   C8 --> C9["C9: Lifecycle Management\nL1,L2,L6"]
+  C9 --> C10["C10: Declaration\nSurfaces\nL9,L6"]
 
   style C1 fill:#90EE90,color:#000
   style C2 fill:#90EE90,color:#000
@@ -303,6 +313,7 @@ flowchart LR
   style C7 fill:#FFD700,color:#000
   style C8 fill:#FFD700,color:#000
   style C9 fill:#FFD700,color:#000
+  style C10 fill:#ADD8E6,color:#000
 ```
 
 ### §9.2 Chapter Index
@@ -318,18 +329,20 @@ flowchart LR
 | 7 | Worker Foundation | Generic DSR | L1, L2, L6 | Medium, Low, Low | 🚧 |
 | 8 | Approval-Gated Provisioning | Generic DSR | L1, L2, L3, L5, L7 | Medium, Medium, Medium, Low, Medium | 🚧 |
 | 9 | Lifecycle Management | Generic DSR | L1, L2, L6 | Medium, Medium, High | 🚧 |
+| 10 | Declaration Surfaces | Generic DSR | L9, L6 | High, Medium | 📋 |
 
 **Layer x Chapter matrix**
 
-| Layer | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 |
-|---|---|---|---|---|---|---|---|---|---|
-| L1 Core API | High | — | — | — | — | — | Medium | Medium | Medium |
-| L2 Runtime Engine | High | Low | Low | — | — | — | Low | Medium | Medium |
-| L3 Engine Adapter | High | — | — | — | Medium | — | — | Medium | — |
-| L4 Observability | — | — | High | — | — | — | — | — | — |
-| L5 Testing | High | — | — | — | — | — | — | Low | — |
-| L6 Domain Examples | High | High | — | Medium | — | Medium | Low | — | High |
-| L7 Work Adapter | — | — | — | — | — | — | — | Medium | — |
+| Layer | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | C10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| L1 Core API | High | — | — | — | — | — | Medium | Medium | Medium | — |
+| L2 Runtime Engine | High | Low | Low | — | — | — | Low | Medium | Medium | — |
+| L3 Engine Adapter | High | — | — | — | Medium | — | — | Medium | — | — |
+| L4 Observability | — | — | High | — | — | — | — | — | — | — |
+| L5 Testing | High | — | — | — | — | — | — | Low | — | — |
+| L6 Domain Examples | High | High | — | Medium | — | Medium | Low | — | High | Medium |
+| L7 Work Adapter | — | — | — | — | — | — | — | Medium | — | — |
+| L9 Declaration Surfaces | — | — | — | — | — | — | — | — | — | High |
 
 L1 and L2 appear across multiple columns — they are foundational and bear cross-cutting responsibility. L6 has the most High entries — each new capability is validated through domain examples.
 
@@ -1031,6 +1044,34 @@ Multi-phase desired-state transitions without re-invoking `GoalCompiler`. Domain
 
 ---
 
+### Chapter 10 — Declaration Surfaces
+
+**Journey:** Generic DSR | **Sequence:** 10 of 10 | **Status:** 📋
+**Delivered:** — | **Issues:** #116, #109, #108, #114 | **Blog:** —
+**Research:** `docs/research/2026-08-27-operator-declaration-language-research.md`
+
+**What this delivers**
+Multi-surface graph declaration language covering the use cases currently addressed by Terraform, Helm, and Ansible — without requiring Java. YAML as the universal operator surface, TypeScript DSL as the type-safe power-user surface, both compiling to `GraphDescriptor` → `GoalCompiler` → reconciliation loop. YAML-expressed graph rules and invariants backed by Drools. Conditional and iterated subgraph inclusion (`when:`, `forEach:`). Module composition model. Lifecycle hooks for imperative steps within transitions — unifying the declarative (Terraform) and imperative (Ansible) models in one runtime.
+
+**Accountability gaps to close**
+- No non-Java declaration surface — operators must write Java annotations or `GoalCompiler` implementations
+- No YAML → `GraphDescriptor` pipeline
+- Graph rules and invariants only expressible via Java annotations
+- No conditional or iterated subgraph inclusion in declarations
+- No module/composition model for reusable deployment units
+- Terraform + Ansible split unresolved — declarative and imperative models remain separate concerns
+
+**Layer Impact**
+
+| Layer | Delta |
+|---|---|
+| L9 Declaration Surfaces | High — YAML deserialiser, TypeScript DSL, Drools rule backend, conditional/iterated subgraph inclusion, module composition |
+| L6 Domain Examples | Medium — CaseHub self-management example, YAML-driven pipeline example |
+
+**Sequencing:** C10 after C9 — requires lifecycle phases, fault policies, graph rules, and invariants to be in place. The declaration language surfaces these capabilities; it does not introduce them.
+
+---
+
 ## §10 Architectural Decisions
 
 No ADRs recorded yet. `docs/adr/` contains `.gitkeep` only. Architectural decisions are currently captured inline in layer entries (§9.4) and design specs (`docs/superpowers/specs/`).
@@ -1058,6 +1099,8 @@ No ADRs recorded yet. `docs/adr/` contains `.gitkeep` only. Architectural decisi
 | ExecutionBackend shared concerns | C6 — DefaultExecutionBackend bundles precondition validation, state management, and execution | Factor out shared concerns when the first alternative backend (Camel, Drools) is added |
 | Worker migration scope | C7 — cross-repo migration (10+ repos) for package renames | Mechanical find-and-replace; no semantic changes |
 | No ADRs | All chapters | Decisions are in design specs and inline in layer entries; should be promoted to formal ADRs for cross-cutting decisions |
+| Provider ecosystem gap | C10 — YAML/TS declaration surfaces need real `NodeProvisioner` backends | Phase 1 uses mock provisioners; Phase 2 (OPS integration) delivers real backends. Pulumi could serve as a backend via its Automation API |
+| Drools version dependency | C10 — current Drools for YAML rules; next version enables "Drools everywhere" | Interim two-engine split (custom for annotations, Drools for YAML). Clean migration path when next Drools version lands |
 
 ---
 
@@ -1090,3 +1133,9 @@ No ADRs recorded yet. `docs/adr/` contains `.gitkeep` only. Architectural decisi
 | **CompletionCondition** | Predicate evaluated after each reconciliation cycle to determine if the current phase is complete. Built-ins: allPresent() (all nodes in phase graph are PRESENT in actual state), never() (never complete — phase is terminal) |
 | **LifecycleManager** | Runtime orchestrator for phase transitions. Evaluates CompletionCondition via ReconciliationListener after each cycle; on completion, uses compareAndSetDesired() to atomically advance to the next phase |
 | **ReconciliationListener** | Callback hook invoked by ReconciliationLoop after each cycle completes. LifecycleManager uses this to evaluate CompletionCondition and trigger phase transitions |
+| **Declaration surface** | A language or format that compiles to `GraphDescriptor` — YAML (operator), TypeScript DSL (DevOps), Java annotations (platform developer). The runtime is surface-agnostic |
+| **GraphDescriptor** | Intermediate representation shared by all declaration surfaces — nodes, dependencies, fault policies, graph rules, graph invariants. Compiled to `GoalCompiler` at Quarkus runtime init |
+| **GraphPatternMatcher** | Include/exclude graph matching with `!` prefix for standalone rule/invariant class scoping. Ordered evaluation, last match wins (.gitignore-style) |
+| **@GraphInvariant** | Declarative graph validation. Same pattern vocabulary as `@GraphRule` but with universal quantification — every `@Match` anchor must satisfy the pattern, not just one |
+| **GraphInvariantEngine** | Single-pass validation engine. Per-anchor-tuple expansion — structural violation when any anchor fails to expand. Shared `PatternMatchingSupport` primitives with `GraphRuleEngine` |
+| **Conditional subgraph inclusion** | `when:` directive on YAML nodes — include this subgraph when condition is true (0 or 1 copies). Counterpart: `forEach:` stamps out N copies from a collection |
