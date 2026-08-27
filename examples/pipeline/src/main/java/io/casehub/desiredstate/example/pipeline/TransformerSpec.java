@@ -2,9 +2,12 @@ package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeTypeId;
 import io.casehub.desiredstate.api.NodeType;
+
 import java.util.List;
 
+@NodeTypeId("transformer")
 public record TransformerSpec(List<String> aggregations, List<String> reshapeRules,
                               String outputFormat, boolean approvalRequired) implements NodeSpec {
     public TransformerSpec {

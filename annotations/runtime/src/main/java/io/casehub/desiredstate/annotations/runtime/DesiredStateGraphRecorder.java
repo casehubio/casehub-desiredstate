@@ -305,6 +305,8 @@ public class DesiredStateGraphRecorder {
                     NodeSpec spec      = (NodeSpec) nodeClass.getDeclaredConstructor().newInstance();
                     nodes.add(new DesiredNode(NodeId.of(cn.id()), spec, spec.humanGating()));
                 }
+                case NodeDescriptor.InlineNode ignored ->
+                        throw new IllegalStateException("InlineNode cannot appear in annotation-path graphs");
             }
         }
         return List.copyOf(nodes);

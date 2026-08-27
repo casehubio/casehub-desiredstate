@@ -2,9 +2,12 @@ package io.casehub.desiredstate.example.pipeline;
 
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeTypeId;
 import io.casehub.desiredstate.api.NodeType;
+
 import java.util.List;
 
+@NodeTypeId("sink")
 public record SinkSpec(String destination, String format, List<String> partitionKeys,
                        boolean approvalRequired) implements NodeSpec {
     public SinkSpec {
