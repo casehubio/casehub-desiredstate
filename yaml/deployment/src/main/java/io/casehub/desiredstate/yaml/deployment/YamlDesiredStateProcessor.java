@@ -455,6 +455,76 @@ public class YamlDesiredStateProcessor {
         }
     }
 
+    static void validateLifecycle(io.casehub.desiredstate.yaml.model.YamlGraph graph,
+                                  Map<String, String> typeRegistry, String fileName) {
+        if (graph.lifecycle() == null) {return;}
+
+        if (!graph.nodes().isEmpty()) {
+            throw new RuntimeException(fileName
+                                       + ": cannot have both top-level 'nodes' and 'lifecycle'. "
+                                       + "When lifecycle is present, nodes live inside phases.");
+        }
+
+        List<io.casehub.desiredstate.yaml.model.YamlPhase> phases = graph.lifecycle().phases();
+        if (phases.isEmpty()) {
+            throw new RuntimeException(fileName
+                                       + ": lifecycle must have at least one phase");
+        }
+
+        Set<String> phaseIds = new HashSet<>();
+        for (int i = 0; i < phases.size(); i++) {
+            io.casehub.desiredstate.yaml.model.YamlPhase phase = phases.get(i);
+            String                                       ctx   = fileName + ": lifecycle.phases[" + i + "]";
+
+            if (phase.id() == null || phase.id().isBlank()) {
+                throw new RuntimeException(ctx + ": phase id is required");
+            }
+            if (!phaseIds.add(phase.id())) {
+                throw new RuntimeException(ctx + ": duplicate phase id '" + phase.id() + "'");
+            }
+
+            validateCompletionCondition(phase.completionCondition(), ctx);
+
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> nodeEntry :
+                    phase.nodes().entrySet()) {
+                String                                      nodeId = nodeEntry.getKey();
+                io.casehub.desiredstate.yaml.model.YamlNode node   = nodeEntry.getValue();
+
+                if (!typeRegistry.containsKey(node.type())) {
+                    throw new RuntimeException(ctx + ": unknown node type '"
+                                               + node.type() + "' for node '" + nodeId + "'");
+                }
+            }
+        }
+
+        io.casehub.desiredstate.yaml.model.YamlPhase lastPhase = phases.get(phases.size() - 1);
+        if ("allPresent".equals(lastPhase.completionCondition())) {
+            LOG.warnf("%s: last phase '%s' uses completionCondition 'allPresent' — "
+                      + "the lifecycle will terminate and reconciliation will stop. "
+                      + "Use 'never' for steady-state operation.", fileName, lastPhase.id());
+        }
+    }
+
+    private static void validateCompletionCondition(Object condition, String ctx) {
+        if (condition == null) {
+            throw new RuntimeException(ctx + ": completionCondition is required");
+        }
+        if (condition instanceof String s) {
+            if (!"allPresent".equals(s) && !"never".equals(s)) {
+                throw new RuntimeException(ctx + ": unknown completionCondition '"
+                                           + s + "'. Valid: allPresent, never, or { bean: \"name\" }");
+            }
+        } else if (condition instanceof Map<?, ?> m) {
+            if (!m.containsKey("bean")) {
+                throw new RuntimeException(ctx
+                                           + ": completionCondition map must have 'bean' key");
+            }
+        } else {
+            throw new RuntimeException(ctx + ": completionCondition must be a string "
+                                       + "(allPresent, never) or a map ({ bean: \"name\" })");
+        }
+    }
+
 
     private static void validatePatternSection(Map<String, io.casehub.desiredstate.yaml.model.YamlPattern> patterns,
                                         String sectionName, Set<String> allBindings,

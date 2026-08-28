@@ -9,7 +9,8 @@ public record YamlGraph(
         Map<String, YamlNode> nodes,
         List<YamlFaultPolicy> faultPolicy,
         Map<String, YamlInvariant> invariants,
-        Map<String, YamlRule> rules) {
+        Map<String, YamlRule> rules,
+        YamlLifecycle lifecycle) {
 
     public YamlGraph {
         if (variables == null) {variables = Map.of();}
