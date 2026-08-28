@@ -51,7 +51,7 @@ class YamlGraphRecorderTest {
         var recorder = new YamlGraphRecorder();
         @SuppressWarnings("unchecked")
         GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
-                descriptor, typeRegistry, Map.of()).getValue();
+                descriptor, typeRegistry, Map.of(), List.of()).getValue();
 
         CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
         assertThat(result).isInstanceOf(CompilationResult.SingleGraph.class);
@@ -86,7 +86,7 @@ class YamlGraphRecorderTest {
         var recorder = new YamlGraphRecorder();
         @SuppressWarnings("unchecked")
         GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
-                descriptor, typeRegistry, variables).getValue();
+                descriptor, typeRegistry, variables, List.of()).getValue();
 
         CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
         DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
@@ -112,7 +112,7 @@ class YamlGraphRecorderTest {
         var recorder = new YamlGraphRecorder();
         @SuppressWarnings("unchecked")
         GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
-                descriptor, typeRegistry, Map.of()).getValue();
+                descriptor, typeRegistry, Map.of(), List.of()).getValue();
 
         CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
         DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
@@ -135,7 +135,7 @@ class YamlGraphRecorderTest {
         var recorder = new YamlGraphRecorder();
         @SuppressWarnings("unchecked")
         GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
-                descriptor, typeRegistry, Map.of()).getValue();
+                descriptor, typeRegistry, Map.of(), List.of()).getValue();
 
         CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
         DesiredStateGraph graph = ((CompilationResult.SingleGraph) result).graph();
@@ -159,7 +159,7 @@ class YamlGraphRecorderTest {
         var recorder = new YamlGraphRecorder();
         @SuppressWarnings("unchecked")
         GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
-                descriptor, typeRegistry, Map.of()).getValue();
+                descriptor, typeRegistry, Map.of(), List.of()).getValue();
 
         assertThatThrownBy(() -> compiler.compile(null, new DefaultDesiredStateGraphFactory()))
                 .isInstanceOf(IllegalStateException.class)

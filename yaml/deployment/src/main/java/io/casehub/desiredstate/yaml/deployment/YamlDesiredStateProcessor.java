@@ -78,10 +78,14 @@ public class YamlDesiredStateProcessor {
 
             GraphDescriptor descriptor = toGraphDescriptor(yamlGraph, typeRegistry);
 
+            List<io.casehub.desiredstate.annotations.runtime.ResolvedInvariant> invariants =
+                    buildInvariants(yamlGraph.invariants());
+
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> compiler = recorder.createYamlGoalCompiler(
                     descriptor, typeRegistry,
-                    yamlGraph.variables() != null ? yamlGraph.variables() : Map.of());
+                    yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
+                    invariants);
 
             String ns = yamlGraph.desiredState().namespace();
             String name = yamlGraph.desiredState().name();
@@ -376,6 +380,16 @@ public class YamlDesiredStateProcessor {
         if (!"*".equals(type) && !typeRegistry.containsKey(type)) {
             throw new RuntimeException(ctx + ": unknown type '" + type + "'. Available: " + typeRegistry.keySet());
         }
+    }
+
+    private List<io.casehub.desiredstate.annotations.runtime.ResolvedInvariant> buildInvariants(
+            Map<String, io.casehub.desiredstate.yaml.model.YamlInvariant> yamlInvariants) {
+        List<io.casehub.desiredstate.annotations.runtime.ResolvedInvariant> invariants = new ArrayList<>();
+        for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlInvariant> entry : yamlInvariants.entrySet()) {
+            invariants.add(io.casehub.desiredstate.yaml.YamlInvariantConverter
+                                   .toDeclarativeInvariant(entry.getKey(), entry.getValue()));
+        }
+        return invariants;
     }
 
 

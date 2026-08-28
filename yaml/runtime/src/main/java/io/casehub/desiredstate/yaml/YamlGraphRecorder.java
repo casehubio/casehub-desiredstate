@@ -3,10 +3,13 @@ package io.casehub.desiredstate.yaml;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
+import io.casehub.desiredstate.annotations.runtime.GraphInvariantEngine;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
+import io.casehub.desiredstate.annotations.runtime.ResolvedInvariant;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.Dependency;
 import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
@@ -29,9 +32,10 @@ public class YamlGraphRecorder {
     public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
             GraphDescriptor descriptor,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables) {
+            Map<String, String> inlineVariables,
+            List<ResolvedInvariant> invariants) {
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper     mapper   = new ObjectMapper();
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
 
         return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
@@ -41,14 +45,14 @@ public class YamlGraphRecorder {
             for (NodeDescriptor nd : descriptor.nodes()) {
                 if (nd instanceof NodeDescriptor.InlineNode in) {
                     Class<? extends NodeSpec> specClass = registry.resolveByClassName(in.specClassName());
-                    Map<String, Object> resolved = resolver.resolveMap(in.specValues(), in.id());
-                    NodeSpec spec = mapper.convertValue(resolved, specClass);
+                    Map<String, Object>       resolved  = resolver.resolveMap(in.specValues(), in.id());
+                    NodeSpec                  spec      = mapper.convertValue(resolved, specClass);
 
                     String expectedType = findTypeNameForClass(typeRegistryMap, in.specClassName());
                     if (expectedType != null && !spec.nodeType().value().equals(expectedType)) {
                         throw new IllegalStateException(
                                 "@NodeTypeId(\"" + expectedType + "\") diverges from nodeType()=\""
-                                        + spec.nodeType().value() + "\" on " + specClass.getName());
+                                + spec.nodeType().value() + "\" on " + specClass.getName());
                     }
 
                     nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating()));
@@ -60,7 +64,13 @@ public class YamlGraphRecorder {
                 deps.add(new Dependency(NodeId.of(dd.from()), NodeId.of(dd.to())));
             }
 
-            return CompilationResult.single(factory.of(nodes, deps));
+            DesiredStateGraph graph = factory.of(nodes, deps);
+
+            if (!invariants.isEmpty()) {
+                new GraphInvariantEngine().validate(graph, invariants);
+            }
+
+            return CompilationResult.single(graph);
         });
     }
 

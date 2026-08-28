@@ -67,7 +67,8 @@ class PipelineYamlTest {
             YamlGraphRecorder recorder = new YamlGraphRecorder();
             compiler = recorder.createYamlGoalCompiler(
                     descriptor, TYPE_REGISTRY,
-                    yamlGraph.variables() != null ? yamlGraph.variables() : Map.of()).getValue();
+                    yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
+                    List.of()).getValue();
         }
     }
 
