@@ -98,7 +98,9 @@ public class DesiredStateAnnotationsProcessor {
             CombinedIndexBuildItem indexBuildItem,
             DesiredStateGraphRecorder recorder,
             BuildProducer<SyntheticBeanBuildItem> syntheticBeans,
-            BuildProducer<DesiredStateGraphBuildItem> graphItems) {
+            BuildProducer<DesiredStateGraphBuildItem> graphItems,
+            BuildProducer<StandaloneRuleBuildItem> standaloneRuleItems,
+            BuildProducer<StandaloneInvariantBuildItem> standaloneInvariantItems) {
         IndexView index = indexBuildItem.getIndex();
 
         Map<String, List<NodeDescriptor.ClassNode>> classNodesByGraph  = scanDeclareNodes(index);
@@ -106,6 +108,13 @@ public class DesiredStateAnnotationsProcessor {
 
         List<Map.Entry<String[], List<GraphRuleDescriptor>>>      standaloneRules      = scanStandaloneGraphRules(index);
         List<Map.Entry<String[], List<GraphInvariantDescriptor>>> standaloneInvariants = scanStandaloneGraphInvariants(index);
+
+        for (var srEntry : standaloneRules) {
+            standaloneRuleItems.produce(new StandaloneRuleBuildItem(srEntry.getKey(), srEntry.getValue()));
+        }
+        for (var siEntry : standaloneInvariants) {
+            standaloneInvariantItems.produce(new StandaloneInvariantBuildItem(siEntry.getKey(), siEntry.getValue()));
+        }
 
         for (AnnotationInstance dsAnn : index.getAnnotations(DESIRED_STATE)) {
             ClassInfo       dsClass    = dsAnn.target().asClass();
