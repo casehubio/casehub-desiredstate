@@ -42,11 +42,12 @@ class YamlLifecycleCompilerTest {
                         new YamlPhase("infra", "allPresent",
                                 Map.of("database", new YamlNode("db",
                                         Map.of("name", "pg", "typeValue", "db"),
-                                        List.of(), null, null))),
+                                        List.of(), null, null, null))),
                         new YamlPhase("app", "never",
                                 Map.of("api-server", new YamlNode("app",
                                         Map.of("name", "api", "typeValue", "app"),
-                                        List.of("database"), null, null))))));
+                                        List.of("database"), null, null, null))))),
+                null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -79,11 +80,12 @@ class YamlLifecycleCompilerTest {
                         new YamlPhase("infra", "allPresent",
                                 Map.of("database", new YamlNode("db",
                                         Map.of("name", "pg", "typeValue", "db"),
-                                        List.of(), null, null))),
+                                        List.of(), null, null, null))),
                         new YamlPhase("app", "never",
                                 Map.of("api-server", new YamlNode("app",
                                         Map.of("name", "api", "typeValue", "app"),
-                                        List.of("database"), null, null))))));
+                                        List.of("database"), null, null, null))))),
+                null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -106,11 +108,12 @@ class YamlLifecycleCompilerTest {
                         new YamlPhase("infra", "allPresent",
                                 Map.of("database", new YamlNode("db",
                                         Map.of("name", "pg-v1", "typeValue", "db"),
-                                        List.of(), null, null))),
+                                        List.of(), null, null, null))),
                         new YamlPhase("app", "never",
                                 Map.of("database", new YamlNode("db",
                                         Map.of("name", "pg-v2", "typeValue", "db"),
-                                        List.of(), null, null))))));
+                                        List.of(), null, null, null))))),
+                null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -137,15 +140,16 @@ class YamlLifecycleCompilerTest {
                         new YamlPhase("infra", "allPresent",
                                 Map.of("database", new YamlNode("db",
                                         Map.of("name", "pg", "typeValue", "db"),
-                                        List.of(), null, null))),
+                                        List.of(), null, null, null))),
                         new YamlPhase("app", "allPresent",
                                 Map.of("api-server", new YamlNode("app",
                                         Map.of("name", "api", "typeValue", "app"),
-                                        List.of("database"), null, null))),
+                                        List.of("database"), null, null, null))),
                         new YamlPhase("obs", "never",
                                 Map.of("monitor", new YamlNode("monitor",
                                         Map.of("name", "mon", "typeValue", "monitor"),
-                                        List.of("api-server"), null, null))))));
+                                        List.of("api-server"), null, null, null))))),
+                null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(

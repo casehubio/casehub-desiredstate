@@ -7,6 +7,11 @@ variables:
   source_uri: s3://data/customers.csv
   debug_mode: "false"
 
+iterations:
+  regional:
+    as: region
+    in: ["us-east", "eu-west"]
+
 nodes:
   csv-source:
     type: data-source
@@ -74,6 +79,23 @@ nodes:
       partitionKeys: [date]
       approvalRequired: true
 
+  regional-source:
+    type: data-source
+    forEach: regional
+    spec:
+      name: "regional-${each.region}"
+      format: CSV
+      uri: "s3://data/${each.region}/regional.csv"
+
+  regional-ingest:
+    type: ingestion
+    forEach: regional
+    dependsOn: [regional-source, customer-schema]
+    spec:
+      sourceRef: "regional-source-${each.region}"
+      batchSize: ${var.batch_size}
+      format: CSV
+
   debug-validator:
     type: validator
     when: "${var.debug_mode}"
@@ -83,6 +105,13 @@ nodes:
       schemaRef: customer-schema
       qualityThreshold: 0.0
       anomalyDetection: false
+
+imports:
+  - module: monitoring
+    as: pipe-monitor
+    parameters:
+      watched_node_id: warehouse-sink
+      alert_email: "pipeline-ops@example.com"
 
 invariants:
   every-sink-has-upstream:

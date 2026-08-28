@@ -50,7 +50,8 @@ class PipelineYamlTest {
             Map.entry("sink", "io.casehub.desiredstate.example.pipeline.SinkSpec"),
             Map.entry("ai-review", "io.casehub.desiredstate.example.pipeline.AiReviewSpec"),
             Map.entry("human-review", "io.casehub.desiredstate.example.pipeline.HumanReviewSpec"),
-            Map.entry("monitor", "io.casehub.desiredstate.example.pipeline.MonitorSpec")
+            Map.entry("monitor", "io.casehub.desiredstate.example.pipeline.MonitorSpec"),
+            Map.entry("alerter", "io.casehub.desiredstate.example.pipeline.AlerterSpec")
     );
 
     @BeforeAll
@@ -74,19 +75,34 @@ class PipelineYamlTest {
                         .toDeclarativeInvariant(inv.getKey(), inv.getValue()));
             }
 
+            // Load monitoring module
+            Map<String, io.casehub.desiredstate.yaml.model.YamlModule> availableModules =
+                    new java.util.HashMap<>();
+            try (InputStream modIs = PipelineYamlTest.class.getClassLoader()
+                    .getResourceAsStream("META-INF/desiredstate/modules/monitoring.yaml")) {
+                if (modIs != null) {
+                    io.casehub.desiredstate.yaml.model.YamlModuleFile moduleFile =
+                            yamlMapper.readValue(modIs, io.casehub.desiredstate.yaml.model.YamlModuleFile.class);
+                    io.casehub.desiredstate.yaml.model.YamlModule module = moduleFile.toModule();
+                    availableModules.put(module.name(), module);
+                }
+            }
+
             YamlGraphRecorder recorder = new YamlGraphRecorder();
             compiler = recorder.createYamlGoalCompiler(
                     descriptor, TYPE_REGISTRY,
                     yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                    invariants, yamlGraph).getValue();
+                    invariants, yamlGraph, availableModules).getValue();
         }
     }
 
     @Test
     void yamlGraphHasAllNineNodes() {
         DesiredStateGraph graph = compileSingleGraph();
-        // 8 declared + 1 rule-generated monitor (debug-validator excluded by when:false)
-        assertThat(graph.nodes()).hasSize(9);
+        // 8 declared + 4 forEach-expanded (2 templates × 2 regions)
+        // + 2 module nodes (pipe-monitor.monitor, pipe-monitor.alerter)
+        // - debug-validator excluded. Rule doesn't fire (module monitor satisfies guard)
+        assertThat(graph.nodes()).hasSize(14);
     }
 
     @Test
@@ -179,8 +195,8 @@ class PipelineYamlTest {
     void yamlWhen_debugModeFalse_debugValidatorExcluded() {
         DesiredStateGraph graph = compileSingleGraph();
         assertThat(graph.nodes()).doesNotContainKey(NodeId.of("debug-validator"));
-        // 8 declared + 1 rule-generated monitor = 9
-        assertThat(graph.nodes()).hasSize(9);
+        // 8 declared + 4 forEach + 2 module = 14 (rule suppressed by module)
+        assertThat(graph.nodes()).hasSize(14);
     }
 
 
@@ -237,20 +253,16 @@ class PipelineYamlTest {
     }
 
     @Test
-    void yamlRule_ensureMonitoring_addMonitorForSink() {
+    void yamlRule_ensureMonitoring_suppressedByModuleMonitor() {
         DesiredStateGraph graph = compileSingleGraph();
-        assertThat(graph.nodes()).containsKey(NodeId.of("monitor-warehouse-sink"));
-
-        MonitorSpec monSpec = (MonitorSpec) graph.nodes()
-                                                 .get(NodeId.of("monitor-warehouse-sink")).spec();
-        assertThat(monSpec.target()).isEqualTo("warehouse-sink");
-
-        assertThat(graph.dependenciesOf(NodeId.of("monitor-warehouse-sink")))
-                .contains(NodeId.of("warehouse-sink"));
+        // Module provides pipe-monitor.monitor as a dependent of warehouse-sink,
+        // so the ensure-monitoring rule's notExists guard is satisfied — no rule-generated node
+        assertThat(graph.nodes()).doesNotContainKey(NodeId.of("monitor-warehouse-sink"));
+        assertThat(graph.nodes()).containsKey(NodeId.of("pipe-monitor.monitor"));
     }
 
     @Test
-    void yamlRule_ensureMonitoring_convergesWithOneMonitor() {
+    void yamlRule_ensureMonitoring_oneMonitorFromModule() {
         DesiredStateGraph graph = compileSingleGraph();
         long monitorCount = graph.nodes().values().stream()
                                  .filter(n -> n.type().equals(io.casehub.desiredstate.api.NodeType.of("monitor")))
@@ -258,6 +270,78 @@ class PipelineYamlTest {
         assertThat(monitorCount).isEqualTo(1);
     }
 
+
+    @Test
+    void forEach_regionalSourcesExpanded() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.nodes()).containsKey(NodeId.of("regional-source.us-east"));
+        assertThat(graph.nodes()).containsKey(NodeId.of("regional-source.eu-west"));
+        assertThat(graph.nodes()).containsKey(NodeId.of("regional-ingest.us-east"));
+        assertThat(graph.nodes()).containsKey(NodeId.of("regional-ingest.eu-west"));
+    }
+
+    @Test
+    void forEach_alignedDependencies() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.dependenciesOf(NodeId.of("regional-ingest.us-east")))
+                .contains(NodeId.of("regional-source.us-east"));
+        assertThat(graph.dependenciesOf(NodeId.of("regional-ingest.eu-west")))
+                .contains(NodeId.of("regional-source.eu-west"));
+        assertThat(graph.dependenciesOf(NodeId.of("regional-ingest.us-east")))
+                .doesNotContain(NodeId.of("regional-source.eu-west"));
+    }
+
+    @Test
+    void forEach_dependsOnFixedSchema() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.dependenciesOf(NodeId.of("regional-ingest.us-east")))
+                .contains(NodeId.of("customer-schema"));
+        assertThat(graph.dependenciesOf(NodeId.of("regional-ingest.eu-west")))
+                .contains(NodeId.of("customer-schema"));
+    }
+
+    @Test
+    void forEach_eachVariableInterpolated() {
+        DesiredStateGraph graph = compileSingleGraph();
+        DataSourceSpec usSpec = (DataSourceSpec) graph.nodes()
+                .get(NodeId.of("regional-source.us-east")).spec();
+        assertThat(usSpec.name()).isEqualTo("regional-us-east");
+        assertThat(usSpec.uri()).isEqualTo("s3://data/us-east/regional.csv");
+    }
+
+    @Test
+    void module_monitoringImported_nodesAliased() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.nodes()).containsKey(NodeId.of("pipe-monitor.monitor"));
+        assertThat(graph.nodes()).containsKey(NodeId.of("pipe-monitor.alerter"));
+    }
+
+    @Test
+    void module_monitorDependsOnImportingNode() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.dependenciesOf(NodeId.of("pipe-monitor.monitor")))
+                .contains(NodeId.of("warehouse-sink"));
+    }
+
+    @Test
+    void module_alerterDependsOnMonitor() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.dependenciesOf(NodeId.of("pipe-monitor.alerter")))
+                .contains(NodeId.of("pipe-monitor.monitor"));
+    }
+
+    @Test
+    void module_parameterResolvedInSpec() {
+        DesiredStateGraph graph = compileSingleGraph();
+        MonitorSpec monSpec = (MonitorSpec) graph.nodes()
+                .get(NodeId.of("pipe-monitor.monitor")).spec();
+        assertThat(monSpec.target()).isEqualTo("warehouse-sink");
+
+        io.casehub.desiredstate.example.pipeline.AlerterSpec alertSpec =
+                (io.casehub.desiredstate.example.pipeline.AlerterSpec) graph.nodes()
+                        .get(NodeId.of("pipe-monitor.alerter")).spec();
+        assertThat(alertSpec.email()).isEqualTo("pipeline-ops@example.com");
+    }
 
     private DesiredStateGraph compileSingleGraph() {
         return ((CompilationResult.SingleGraph) compiler.compile(null, factory)).graph();

@@ -36,7 +36,7 @@ public class YamlGraphRecorder {
             Map<String, String> typeRegistryMap,
             Map<String, String> inlineVariables,
             List<ResolvedInvariant> invariants) {
-        return createYamlGoalCompiler(descriptor, typeRegistryMap, inlineVariables, invariants, null);
+        return createYamlGoalCompiler(descriptor, typeRegistryMap, inlineVariables, invariants, null, null);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -46,6 +46,17 @@ public class YamlGraphRecorder {
             Map<String, String> inlineVariables,
             List<ResolvedInvariant> invariants,
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph) {
+        return createYamlGoalCompiler(descriptor, typeRegistryMap, inlineVariables, invariants, yamlGraph, null);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
+            GraphDescriptor descriptor,
+            Map<String, String> typeRegistryMap,
+            Map<String, String> inlineVariables,
+            List<ResolvedInvariant> invariants,
+            io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
+            Map<String, io.casehub.desiredstate.yaml.model.YamlModule> availableModules) {
 
         ObjectMapper     mapper   = new ObjectMapper();
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
@@ -53,63 +64,95 @@ public class YamlGraphRecorder {
         return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
             VariableResolver resolver = new VariableResolver(inlineVariables, null, null);
 
-            Set<String> excludedNodeIds = new java.util.HashSet<>();
-            if (yamlGraph != null) {
-                for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry :
-                        yamlGraph.nodes().entrySet()) {
-                    String                                      nodeId   = entry.getKey();
-                    io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
-                    if (yamlNode.when() != null) {
-                        String resolved = resolver.resolveString(yamlNode.when(), nodeId);
-                        if (!isTruthy(resolved)) {
-                            excludedNodeIds.add(nodeId);
+            Map<String, io.casehub.desiredstate.yaml.model.YamlNode> effectiveNodes =
+                    yamlGraph != null ? new java.util.LinkedHashMap<>(yamlGraph.nodes()) : Map.of();
+            Map<String, Map<String, String>> moduleScopes = Map.of();
+            Map<String, io.casehub.desiredstate.yaml.model.YamlRule> promotedRules = Map.of();
+            Map<String, io.casehub.desiredstate.yaml.model.YamlInvariant> promotedInvariants = Map.of();
+
+            if (yamlGraph != null && !yamlGraph.imports().isEmpty() && availableModules != null) {
+                ModuleExpander.ExpandedGraph moduleExpanded = ModuleExpander.expand(
+                        yamlGraph.imports(), availableModules, effectiveNodes);
+                effectiveNodes = moduleExpanded.expandedNodes();
+                moduleScopes = moduleExpanded.moduleScopes();
+                promotedRules = moduleExpanded.promotedRules();
+                promotedInvariants = moduleExpanded.promotedInvariants();
+            }
+
+            boolean hasForEach = effectiveNodes.values().stream()
+                    .anyMatch(n -> n.forEach() != null);
+            boolean hasModules = !moduleScopes.isEmpty();
+
+            DesiredStateGraph graph;
+            if (hasForEach || hasModules) {
+                ForEachExpander.ExpandedNodes expanded = ForEachExpander.expand(
+                        effectiveNodes,
+                        yamlGraph != null && yamlGraph.iterations() != null ? yamlGraph.iterations() : Map.of(),
+                        resolver, registry, mapper, 1000, moduleScopes);
+                graph = factory.of(expanded.nodes(), expanded.dependencies());
+            } else {
+                Set<String> excludedNodeIds = new java.util.HashSet<>();
+                if (yamlGraph != null) {
+                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry :
+                            yamlGraph.nodes().entrySet()) {
+                        String                                      nodeId   = entry.getKey();
+                        io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
+                        if (yamlNode.when() != null) {
+                            String resolved = resolver.resolveString(yamlNode.when(), nodeId);
+                            if (!isTruthy(resolved)) {
+                                excludedNodeIds.add(nodeId);
+                            }
                         }
                     }
                 }
-            }
 
-            List<DesiredNode> nodes = new ArrayList<>();
-            for (NodeDescriptor nd : descriptor.nodes()) {
-                if (nd instanceof NodeDescriptor.InlineNode in) {
-                    if (excludedNodeIds.contains(in.id())) {continue;}
+                List<DesiredNode> nodes = new ArrayList<>();
+                for (NodeDescriptor nd : descriptor.nodes()) {
+                    if (nd instanceof NodeDescriptor.InlineNode in) {
+                        if (excludedNodeIds.contains(in.id())) {continue;}
 
-                    Class<? extends NodeSpec> specClass = registry.resolveByClassName(in.specClassName());
-                    Map<String, Object>       resolved  = resolver.resolveMap(in.specValues(), in.id());
-                    NodeSpec                  spec      = mapper.convertValue(resolved, specClass);
+                        Class<? extends NodeSpec> specClass = registry.resolveByClassName(in.specClassName());
+                        Map<String, Object>       resolved  = resolver.resolveMap(in.specValues(), in.id());
+                        NodeSpec                  spec      = mapper.convertValue(resolved, specClass);
 
-                    String expectedType = findTypeNameForClass(typeRegistryMap, in.specClassName());
-                    if (expectedType != null && !spec.nodeType().value().equals(expectedType)) {
-                        throw new IllegalStateException(
-                                "@NodeTypeId(\"" + expectedType + "\") diverges from nodeType()=\""
-                                + spec.nodeType().value() + "\" on " + specClass.getName());
-                    }
-
-                    nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating()));
-                }
-            }
-
-            List<Dependency> deps = new ArrayList<>();
-            for (DependencyDescriptor dd : descriptor.dependencies()) {
-                if (excludedNodeIds.contains(dd.from()) || excludedNodeIds.contains(dd.to())) {
-                    if (excludedNodeIds.contains(dd.to()) && !excludedNodeIds.contains(dd.from())) {
-                        boolean isOptional = yamlGraph != null && isOptionalDependency(yamlGraph, dd.from(), dd.to());
-                        if (!isOptional) {
-                            throw new IllegalStateException("Node '" + dd.from()
-                                                            + "' depends on excluded conditional node '" + dd.to() + "'");
+                        String expectedType = findTypeNameForClass(typeRegistryMap, in.specClassName());
+                        if (expectedType != null && !spec.nodeType().value().equals(expectedType)) {
+                            throw new IllegalStateException(
+                                    "@NodeTypeId(\"" + expectedType + "\") diverges from nodeType()=\""
+                                    + spec.nodeType().value() + "\" on " + specClass.getName());
                         }
+
+                        nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating()));
                     }
-                    continue;
                 }
-                deps.add(new Dependency(NodeId.of(dd.from()), NodeId.of(dd.to())));
+
+                List<Dependency> deps = new ArrayList<>();
+                for (DependencyDescriptor dd : descriptor.dependencies()) {
+                    if (excludedNodeIds.contains(dd.from()) || excludedNodeIds.contains(dd.to())) {
+                        if (excludedNodeIds.contains(dd.to()) && !excludedNodeIds.contains(dd.from())) {
+                            boolean isOptional = yamlGraph != null && isOptionalDependency(yamlGraph, dd.from(), dd.to());
+                            if (!isOptional) {
+                                throw new IllegalStateException("Node '" + dd.from()
+                                                                + "' depends on excluded conditional node '" + dd.to() + "'");
+                            }
+                        }
+                        continue;
+                    }
+                    deps.add(new Dependency(NodeId.of(dd.from()), NodeId.of(dd.to())));
+                }
+
+                graph = factory.of(nodes, deps);
             }
 
-            DesiredStateGraph graph = factory.of(nodes, deps);
+            Map<String, io.casehub.desiredstate.yaml.model.YamlRule> effectiveRules = new java.util.LinkedHashMap<>();
+            if (yamlGraph != null) {effectiveRules.putAll(yamlGraph.rules());}
+            effectiveRules.putAll(promotedRules);
 
-            if (yamlGraph != null && !yamlGraph.rules().isEmpty()) {
+            if (!effectiveRules.isEmpty()) {
                 List<io.casehub.desiredstate.annotations.runtime.ResolvedRule> resolvedRules =
                         new ArrayList<>();
                 for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlRule> ruleEntry :
-                        yamlGraph.rules().entrySet()) {
+                        effectiveRules.entrySet()) {
                     resolvedRules.add(YamlRuleConverter.toDeclarativeRule(
                             ruleEntry.getKey(), ruleEntry.getValue(), resolver, registry));
                 }
@@ -117,8 +160,15 @@ public class YamlGraphRecorder {
                         .evaluate(graph, resolvedRules);
             }
 
-            if (!invariants.isEmpty()) {
-                new GraphInvariantEngine().validate(graph, invariants);
+            List<ResolvedInvariant> effectiveInvariants = new ArrayList<>(invariants);
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlInvariant> invEntry :
+                    promotedInvariants.entrySet()) {
+                effectiveInvariants.add(YamlInvariantConverter.toDeclarativeInvariant(
+                        invEntry.getKey(), invEntry.getValue()));
+            }
+
+            if (!effectiveInvariants.isEmpty()) {
+                new GraphInvariantEngine().validate(graph, effectiveInvariants);
             }
 
             return CompilationResult.single(graph);
@@ -138,7 +188,7 @@ public class YamlGraphRecorder {
         return false;
     }
 
-    private static boolean isTruthy(String value) {
+    static boolean isTruthy(String value) {
         return switch (value.toLowerCase()) {
             case "true", "yes", "on", "y", "1" -> true;
             case "false", "no", "off", "n", "0" -> false;
@@ -177,29 +227,65 @@ public class YamlGraphRecorder {
             for (io.casehub.desiredstate.yaml.model.YamlPhase yamlPhase :
                     yamlGraph.lifecycle().phases()) {
 
-                Set<String>       excludedNodeIds = new HashSet<>();
-                List<DesiredNode> phaseNodes      = new ArrayList<>();
-                Set<String>       phaseNodeIds    = new HashSet<>();
+                boolean phaseHasForEach = yamlPhase.nodes().values().stream()
+                        .anyMatch(n -> n.forEach() != null);
 
-                for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry :
-                        yamlPhase.nodes().entrySet()) {
-                    String                                      nodeId   = entry.getKey();
-                    io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
+                List<DesiredNode> phaseNodes;
+                List<io.casehub.desiredstate.api.Dependency> phaseDeps;
+                Set<String> phaseNodeIds = new HashSet<>();
 
-                    if (yamlNode.when() != null) {
-                        String resolved = resolver.resolveString(yamlNode.when(), nodeId);
-                        if (!isTruthy(resolved)) {
-                            excludedNodeIds.add(nodeId);
-                            continue;
+                if (phaseHasForEach) {
+                    ForEachExpander.ExpandedNodes expanded = ForEachExpander.expand(
+                            yamlPhase.nodes(),
+                            yamlGraph.iterations() != null ? yamlGraph.iterations() : Map.of(),
+                            resolver, registry, mapper, 1000);
+                    phaseNodes = expanded.nodes();
+                    phaseDeps = new ArrayList<>(expanded.dependencies());
+                    phaseNodes.forEach(n -> phaseNodeIds.add(n.id().value()));
+                } else {
+                    Set<String> excludedNodeIds = new HashSet<>();
+                    phaseNodes = new ArrayList<>();
+                    phaseDeps = new ArrayList<>();
+
+                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry :
+                            yamlPhase.nodes().entrySet()) {
+                        String                                      nodeId   = entry.getKey();
+                        io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
+
+                        if (yamlNode.when() != null) {
+                            String resolved = resolver.resolveString(yamlNode.when(), nodeId);
+                            if (!isTruthy(resolved)) {
+                                excludedNodeIds.add(nodeId);
+                                continue;
+                            }
                         }
+
+                        Class<? extends NodeSpec> specClass = registry.resolve(yamlNode.type());
+                        Map<String, Object> resolvedSpec = resolver.resolveMap(
+                                yamlNode.spec() != null ? yamlNode.spec() : Map.of(), nodeId);
+                        NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
+                        phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating()));
+                        phaseNodeIds.add(nodeId);
                     }
 
-                    Class<? extends NodeSpec> specClass = registry.resolve(yamlNode.type());
-                    Map<String, Object> resolvedSpec = resolver.resolveMap(
-                            yamlNode.spec() != null ? yamlNode.spec() : Map.of(), nodeId);
-                    NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
-                    phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating()));
-                    phaseNodeIds.add(nodeId);
+                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry :
+                            yamlPhase.nodes().entrySet()) {
+                        String nodeId = entry.getKey();
+                        if (excludedNodeIds.contains(nodeId)) {continue;}
+                        for (Object dep : entry.getValue().dependsOn()) {
+                            String depId = io.casehub.desiredstate.yaml.model.YamlNode.dependencyNodeId(dep);
+                            if (excludedNodeIds.contains(depId)) {
+                                boolean optional = io.casehub.desiredstate.yaml.model.YamlNode.isDependencyOptional(dep);
+                                if (!optional) {
+                                    throw new IllegalStateException("Node '" + nodeId
+                                                                    + "' depends on excluded conditional node '" + depId + "'");
+                                }
+                                continue;
+                            }
+                            phaseDeps.add(new io.casehub.desiredstate.api.Dependency(
+                                    NodeId.of(nodeId), NodeId.of(depId)));
+                        }
+                    }
                 }
 
                 List<DesiredNode> allNodes = new ArrayList<>();
@@ -209,26 +295,6 @@ public class YamlGraphRecorder {
                     }
                 }
                 allNodes.addAll(phaseNodes);
-
-                List<io.casehub.desiredstate.api.Dependency> phaseDeps = new ArrayList<>();
-                for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry :
-                        yamlPhase.nodes().entrySet()) {
-                    String nodeId = entry.getKey();
-                    if (excludedNodeIds.contains(nodeId)) {continue;}
-                    for (Object dep : entry.getValue().dependsOn()) {
-                        String depId = io.casehub.desiredstate.yaml.model.YamlNode.dependencyNodeId(dep);
-                        if (excludedNodeIds.contains(depId)) {
-                            boolean optional = io.casehub.desiredstate.yaml.model.YamlNode.isDependencyOptional(dep);
-                            if (!optional) {
-                                throw new IllegalStateException("Node '" + nodeId
-                                                                + "' depends on excluded conditional node '" + depId + "'");
-                            }
-                            continue;
-                        }
-                        phaseDeps.add(new io.casehub.desiredstate.api.Dependency(
-                                NodeId.of(nodeId), NodeId.of(depId)));
-                    }
-                }
 
                 for (io.casehub.desiredstate.api.Dependency cfDep : carryForwardDeps) {
                     boolean fromInPhase = allNodes.stream()

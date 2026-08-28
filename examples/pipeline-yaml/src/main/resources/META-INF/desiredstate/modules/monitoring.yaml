@@ -1,0 +1,28 @@
+module:
+  name: monitoring
+  parameters:
+    watched_node_id:
+      type: string
+      required: true
+    alert_email:
+      type: string
+      default: "ops@example.com"
+
+nodes:
+  monitor:
+    type: monitor
+    dependsOn: ["${var.watched_node_id}"]
+    spec:
+      target: "${var.watched_node_id}"
+  alerter:
+    type: alerter
+    dependsOn: [monitor]
+    spec:
+      email: "${var.alert_email}"
+
+invariants:
+  monitor-has-target:
+    match:
+      mon: { type: monitor }
+    directDep:
+      target: { type: "*", of: mon, direction: DEPENDENCIES }

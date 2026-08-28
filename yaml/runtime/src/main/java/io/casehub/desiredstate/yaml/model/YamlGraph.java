@@ -10,7 +10,9 @@ public record YamlGraph(
         List<YamlFaultPolicy> faultPolicy,
         Map<String, YamlInvariant> invariants,
         Map<String, YamlRule> rules,
-        YamlLifecycle lifecycle) {
+        YamlLifecycle lifecycle,
+        Map<String, YamlIterationGroup> iterations,
+        List<YamlImport> imports) {
 
     public YamlGraph {
         if (variables == null) {variables = Map.of();}
@@ -18,5 +20,7 @@ public record YamlGraph(
         if (faultPolicy == null) {faultPolicy = List.of();}
         if (invariants == null) {invariants = Map.of();}
         if (rules == null) {rules = Map.of();}
+        if (iterations == null) {iterations = Map.of();}
+        if (imports == null) {imports = List.of();}
     }
 }

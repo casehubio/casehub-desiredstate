@@ -153,6 +153,58 @@ class VariableResolverTest {
         assertThat(result).isEqualTo("test");
     }
 
+    // --- Each context: resolves ${each.*} during forEach expansion ---
+
+    @Test
+    void withEachContext_resolvesEachPrefix() {
+        var resolver = new VariableResolver(Map.of("batch", "1000"), null, null);
+        var eachResolver = resolver.withEachContext(Map.of("region", "us-east"));
+        String result = eachResolver.resolveString(
+                "s3://${each.region}/${var.batch}", "test-node");
+        assertThat(result).isEqualTo("s3://us-east/1000");
+    }
+
+    @Test
+    void withEachContext_unknownEachVar_throws() {
+        var resolver = new VariableResolver(Map.of(), null, null);
+        var eachResolver = resolver.withEachContext(Map.of("region", "us-east"));
+        assertThatThrownBy(() -> eachResolver.resolveString(
+                "${each.zone}", "test-node"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("zone");
+    }
+
+    @Test
+    void withoutEachContext_eachPrefix_throwsDeferred() {
+        var resolver = new VariableResolver(Map.of(), null, null);
+        assertThatThrownBy(() -> resolver.resolveString(
+                "${each.region}", "test-node"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("forEach");
+    }
+
+    // --- Module scope: parameters override variables ---
+
+    @Test
+    void withModuleScope_parametersOverrideVariables() {
+        var resolver = new VariableResolver(
+                Map.of("email", "global@example.com"), null, null);
+        var moduleResolver = resolver.withModuleScope(
+                Map.of("email", "module@example.com"));
+        assertThat(moduleResolver.resolveString("${var.email}", "test"))
+                .isEqualTo("module@example.com");
+    }
+
+    @Test
+    void withModuleScope_fallthroughToVariables() {
+        var resolver = new VariableResolver(
+                Map.of("batch_size", "1000"), null, null);
+        var moduleResolver = resolver.withModuleScope(
+                Map.of("watched_id", "sink-1"));
+        assertThat(moduleResolver.resolveString("${var.batch_size}", "test"))
+                .isEqualTo("1000");
+    }
+
     @Test
     void resolveTemplateMap_resolvesVarInNestedSpec() {
         var resolver = new VariableResolver(Map.of("region", "us-east"), null, null);

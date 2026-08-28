@@ -31,9 +31,9 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of("enabled", "true"),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null),
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null, null),
                         "dst", new YamlNode("sink", Map.of("destination", "s3://out"),
-                                List.of("src"), null, "${var.enabled}")));
+                                List.of("src"), null, "${var.enabled}", null)));
 
         DesiredStateGraph graph = compile(yamlGraph);
         assertThat(graph.nodes()).containsKey(NodeId.of("dst"));
@@ -45,9 +45,9 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of("enabled", "false"),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null),
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null, null),
                         "dst", new YamlNode("sink", Map.of("destination", "s3://out"),
-                                List.of((Object) Map.of("node", "src", "optional", true)), null, "${var.enabled}")));
+                                List.of((Object) Map.of("node", "src", "optional", true)), null, "${var.enabled}", null)));
 
         DesiredStateGraph graph = compile(yamlGraph);
         assertThat(graph.nodes()).doesNotContainKey(NodeId.of("dst"));
@@ -59,11 +59,11 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of("debug", "false"),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null),
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null, null),
                         "logger", new YamlNode("sink", Map.of("destination", "log://"),
-                                List.of("src"), null, "${var.debug}"),
+                                List.of("src"), null, "${var.debug}", null),
                         "dst", new YamlNode("sink", Map.of("destination", "s3://out"),
-                                List.of("src", Map.of("node", "logger", "optional", true)), null, null)));
+                                List.of("src", Map.of("node", "logger", "optional", true)), null, null, null)));
 
         DesiredStateGraph graph = compile(yamlGraph);
         assertThat(graph.nodes()).doesNotContainKey(NodeId.of("logger"));
@@ -77,9 +77,9 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of("mode", "production"),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null),
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null, null),
                         "dst", new YamlNode("sink", Map.of("destination", "s3://out"),
-                                List.of((Object) Map.of("node", "src", "optional", true)), null, "${var.mode}")));
+                                List.of((Object) Map.of("node", "src", "optional", true)), null, "${var.mode}", null)));
 
         assertThatThrownBy(() -> compile(yamlGraph))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -92,7 +92,7 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of(),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null)));
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, null, null)));
 
         DesiredStateGraph graph = compile(yamlGraph);
         assertThat(graph.nodes()).hasSize(1);
@@ -103,7 +103,7 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of("enabled", "yes"),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, "${var.enabled}")));
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, "${var.enabled}", null)));
 
         DesiredStateGraph graph = compile(yamlGraph);
         assertThat(graph.nodes()).containsKey(NodeId.of("src"));
@@ -114,7 +114,7 @@ class YamlConditionalEvaluationTest {
         YamlGraph yamlGraph = buildGraph(
                 Map.of("enabled", "no"),
                 Map.of(
-                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, "${var.enabled}")));
+                        "src", new YamlNode("source", Map.of("uri", "s3://test"), List.of(), null, "${var.enabled}", null)));
 
         DesiredStateGraph graph = compile(yamlGraph);
         assertThat(graph.nodes()).isEmpty();
@@ -123,7 +123,7 @@ class YamlConditionalEvaluationTest {
     private YamlGraph buildGraph(Map<String, String> variables, Map<String, YamlNode> nodes) {
         return new YamlGraph(
                 new io.casehub.desiredstate.yaml.model.YamlDesiredState("test", "cond"),
-                variables, nodes, List.of(), Map.of(), Map.of(), null);}
+                variables, nodes, List.of(), Map.of(), Map.of(), null, null, null);}
 
     @SuppressWarnings("unchecked")
     private DesiredStateGraph compile(YamlGraph yamlGraph) {

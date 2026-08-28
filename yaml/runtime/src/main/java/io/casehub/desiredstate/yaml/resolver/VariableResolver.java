@@ -15,11 +15,32 @@ public class VariableResolver {
 
     private final Map<String, String> inlineVariables;
     private final Config config;
+    private final Map<String, String> eachContext;
+    private final Map<String, String> moduleScope;
 
     public VariableResolver(Map<String, String> inlineVariables,
                             Object preferences, Config config) {
         this.inlineVariables = inlineVariables != null ? inlineVariables : Map.of();
         this.config = config;
+        this.eachContext = null;
+        this.moduleScope = null;
+    }
+
+    private VariableResolver(Map<String, String> inlineVariables,
+                             Config config, Map<String, String> eachContext,
+                             Map<String, String> moduleScope) {
+        this.inlineVariables = inlineVariables != null ? inlineVariables : Map.of();
+        this.config = config;
+        this.eachContext = eachContext;
+        this.moduleScope = moduleScope;
+    }
+
+    public VariableResolver withEachContext(Map<String, String> eachContext) {
+        return new VariableResolver(this.inlineVariables, this.config, eachContext, this.moduleScope);
+    }
+
+    public VariableResolver withModuleScope(Map<String, String> moduleScope) {
+        return new VariableResolver(this.inlineVariables, this.config, this.eachContext, moduleScope);
     }
 
     public Object resolve(Object value) {
@@ -141,6 +162,15 @@ public class VariableResolver {
                                                   + "resolved by the fault policy template factory.");
         }
         if (key.startsWith("each.")) {
+            String eachName = key.substring(5);
+            if (eachContext != null && eachContext.containsKey(eachName)) {
+                return eachContext.get(eachName);
+            }
+            if (eachContext != null) {
+                throw new UnresolvedVariableException(key, nodeContext,
+                                                      "Unknown forEach variable '" + eachName + "'. "
+                                                      + "Available: " + eachContext.keySet());
+            }
             throw new UnresolvedVariableException(key, nodeContext,
                                                   "${each.*} references are resolved during forEach expansion, "
                                                   + "not during variable resolution.");
@@ -152,6 +182,11 @@ public class VariableResolver {
     }
 
     private String lookupVarPrefixed(String varName, String nodeContext) {
+        if (moduleScope != null) {
+            String moduleValue = moduleScope.get(varName);
+            if (moduleValue != null) {return moduleValue;}
+        }
+
         String value = inlineVariables.get(varName);
         if (value != null) {return value;}
 
@@ -161,7 +196,9 @@ public class VariableResolver {
         }
 
         throw new UnresolvedVariableException("var." + varName, nodeContext,
-                                              "Not found in: inline variables " + inlineVariables.keySet()
+                                              "Not found in: "
+                                              + (moduleScope != null ? "module parameters " + moduleScope.keySet() + ", " : "")
+                                              + "inline variables " + inlineVariables.keySet()
                                               + ", MicroProfile Config.");
     }
 

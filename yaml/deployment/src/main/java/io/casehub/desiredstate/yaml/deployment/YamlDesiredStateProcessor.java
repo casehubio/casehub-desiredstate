@@ -64,6 +64,8 @@ public class YamlDesiredStateProcessor {
 
         ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
         List<NamedYamlGraph> yamlGraphs = discoverYamlFiles(yamlMapper);
+        Map<String, io.casehub.desiredstate.yaml.model.YamlModule> availableModules =
+                discoverModules(yamlMapper);
 
         if (yamlGraphs.isEmpty()) {
             LOG.debug("No YAML graph files found at " + YAML_PATH_PREFIX);
@@ -83,6 +85,10 @@ public class YamlDesiredStateProcessor {
             @SuppressWarnings("rawtypes")
             RuntimeValue<GoalCompiler> compiler;
 
+            if (!yamlGraph.imports().isEmpty()) {
+                validateImports(yamlGraph.imports(), availableModules, typeRegistry, fileName);
+            }
+
             if (yamlGraph.lifecycle() != null) {
                 validateLifecycle(yamlGraph, typeRegistry, fileName);
                 compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -95,7 +101,7 @@ public class YamlDesiredStateProcessor {
                 compiler = recorder.createYamlGoalCompiler(
                         descriptor, typeRegistry,
                         yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                        invariants, yamlGraph);
+                        invariants, yamlGraph, availableModules);
             }
 
             syntheticBeans.produce(SyntheticBeanBuildItem.configure(GoalCompiler.class)
@@ -231,6 +237,47 @@ public class YamlDesiredStateProcessor {
         return graphs;
     }
 
+    private Map<String, io.casehub.desiredstate.yaml.model.YamlModule> discoverModules(
+            ObjectMapper mapper) throws IOException, java.net.URISyntaxException {
+        Map<String, io.casehub.desiredstate.yaml.model.YamlModule> modules = new HashMap<>();
+        String prefix = "META-INF/desiredstate/modules/";
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        java.util.Enumeration<java.net.URL> resources = cl.getResources(prefix);
+
+        Set<String> seen = new HashSet<>();
+        while (resources.hasMoreElements()) {
+            java.net.URL dirUrl = resources.nextElement();
+            if ("file".equals(dirUrl.getProtocol())) {
+                java.io.File dir = new java.io.File(dirUrl.toURI().getPath());
+                if (dir.isDirectory()) {
+                    java.io.File[] yamlFiles = dir.listFiles((d, name) ->
+                            name.endsWith(".yaml") || name.endsWith(".yml"));
+                    if (yamlFiles != null) {
+                        for (java.io.File f : yamlFiles) {
+                            if (seen.add(f.getName())) {
+                                try (InputStream is = f.toURI().toURL().openStream()) {
+                                    io.casehub.desiredstate.yaml.model.YamlModuleFile moduleFile =
+                                            mapper.readValue(is,
+                                                    io.casehub.desiredstate.yaml.model.YamlModuleFile.class);
+                                    if (moduleFile.hasNestedImports()) {
+                                        throw new RuntimeException("Module '" + moduleFile.module().name()
+                                                + "' in " + f.getName()
+                                                + " contains imports — module nesting exceeds the "
+                                                + "2-level cap (D10). Modules cannot import other modules.");
+                                    }
+                                    io.casehub.desiredstate.yaml.model.YamlModule module =
+                                            moduleFile.toModule();
+                                    modules.put(module.name(), module);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return modules;
+    }
+
     private void validateYamlGraph(YamlGraph graph, Map<String, String> typeRegistry, String fileName) {
         if (graph.desiredState() == null || graph.desiredState().namespace() == null
                 || graph.desiredState().name() == null) {
@@ -262,6 +309,7 @@ public class YamlDesiredStateProcessor {
 
         detectCycles(graph.nodes(), fileName);
         validateConditionalDependencies(graph.nodes(), fileName);
+        validateForEach(graph.nodes(), graph.iterations(), typeRegistry, fileName);
     }
 
     private void detectCycles(Map<String, YamlNode> nodes, String fileName) {
@@ -473,6 +521,13 @@ public class YamlDesiredStateProcessor {
                                        + "When lifecycle is present, nodes live inside phases.");
         }
 
+        if (!graph.imports().isEmpty()) {
+            throw new RuntimeException(fileName
+                                       + ": module imports are not yet supported with lifecycle phases. "
+                                       + "Use module imports with single-graph mode, "
+                                       + "or inline the module nodes into the appropriate phase.");
+        }
+
         List<io.casehub.desiredstate.yaml.model.YamlPhase> phases = graph.lifecycle().phases();
         if (phases.isEmpty()) {
             throw new RuntimeException(fileName
@@ -503,6 +558,8 @@ public class YamlDesiredStateProcessor {
                                                + node.type() + "' for node '" + nodeId + "'");
                 }
             }
+
+            validateForEach(phase.nodes(), graph.iterations(), typeRegistry, ctx);
         }
 
         io.casehub.desiredstate.yaml.model.YamlPhase lastPhase = phases.get(phases.size() - 1);
@@ -533,6 +590,121 @@ public class YamlDesiredStateProcessor {
         }
     }
 
+
+    static void validateImports(List<io.casehub.desiredstate.yaml.model.YamlImport> imports,
+                               Map<String, io.casehub.desiredstate.yaml.model.YamlModule> modules,
+                               Map<String, String> typeRegistry, String fileName) {
+        Set<String> aliases = new HashSet<>();
+
+        for (int i = 0; i < imports.size(); i++) {
+            var imp = imports.get(i);
+            String ctx = fileName + ": imports[" + i + "]";
+
+            if (!modules.containsKey(imp.module())) {
+                throw new RuntimeException(ctx + ": unknown module '" + imp.module()
+                        + "'. Available: " + modules.keySet());
+            }
+
+            if (imp.as() == null || imp.as().isBlank()) {
+                throw new RuntimeException(ctx + ": 'as' alias is required");
+            }
+
+            if (imp.as().contains(".")) {
+                throw new RuntimeException(ctx + ": alias '" + imp.as()
+                        + "' contains the reserved '.' separator");
+            }
+
+            if (!aliases.add(imp.as())) {
+                throw new RuntimeException(ctx + ": duplicate alias '" + imp.as() + "'");
+            }
+
+            var module = modules.get(imp.module());
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlModuleParameter> param :
+                    module.parameters().entrySet()) {
+                if (param.getValue().required()
+                        && !imp.parameters().containsKey(param.getKey())) {
+                    throw new RuntimeException(ctx + ": required parameter '"
+                            + param.getKey() + "' is missing for module '"
+                            + imp.module() + "'");
+                }
+            }
+        }
+    }
+
+    static void validateForEach(Map<String, YamlNode> nodes,
+                               Map<String, io.casehub.desiredstate.yaml.model.YamlIterationGroup> iterations,
+                               Map<String, String> typeRegistry, String fileName) {
+        for (String nodeId : nodes.keySet()) {
+            if (nodeId.contains(".")) {
+                throw new RuntimeException(fileName + ": node ID '" + nodeId
+                        + "' contains the reserved '.' separator. "
+                        + "User-declared node IDs must not contain '.'.");
+            }
+        }
+
+        Map<String, String> nodeGroupMap = new HashMap<>();
+        Set<String> forEachNodeIds = new HashSet<>();
+
+        for (Map.Entry<String, YamlNode> entry : nodes.entrySet()) {
+            String nodeId = entry.getKey();
+            Object forEach = entry.getValue().forEach();
+            if (forEach == null) {
+                nodeGroupMap.put(nodeId, null);
+            } else if (forEach instanceof String groupRef) {
+                if (!iterations.containsKey(groupRef)) {
+                    throw new RuntimeException(fileName + ": node '" + nodeId
+                            + "' references unknown iteration group '" + groupRef
+                            + "'. Available: " + iterations.keySet());
+                }
+                nodeGroupMap.put(nodeId, groupRef);
+                forEachNodeIds.add(nodeId);
+            } else if (forEach instanceof Map<?, ?>) {
+                nodeGroupMap.put(nodeId, "__inline__" + nodeId);
+                forEachNodeIds.add(nodeId);
+            } else {
+                throw new RuntimeException(fileName + ": node '" + nodeId
+                        + "': forEach must be a string (group name) or map ({as, in})");
+            }
+        }
+
+        for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlIterationGroup> entry :
+                iterations.entrySet()) {
+            for (Object val : entry.getValue().inAsList()) {
+                if (val instanceof String s && s.contains(".") && !s.contains("${")) {
+                    throw new RuntimeException(fileName + ": iteration group '"
+                            + entry.getKey() + "': value '" + s
+                            + "' contains the reserved '.' separator");
+                }
+            }
+        }
+
+        for (Map.Entry<String, YamlNode> entry : nodes.entrySet()) {
+            String nodeId = entry.getKey();
+            String nodeGroup = nodeGroupMap.get(nodeId);
+
+            for (String depId : entry.getValue().dependencyNodeIds()) {
+                if (!nodes.containsKey(depId)) {continue;}
+                String depGroup = nodeGroupMap.get(depId);
+
+                if (nodeGroup == null && forEachNodeIds.contains(depId)) {
+                    throw new RuntimeException(fileName + ": Node '" + nodeId
+                            + "' depends on forEach template '" + depId
+                            + "'. Non-forEach nodes cannot depend on forEach templates "
+                            + "(the template ID doesn't exist after expansion). "
+                            + "Use a forEach node with the same iteration group for fan-in.");
+                }
+
+                if (nodeGroup != null && depGroup != null
+                        && !nodeGroup.equals(depGroup)) {
+                    throw new RuntimeException(fileName + ": Node '" + nodeId
+                            + "' (group: " + nodeGroup + ") depends on '" + depId
+                            + "' (group: " + depGroup + "). "
+                            + "forEach nodes referencing different groups cannot depend on each other. "
+                            + "Use the same named group for aligned iteration.");
+                }
+            }
+        }
+    }
 
     private static void validatePatternSection(Map<String, io.casehub.desiredstate.yaml.model.YamlPattern> patterns,
                                         String sectionName, Set<String> allBindings,

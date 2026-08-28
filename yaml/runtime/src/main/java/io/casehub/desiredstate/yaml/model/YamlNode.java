@@ -10,7 +10,8 @@ public record YamlNode(
         Map<String, Object> spec,
         List<Object> dependsOn,
         HumanGating humanGating,
-        String when) {
+        String when,
+        Object forEach) {
 
     public YamlNode {
         if (spec == null) {spec = Map.of();}
