@@ -13,13 +13,13 @@ import java.util.stream.Collectors;
 
 public class GraphInvariantEngine {
 
-    public void validate(DesiredStateGraph graph, List<ResolvedGraphInvariant> invariants) {
+    public void validate(DesiredStateGraph graph, List<ResolvedInvariant> invariants) {
         List<GraphViolation> violations = new ArrayList<>();
-        for (ResolvedGraphInvariant invariant : invariants) {
-            if (invariant.imperative()) {
-                validateImperative(invariant, graph, violations);
-            } else {
-                validateParameterized(invariant, graph, violations);
+        for (ResolvedInvariant invariant : invariants) {
+            switch (invariant) {
+                case ResolvedInvariant.ImperativeInvariant imp -> validateImperative(imp, graph, violations);
+                case ResolvedInvariant.ParameterizedReflectiveInvariant param -> validateParameterized(param, graph, violations);
+                case ResolvedInvariant.DeclarativeInvariant decl -> validateDeclarative(decl, graph, violations);
             }
         }
         if (!violations.isEmpty()) {
@@ -27,8 +27,8 @@ public class GraphInvariantEngine {
         }
     }
 
-    private void validateImperative(ResolvedGraphInvariant invariant,
-            DesiredStateGraph graph, List<GraphViolation> violations) {
+    private void validateImperative(ResolvedInvariant.ImperativeInvariant invariant,
+                                    DesiredStateGraph graph, List<GraphViolation> violations) {
         try {
             if (invariant.instance() != null) {
                 invariant.method().invoke(invariant.instance(), graph);
@@ -38,22 +38,22 @@ public class GraphInvariantEngine {
         } catch (InvocationTargetException e) {
             if (e.getCause() instanceof GraphViolationException gve) {
                 violations.add(new GraphViolation(invariant.name(),
-                        invariant.method().getDeclaringClass().getName(),
-                        gve.getMessage(), gve.affectedNodes()));
+                                                  invariant.method().getDeclaringClass().getName(),
+                                                  gve.getMessage(), gve.affectedNodes()));
             } else {
                 throw new RuntimeException("Invariant method failed: "
-                        + invariant.name(), e.getCause());
+                                           + invariant.name(), e.getCause());
             }
         } catch (Exception e) {
             throw new RuntimeException("Invariant method invocation failed: "
-                    + invariant.name(), e);
+                                       + invariant.name(), e);
         }
     }
 
-    private void validateParameterized(ResolvedGraphInvariant invariant,
+    private void validateParameterized(ResolvedInvariant.ParameterizedReflectiveInvariant invariant,
                                        DesiredStateGraph graph, List<GraphViolation> violations) {
         List<PatternParameterDescriptor> patterns   = invariant.patterns();
-        String[]                         paramNames = PatternMatchingSupport.getParameterNames(invariant.method());
+        String[]                         paramNames = invariant.bindingNames();
 
         List<Integer> matchIndices = new ArrayList<>();
         for (int i = 0; i < patterns.size(); i++) {
@@ -72,9 +72,7 @@ public class GraphInvariantEngine {
             byAnchor.computeIfAbsent(anchor, k -> new ArrayList<>()).add(binding);
         }
 
-        NodeType firstMatchType = matchIndices.isEmpty() ? null
-                                                         : NodeType.of(patterns.get(matchIndices.get(0)).nodeType());
-        List<List<DesiredNode>> expectedAnchors = buildExpectedAnchors(graph, patterns, paramNames, matchIndices);
+        List<List<DesiredNode>> expectedAnchors = buildExpectedAnchors(graph, patterns, matchIndices);
 
         for (List<DesiredNode> anchor : expectedAnchors) {
             List<Map<String, DesiredNode>> expansions = byAnchor.get(anchor);
@@ -88,25 +86,80 @@ public class GraphInvariantEngine {
                                                   anchor.stream().map(DesiredNode::id).toList()));
             } else {
                 for (Map<String, DesiredNode> binding : expansions) {
-                    Object[] args = new Object[paramNames.length];
-                    for (int i = 0; i < paramNames.length; i++) {
-                        args[i] = binding.get(paramNames[i]);
+                    List<Object> args = new ArrayList<>(paramNames.length);
+                    for (String paramName : paramNames) {
+                        args.add(binding.get(paramName));
                     }
-                    invokeInvariant(invariant, List.of(args), violations);
+                    invokeReflectiveInvariant(invariant, args, violations);
                 }
             }
         }
     }
 
+    private void validateDeclarative(ResolvedInvariant.DeclarativeInvariant invariant,
+                                     DesiredStateGraph graph, List<GraphViolation> violations) {
+        List<PatternParameterDescriptor> patterns     = invariant.patterns();
+        String[]                         bindingNames = invariant.bindingNames();
+
+        List<Integer> matchIndices = new ArrayList<>();
+        for (int i = 0; i < patterns.size(); i++) {
+            if (patterns.get(i).kind() == PatternKind.MATCH) {
+                matchIndices.add(i);
+            }
+        }
+
+        List<Map<String, DesiredNode>> allBindings = PatternEvaluator.evaluate(graph, patterns, bindingNames);
+
+        Map<List<DesiredNode>, List<Map<String, DesiredNode>>> byAnchor = new LinkedHashMap<>();
+        for (Map<String, DesiredNode> binding : allBindings) {
+            List<DesiredNode> anchor = matchIndices.stream()
+                                                   .map(i -> binding.get(bindingNames[i]))
+                                                   .toList();
+            byAnchor.computeIfAbsent(anchor, k -> new ArrayList<>()).add(binding);
+        }
+
+        List<List<DesiredNode>> expectedAnchors = buildExpectedAnchors(graph, patterns, matchIndices);
+
+        for (List<DesiredNode> anchor : expectedAnchors) {
+            List<Map<String, DesiredNode>> expansions = byAnchor.get(anchor);
+            if (expansions == null || expansions.isEmpty()) {
+                String anchorDesc = anchor.stream()
+                                          .map(n -> n.id().value())
+                                          .collect(Collectors.joining(", "));
+                String message = invariant.messageTemplate() != null
+                                 ? resolveMatchTemplate(invariant.messageTemplate(), anchor, matchIndices, bindingNames)
+                                 : invariant.name() + " violated for [" + anchorDesc + "]";
+                violations.add(new GraphViolation(invariant.name(), "yaml",
+                                                  message, anchor.stream().map(DesiredNode::id).toList()));
+            }
+        }
+    }
+
+    private String resolveMatchTemplate(String template, List<DesiredNode> anchor,
+                                        List<Integer> matchIndices, String[] bindingNames) {
+        String resolved = template;
+        for (int i = 0; i < matchIndices.size(); i++) {
+            DesiredNode node    = anchor.get(i);
+            String      binding = bindingNames[matchIndices.get(i)];
+            resolved = resolved.replace("${match." + binding + ".id}", node.id().value());
+            resolved = resolved.replace("${match." + binding + ".type}", node.type().value());
+        }
+        return resolved;
+    }
+
     private List<List<DesiredNode>> buildExpectedAnchors(DesiredStateGraph graph,
-                                                         List<PatternParameterDescriptor> patterns, String[] paramNames,
-                                                         List<Integer> matchIndices) {
+                                                         List<PatternParameterDescriptor> patterns, List<Integer> matchIndices) {
         List<List<DesiredNode>> matchSets = new ArrayList<>();
         for (int i : matchIndices) {
-            NodeType targetType = NodeType.of(patterns.get(i).nodeType());
-            matchSets.add(graph.nodes().values().stream()
-                               .filter(n -> n.type().equals(targetType))
-                               .toList());
+            PatternParameterDescriptor p = patterns.get(i);
+            if ("*".equals(p.nodeType())) {
+                matchSets.add(new ArrayList<>(graph.nodes().values()));
+            } else {
+                NodeType targetType = NodeType.of(p.nodeType());
+                matchSets.add(graph.nodes().values().stream()
+                                   .filter(n -> n.type().equals(targetType))
+                                   .toList());
+            }
         }
         if (matchSets.isEmpty() || matchSets.stream().anyMatch(List::isEmpty)) {
             return List.of();
@@ -114,8 +167,8 @@ public class GraphInvariantEngine {
         return PatternMatchingSupport.crossProduct(matchSets);
     }
 
-    private void invokeInvariant(ResolvedGraphInvariant invariant,
-            List<Object> args, List<GraphViolation> violations) {
+    private void invokeReflectiveInvariant(ResolvedInvariant.ParameterizedReflectiveInvariant invariant,
+                                           List<Object> args, List<GraphViolation> violations) {
         try {
             if (invariant.instance() != null) {
                 invariant.method().invoke(invariant.instance(), args.toArray());
@@ -125,15 +178,15 @@ public class GraphInvariantEngine {
         } catch (InvocationTargetException e) {
             if (e.getCause() instanceof GraphViolationException gve) {
                 violations.add(new GraphViolation(invariant.name(),
-                        invariant.method().getDeclaringClass().getName(),
-                        gve.getMessage(), gve.affectedNodes()));
+                                                  invariant.method().getDeclaringClass().getName(),
+                                                  gve.getMessage(), gve.affectedNodes()));
             } else {
                 throw new RuntimeException("Invariant method failed: "
-                        + invariant.name(), e.getCause());
+                                           + invariant.name(), e.getCause());
             }
         } catch (Exception e) {
             throw new RuntimeException("Invariant method invocation failed: "
-                    + invariant.name(), e);
+                                       + invariant.name(), e);
         }
     }
 }

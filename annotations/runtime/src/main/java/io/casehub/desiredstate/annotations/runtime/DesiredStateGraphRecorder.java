@@ -94,7 +94,7 @@ public class DesiredStateGraphRecorder {
             }
 
             if (!descriptor.graphRules().isEmpty()) {
-                List<ResolvedGraphRule> resolvedRules = resolveRules(descriptor.graphRules());
+                List<ResolvedRule> resolvedRules = resolveRules(descriptor.graphRules());
                 @SuppressWarnings("rawtypes")
                 GoalCompiler inner = runtimeValue.getValue();
                 runtimeValue = new RuntimeValue<>((GoalCompiler) (goals, factory) ->
@@ -102,7 +102,7 @@ public class DesiredStateGraphRecorder {
             }
 
             if (!descriptor.graphInvariants().isEmpty()) {
-                List<ResolvedGraphInvariant> resolvedInvariants = resolveInvariants(descriptor.graphInvariants());
+                List<ResolvedInvariant> resolvedInvariants = resolveInvariants(descriptor.graphInvariants());
                 GraphInvariantEngine invariantEngine = new GraphInvariantEngine();
                 @SuppressWarnings("rawtypes")
                 GoalCompiler inner = runtimeValue.getValue();
@@ -118,7 +118,7 @@ public class DesiredStateGraphRecorder {
         }}
 
     private CompilationResult applyGraphRulesToResult(CompilationResult result,
-                                                      List<ResolvedGraphRule> rules) {
+                                                      List<ResolvedRule> rules) {
         GraphRuleEngine engine = new GraphRuleEngine();
         return switch (result) {
             case CompilationResult.SingleGraph sg -> CompilationResult.single(engine.evaluate(sg.graph(), rules));
@@ -134,7 +134,7 @@ public class DesiredStateGraphRecorder {
     }
 
     private CompilationResult validateInvariantsOnResult(CompilationResult result,
-            List<ResolvedGraphInvariant> invariants, GraphInvariantEngine engine) {
+                                                         List<ResolvedInvariant> invariants, GraphInvariantEngine engine) {
         switch (result) {
             case CompilationResult.SingleGraph sg -> engine.validate(sg.graph(), invariants);
             case CompilationResult.Lifecycle lc -> {
@@ -146,20 +146,23 @@ public class DesiredStateGraphRecorder {
         return result;
     }
 
-    private List<ResolvedGraphInvariant> resolveInvariants(List<GraphInvariantDescriptor> descriptors) {
-        List<ResolvedGraphInvariant> invariants = new ArrayList<>();
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+    private List<ResolvedInvariant> resolveInvariants(List<GraphInvariantDescriptor> descriptors) {
+        List<ResolvedInvariant> invariants  = new ArrayList<>();
+        ClassLoader             classLoader = Thread.currentThread().getContextClassLoader();
         for (GraphInvariantDescriptor gid : descriptors) {
             try {
                 Class<?> cls = classLoader.loadClass(gid.sourceClassName());
                 Object instance = java.lang.reflect.Modifier.isInterface(cls.getModifiers())
-                        ? null : cls.getDeclaredConstructor().newInstance();
+                                  ? null : cls.getDeclaredConstructor().newInstance();
                 Method method = findInvariantMethod(cls, gid);
-                invariants.add(new ResolvedGraphInvariant(gid.methodName(), method,
-                        instance, gid.imperative(), gid.patterns()));
+                if (gid.imperative()) {
+                    invariants.add(new ResolvedInvariant.ImperativeInvariant(gid.methodName(), method, instance));
+                } else {
+                    invariants.add(new ResolvedInvariant.ParameterizedReflectiveInvariant(gid.methodName(), method, instance, gid.patterns()));
+                }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to resolve graph invariant: "
-                        + gid.methodName(), e);
+                                           + gid.methodName(), e);
             }
         }
         return invariants;
@@ -178,9 +181,9 @@ public class DesiredStateGraphRecorder {
         return cls.getMethod(gid.methodName(), paramTypes);
     }
 
-    private List<ResolvedGraphRule> resolveRules(List<GraphRuleDescriptor> descriptors) {
-        List<ResolvedGraphRule> rules       = new ArrayList<>();
-        ClassLoader             classLoader = Thread.currentThread().getContextClassLoader();
+    private List<ResolvedRule> resolveRules(List<GraphRuleDescriptor> descriptors) {
+        List<ResolvedRule> rules       = new ArrayList<>();
+        ClassLoader        classLoader = Thread.currentThread().getContextClassLoader();
         for (GraphRuleDescriptor grd : descriptors) {
             try {
                 Class<?> ruleClass = classLoader.loadClass(grd.sourceClassName());
@@ -188,8 +191,11 @@ public class DesiredStateGraphRecorder {
                                       ? null
                                       : ruleClass.getDeclaredConstructor().newInstance();
                 Method ruleMethod = findRuleMethod(ruleClass, grd);
-                rules.add(new ResolvedGraphRule(grd.methodName(), ruleMethod, ruleInstance,
-                                                grd.imperative(), grd.patterns()));
+                if (grd.imperative()) {
+                    rules.add(new ResolvedRule.ImperativeRule(grd.methodName(), ruleMethod, ruleInstance));
+                } else {
+                    rules.add(new ResolvedRule.ParameterizedReflectiveRule(grd.methodName(), ruleMethod, ruleInstance, grd.patterns()));
+                }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to resolve graph rule: " + grd.methodName(), e);
             }

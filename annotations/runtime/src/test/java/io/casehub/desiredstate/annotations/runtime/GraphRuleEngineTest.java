@@ -28,10 +28,10 @@ class GraphRuleEngineTest {
         public NodeType nodeType() { return NodeType.of(typeValue); }
     }
 
-    private ResolvedGraphRule imperativeRule(String methodName) {
+    private ResolvedRule imperativeRule(String methodName) {
         try {
             Method m = GraphRuleEngineTest.class.getDeclaredMethod(methodName, DesiredStateGraph.class);
-            return new ResolvedGraphRule(methodName, m, null, true, List.of());
+            return new ResolvedRule.ImperativeRule(methodName, m, null);
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
@@ -187,7 +187,7 @@ class GraphRuleEngineTest {
 
     // --- Parameterized rule helpers ---
 
-    private ResolvedGraphRule parameterizedRule(String methodName,
+    private ResolvedRule parameterizedRule(String methodName,
             List<PatternParameterDescriptor> patterns) {
         try {
             Class<?>[] paramTypes = new Class<?>[patterns.size()];
@@ -196,7 +196,7 @@ class GraphRuleEngineTest {
                         ? Void.class : DesiredNode.class;
             }
             Method m = GraphRuleEngineTest.class.getDeclaredMethod(methodName, paramTypes);
-            return new ResolvedGraphRule(methodName, m, null, false, patterns);
+            return new ResolvedRule.ParameterizedReflectiveRule(methodName, m, null, patterns);
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }

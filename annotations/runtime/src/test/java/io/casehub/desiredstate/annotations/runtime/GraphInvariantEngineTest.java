@@ -143,7 +143,7 @@ class GraphInvariantEngineTest {
 
     // --- helpers ---
 
-    private ResolvedGraphInvariant parameterizedInvariant(String methodName,
+    private ResolvedInvariant parameterizedInvariant(String methodName,
             List<PatternParameterDescriptor> patterns) {
         try {
             Class<?>[] paramTypes = new Class<?>[patterns.size()];
@@ -152,16 +152,16 @@ class GraphInvariantEngineTest {
                         ? Void.class : DesiredNode.class;
             }
             Method method = getClass().getMethod(methodName, paramTypes);
-            return new ResolvedGraphInvariant(methodName, method, null, false, patterns);
+            return new ResolvedInvariant.ParameterizedReflectiveInvariant(methodName, method, null, patterns);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private ResolvedGraphInvariant imperativeInvariant(String methodName) {
+    private ResolvedInvariant imperativeInvariant(String methodName) {
         try {
             Method method = getClass().getMethod(methodName, DesiredStateGraph.class);
-            return new ResolvedGraphInvariant(methodName, method, null, true, List.of());
+            return new ResolvedInvariant.ImperativeInvariant(methodName, method, null);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

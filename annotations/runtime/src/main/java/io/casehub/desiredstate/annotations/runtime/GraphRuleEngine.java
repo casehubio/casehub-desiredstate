@@ -21,14 +21,12 @@ public class GraphRuleEngine {
 
     private static final int MAX_ITERATIONS = 100;
 
-    public DesiredStateGraph evaluate(DesiredStateGraph graph, List<ResolvedGraphRule> rules) {
+    public DesiredStateGraph evaluate(DesiredStateGraph graph, List<ResolvedRule> rules) {
         for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
             List<RuleContribution> contributions = new ArrayList<>();
 
-            for (ResolvedGraphRule rule : rules) {
-                List<GraphMutation> mutations = rule.imperative()
-                                                ? evaluateImperative(rule, graph)
-                                                : evaluateParameterized(rule, graph);
+            for (ResolvedRule rule : rules) {
+                List<GraphMutation> mutations = evaluateRule(rule, graph);
                 if (!mutations.isEmpty()) {
                     contributions.add(new RuleContribution(rule.name(), mutations));
                 }
@@ -52,20 +50,27 @@ public class GraphRuleEngine {
         }
 
         DesiredStateGraph finalGraph = graph;
-        List<ResolvedGraphRule> activeRules = rules.stream()
-                                                   .filter(r -> !(r.imperative()
-                                                                  ? evaluateImperative(r, finalGraph)
-                                                                  : evaluateParameterized(r, finalGraph)).isEmpty())
-                                                   .toList();
+        List<ResolvedRule> activeRules = rules.stream()
+                                              .filter(r -> !evaluateRule(r, finalGraph).isEmpty())
+                                              .toList();
         throw new GraphRuleNonConvergenceException(
-                activeRules.isEmpty() ? rules : activeRules, MAX_ITERATIONS);}
+                activeRules.isEmpty() ? rules : activeRules, MAX_ITERATIONS);
+    }
+
+    private List<GraphMutation> evaluateRule(ResolvedRule rule, DesiredStateGraph graph) {
+        return switch (rule) {
+            case ResolvedRule.ImperativeRule imp -> evaluateImperative(imp, graph);
+            case ResolvedRule.ParameterizedReflectiveRule param -> evaluateParameterized(param, graph);
+            case ResolvedRule.DeclarativeRule decl -> List.of();
+        };
+    }
 
     @SuppressWarnings("unchecked")
-    List<GraphMutation> evaluateImperative(ResolvedGraphRule rule, DesiredStateGraph graph) {
+    private List<GraphMutation> evaluateImperative(ResolvedRule.ImperativeRule rule, DesiredStateGraph graph) {
         try {
             return (List<GraphMutation>) rule.method().invoke(rule.instance(), graph);
         } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof RuntimeException re) throw re;
+            if (e.getCause() instanceof RuntimeException re) {throw re;}
             throw new RuntimeException("Rule " + rule.name() + " failed", e.getCause());
         } catch (IllegalAccessException e) {
             throw new RuntimeException("Rule " + rule.name() + " inaccessible", e);
@@ -73,10 +78,11 @@ public class GraphRuleEngine {
     }
 
     @SuppressWarnings("unchecked")
-    List<GraphMutation> evaluateParameterized(ResolvedGraphRule rule, DesiredStateGraph graph) {
+    private List<GraphMutation> evaluateParameterized(ResolvedRule.ParameterizedReflectiveRule rule,
+                                                      DesiredStateGraph graph) {
         List<GraphMutation>              allMutations = new ArrayList<>();
         List<PatternParameterDescriptor> patterns     = rule.patterns();
-        String[]                         paramNames   = PatternMatchingSupport.getParameterNames(rule.method());
+        String[]                         paramNames   = rule.bindingNames();
 
         List<Map<String, DesiredNode>> allBindings = PatternEvaluator.evaluate(graph, patterns, paramNames);
 
@@ -99,7 +105,7 @@ public class GraphRuleEngine {
         Map<NodeId, GraphMutation> byNodeId = new LinkedHashMap<>();
         for (GraphMutation m : mutations) {
             NodeId target = m.targetNodeId();
-            if (target == null) continue;
+            if (target == null) {continue;}
             GraphMutation existing = byNodeId.get(target);
             if (existing != null && !existing.equals(m)) {
                 throw new ConflictingMutationException(target, existing, m);
@@ -109,7 +115,7 @@ public class GraphRuleEngine {
     }
 
     private void detectEdgeConflicts(List<GraphMutation> mutations) {
-        Map<Dependency, GraphMutation> addEdges = new HashMap<>();
+        Map<Dependency, GraphMutation> addEdges    = new HashMap<>();
         Map<Dependency, GraphMutation> removeEdges = new HashMap<>();
         for (GraphMutation m : mutations) {
             switch (m) {
@@ -143,9 +149,8 @@ public class GraphRuleEngine {
         }).toList();
     }
 
-
     private DesiredStateGraph applyMutations(DesiredStateGraph graph, List<GraphMutation> sorted,
-                                              List<RuleContribution> contributions) {
+                                             List<RuleContribution> contributions) {
         try {
             for (GraphMutation m : sorted) {
                 graph = graph.withMutation(m);
@@ -153,7 +158,7 @@ public class GraphRuleEngine {
             return graph;
         } catch (CyclicDependencyException e) {
             List<String> ruleNames = contributions.stream()
-                    .map(RuleContribution::ruleName).toList();
+                                                  .map(RuleContribution::ruleName).toList();
             throw new GraphRuleCycleException(ruleNames, e.getCycle());
         }
     }
@@ -169,15 +174,15 @@ public class GraphRuleEngine {
     }
 
     @SuppressWarnings("unchecked")
-    private void invokeRule(ResolvedGraphRule rule, List<Object> args,
-            List<GraphMutation> allMutations) {
+    private void invokeRule(ResolvedRule.ParameterizedReflectiveRule rule, List<Object> args,
+                            List<GraphMutation> allMutations) {
         try {
             var result = (List<GraphMutation>) rule.method().invoke(rule.instance(), args.toArray());
             if (result != null && !result.isEmpty()) {
                 allMutations.addAll(result);
             }
         } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof RuntimeException re) throw re;
+            if (e.getCause() instanceof RuntimeException re) {throw re;}
             throw new RuntimeException("Rule " + rule.name() + " failed", e.getCause());
         } catch (IllegalAccessException e) {
             throw new RuntimeException("Rule " + rule.name() + " inaccessible", e);
