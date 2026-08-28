@@ -75,7 +75,7 @@ class YamlGraphRecorderTest {
                 "test", "vars", null, null,
                 List.of(
                         new NodeDescriptor.InlineNode("src", TestSourceSpec.class.getName(),
-                                Map.of("name", "source", "uri", "${data_uri}"),
+                                Map.of("name", "source", "uri", "${var.data_uri}"),
                                 HumanGating.NONE)
                 ),
                 List.of(), List.of(), null, List.of(), List.of());
