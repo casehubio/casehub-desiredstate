@@ -7,7 +7,6 @@ import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.NodeId;
-import io.casehub.desiredstate.api.NodeType;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -79,18 +78,14 @@ public class GraphRuleEngine {
         List<PatternParameterDescriptor> patterns     = rule.patterns();
         String[]                         paramNames   = PatternMatchingSupport.getParameterNames(rule.method());
 
-        List<List<DesiredNode>> matchSets = new ArrayList<>();
-        for (PatternParameterDescriptor p : patterns) {
-            if (p.kind() == PatternKind.MATCH) {
-                NodeType targetType = NodeType.of(p.nodeType());
-                List<DesiredNode> matches = graph.nodes().values().stream()
-                                                 .filter(n -> n.type().equals(targetType)).toList();
-                matchSets.add(matches);
-            }
-        }
+        List<Map<String, DesiredNode>> allBindings = PatternEvaluator.evaluate(graph, patterns, paramNames);
 
-        for (List<DesiredNode> matchTuple : PatternMatchingSupport.crossProduct(matchSets)) {
-            expandBindings(rule, graph, patterns, paramNames, matchTuple, allMutations);
+        for (Map<String, DesiredNode> binding : allBindings) {
+            List<Object> args = new ArrayList<>(paramNames.length);
+            for (String paramName : paramNames) {
+                args.add(binding.get(paramName));
+            }
+            invokeRule(rule, args, allMutations);
         }
 
         return allMutations;
@@ -171,77 +166,6 @@ public class GraphRuleEngine {
             case GraphMutation.RemoveNode ignored -> 3;
             case GraphMutation.AddDependency ignored -> 4;
         })).toList();
-    }
-
-    private void expandBindings(ResolvedGraphRule rule, DesiredStateGraph graph,
-            List<PatternParameterDescriptor> patterns, String[] paramNames,
-            List<DesiredNode> matchTuple, List<GraphMutation> allMutations) {
-        Map<String, DesiredNode> bindings = new LinkedHashMap<>();
-        List<Object> args = new ArrayList<>();
-        int matchIdx = 0;
-
-        for (int i = 0; i < patterns.size(); i++) {
-            if (patterns.get(i).kind() == PatternKind.MATCH) {
-                DesiredNode node = matchTuple.get(matchIdx++);
-                bindings.put(paramNames[i], node);
-                args.add(node);
-            } else {
-                args.add(null);
-            }
-        }
-
-        expandChain(rule, graph, patterns, paramNames, bindings, args, 0, allMutations);
-    }
-
-    private void expandChain(ResolvedGraphRule rule, DesiredStateGraph graph,
-            List<PatternParameterDescriptor> patterns, String[] paramNames,
-            Map<String, DesiredNode> bindings, List<Object> args,
-            int startIndex, List<GraphMutation> allMutations) {
-        int idx = startIndex;
-        while (idx < patterns.size() && patterns.get(idx).kind() == PatternKind.MATCH) {
-            idx++;
-        }
-        if (idx >= patterns.size()) {
-            invokeRule(rule, args, allMutations);
-            return;
-        }
-
-        PatternParameterDescriptor p = patterns.get(idx);
-        DesiredNode refNode = PatternMatchingSupport.resolveReference(p, idx, paramNames, bindings);
-
-        switch (p.kind()) {
-            case DIRECT_DEP -> {
-                for (DesiredNode neighbor : PatternMatchingSupport.findDirectNeighbors(graph, refNode, p)) {
-                    var newBindings = new LinkedHashMap<>(bindings);
-                    var newArgs = new ArrayList<>(args);
-                    newBindings.put(paramNames[idx], neighbor);
-                    newArgs.set(idx, neighbor);
-                    expandChain(rule, graph, patterns, paramNames, newBindings, newArgs,
-                            idx + 1, allMutations);
-                }
-            }
-            case REACHES -> {
-                for (DesiredNode reached : PatternMatchingSupport.findReachable(graph, refNode, p)) {
-                    var newBindings = new LinkedHashMap<>(bindings);
-                    var newArgs = new ArrayList<>(args);
-                    newBindings.put(paramNames[idx], reached);
-                    newArgs.set(idx, reached);
-                    expandChain(rule, graph, patterns, paramNames, newBindings, newArgs,
-                            idx + 1, allMutations);
-                }
-            }
-            case NOT_EXISTS -> {
-                boolean exists = p.of().isEmpty()
-                        ? PatternMatchingSupport.existsGlobal(graph, p)
-                        : PatternMatchingSupport.existsRelational(graph, bindings.get(p.of()), p);
-                if (exists) return;
-                var newArgs = new ArrayList<>(args);
-                newArgs.set(idx, null);
-                expandChain(rule, graph, patterns, paramNames, bindings, newArgs,
-                        idx + 1, allMutations);
-            }
-            default -> throw new IllegalStateException("Unexpected pattern kind: " + p.kind());
-        }
     }
 
     @SuppressWarnings("unchecked")

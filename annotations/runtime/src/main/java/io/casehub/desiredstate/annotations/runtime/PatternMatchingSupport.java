@@ -30,35 +30,37 @@ public final class PatternMatchingSupport {
     }
 
     public static List<DesiredNode> findDirectNeighbors(DesiredStateGraph graph,
-            DesiredNode refNode, PatternParameterDescriptor p) {
-        NodeType targetType = NodeType.of(p.nodeType());
+                                                        DesiredNode refNode, PatternParameterDescriptor p) {
+        boolean  wildcard   = "*".equals(p.nodeType());
+        NodeType targetType = wildcard ? null : NodeType.of(p.nodeType());
         Set<NodeId> neighbors = p.direction() == Direction.DEPENDENCIES
-                ? graph.dependenciesOf(refNode.id())
-                : graph.dependentsOf(refNode.id());
+                                ? graph.dependenciesOf(refNode.id())
+                                : graph.dependentsOf(refNode.id());
         return neighbors.stream()
-                .map(id -> graph.nodes().get(id))
-                .filter(n -> n != null && n.type().equals(targetType))
-                .toList();
+                        .map(id -> graph.nodes().get(id))
+                        .filter(n -> n != null && (wildcard || n.type().equals(targetType)))
+                        .toList();
     }
 
     public static List<DesiredNode> findReachable(DesiredStateGraph graph,
-            DesiredNode refNode, PatternParameterDescriptor p) {
-        NodeType targetType = NodeType.of(p.nodeType());
-        List<DesiredNode> found = new ArrayList<>();
-        Set<NodeId> visited = new HashSet<>();
-        ArrayDeque<NodeId> queue = new ArrayDeque<>();
+                                                  DesiredNode refNode, PatternParameterDescriptor p) {
+        boolean            wildcard   = "*".equals(p.nodeType());
+        NodeType           targetType = wildcard ? null : NodeType.of(p.nodeType());
+        List<DesiredNode>  found      = new ArrayList<>();
+        Set<NodeId>        visited    = new HashSet<>();
+        ArrayDeque<NodeId> queue      = new ArrayDeque<>();
         queue.add(refNode.id());
         visited.add(refNode.id());
 
         while (!queue.isEmpty()) {
             NodeId current = queue.poll();
             Set<NodeId> neighbors = p.direction() == Direction.DEPENDENCIES
-                    ? graph.dependenciesOf(current)
-                    : graph.dependentsOf(current);
+                                    ? graph.dependenciesOf(current)
+                                    : graph.dependentsOf(current);
             for (NodeId neighbor : neighbors) {
                 if (visited.add(neighbor)) {
                     DesiredNode node = graph.nodes().get(neighbor);
-                    if (node != null && node.type().equals(targetType)) {
+                    if (node != null && (wildcard || node.type().equals(targetType))) {
                         found.add(node);
                     }
                     queue.add(neighbor);
@@ -69,19 +71,23 @@ public final class PatternMatchingSupport {
     }
 
     public static boolean existsGlobal(DesiredStateGraph graph, PatternParameterDescriptor p) {
+        if ("*".equals(p.nodeType())) {
+            return !graph.nodes().isEmpty();
+        }
         NodeType targetType = NodeType.of(p.nodeType());
         return graph.nodes().values().stream().anyMatch(n -> n.type().equals(targetType));
     }
 
     public static boolean existsRelational(DesiredStateGraph graph, DesiredNode refNode,
-            PatternParameterDescriptor p) {
-        NodeType targetType = NodeType.of(p.nodeType());
+                                           PatternParameterDescriptor p) {
+        boolean  wildcard   = "*".equals(p.nodeType());
+        NodeType targetType = wildcard ? null : NodeType.of(p.nodeType());
         Set<NodeId> neighbors = p.direction() == Direction.DEPENDENCIES
-                ? graph.dependenciesOf(refNode.id())
-                : graph.dependentsOf(refNode.id());
+                                ? graph.dependenciesOf(refNode.id())
+                                : graph.dependentsOf(refNode.id());
         return neighbors.stream()
-                .map(id -> graph.nodes().get(id))
-                .anyMatch(n -> n != null && n.type().equals(targetType));
+                        .map(id -> graph.nodes().get(id))
+                        .anyMatch(n -> n != null && (wildcard || n.type().equals(targetType)));
     }
 
     public static String[] getParameterNames(Method method) {

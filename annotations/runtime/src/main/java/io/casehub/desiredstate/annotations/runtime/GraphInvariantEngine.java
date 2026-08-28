@@ -51,119 +51,67 @@ public class GraphInvariantEngine {
     }
 
     private void validateParameterized(ResolvedGraphInvariant invariant,
-            DesiredStateGraph graph, List<GraphViolation> violations) {
-        List<PatternParameterDescriptor> patterns = invariant.patterns();
-        String[] paramNames = PatternMatchingSupport.getParameterNames(invariant.method());
+                                       DesiredStateGraph graph, List<GraphViolation> violations) {
+        List<PatternParameterDescriptor> patterns   = invariant.patterns();
+        String[]                         paramNames = PatternMatchingSupport.getParameterNames(invariant.method());
 
         List<Integer> matchIndices = new ArrayList<>();
-        List<List<DesiredNode>> matchSets = new ArrayList<>();
         for (int i = 0; i < patterns.size(); i++) {
             if (patterns.get(i).kind() == PatternKind.MATCH) {
                 matchIndices.add(i);
-                NodeType targetType = NodeType.of(patterns.get(i).nodeType());
-                matchSets.add(graph.nodes().values().stream()
-                        .filter(n -> n.type().equals(targetType))
-                        .toList());
             }
         }
 
-        if (matchSets.isEmpty() || matchSets.stream().anyMatch(List::isEmpty)) {
-            return;
+        List<Map<String, DesiredNode>> allBindings = PatternEvaluator.evaluate(graph, patterns, paramNames);
+
+        Map<List<DesiredNode>, List<Map<String, DesiredNode>>> byAnchor = new LinkedHashMap<>();
+        for (Map<String, DesiredNode> binding : allBindings) {
+            List<DesiredNode> anchor = matchIndices.stream()
+                                                   .map(i -> binding.get(paramNames[i]))
+                                                   .toList();
+            byAnchor.computeIfAbsent(anchor, k -> new ArrayList<>()).add(binding);
         }
 
-        List<List<DesiredNode>> anchorTuples = PatternMatchingSupport.crossProduct(matchSets);
+        NodeType firstMatchType = matchIndices.isEmpty() ? null
+                                                         : NodeType.of(patterns.get(matchIndices.get(0)).nodeType());
+        List<List<DesiredNode>> expectedAnchors = buildExpectedAnchors(graph, patterns, paramNames, matchIndices);
 
-        for (List<DesiredNode> anchorTuple : anchorTuples) {
-            Map<String, DesiredNode> bindings = new LinkedHashMap<>();
-            List<Object> args = new ArrayList<>();
-            int matchIdx = 0;
-            for (int i = 0; i < patterns.size(); i++) {
-                if (patterns.get(i).kind() == PatternKind.MATCH) {
-                    DesiredNode node = anchorTuple.get(matchIdx++);
-                    bindings.put(paramNames[i], node);
-                    args.add(node);
-                } else {
-                    args.add(null);
-                }
-            }
-
-            List<List<Object>> expandedArgs = new ArrayList<>();
-            int chainStart = matchIndices.isEmpty() ? 0
-                    : matchIndices.get(matchIndices.size() - 1) + 1;
-            expandChain(invariant, graph, patterns, paramNames, bindings,
-                    args, chainStart, expandedArgs);
-
-            if (expandedArgs.isEmpty()) {
-                String anchorDesc = anchorTuple.stream()
-                        .map(n -> n.id().value())
-                        .collect(Collectors.joining(", "));
+        for (List<DesiredNode> anchor : expectedAnchors) {
+            List<Map<String, DesiredNode>> expansions = byAnchor.get(anchor);
+            if (expansions == null || expansions.isEmpty()) {
+                String anchorDesc = anchor.stream()
+                                          .map(n -> n.id().value())
+                                          .collect(Collectors.joining(", "));
                 violations.add(new GraphViolation(invariant.name(),
-                        invariant.method().getDeclaringClass().getName(),
-                        invariant.name() + " violated for [" + anchorDesc + "]",
-                        anchorTuple.stream().map(DesiredNode::id).toList()));
+                                                  invariant.method().getDeclaringClass().getName(),
+                                                  invariant.name() + " violated for [" + anchorDesc + "]",
+                                                  anchor.stream().map(DesiredNode::id).toList()));
             } else {
-                for (List<Object> finalArgs : expandedArgs) {
-                    invokeInvariant(invariant, finalArgs, violations);
+                for (Map<String, DesiredNode> binding : expansions) {
+                    Object[] args = new Object[paramNames.length];
+                    for (int i = 0; i < paramNames.length; i++) {
+                        args[i] = binding.get(paramNames[i]);
+                    }
+                    invokeInvariant(invariant, List.of(args), violations);
                 }
             }
         }
     }
 
-    private void expandChain(ResolvedGraphInvariant invariant,
-            DesiredStateGraph graph, List<PatternParameterDescriptor> patterns,
-            String[] paramNames, Map<String, DesiredNode> bindings,
-            List<Object> args, int startIndex, List<List<Object>> results) {
-        int idx = startIndex;
-        while (idx < patterns.size() && patterns.get(idx).kind() == PatternKind.MATCH) {
-            idx++;
+    private List<List<DesiredNode>> buildExpectedAnchors(DesiredStateGraph graph,
+                                                         List<PatternParameterDescriptor> patterns, String[] paramNames,
+                                                         List<Integer> matchIndices) {
+        List<List<DesiredNode>> matchSets = new ArrayList<>();
+        for (int i : matchIndices) {
+            NodeType targetType = NodeType.of(patterns.get(i).nodeType());
+            matchSets.add(graph.nodes().values().stream()
+                               .filter(n -> n.type().equals(targetType))
+                               .toList());
         }
-        if (idx >= patterns.size()) {
-            results.add(new ArrayList<>(args));
-            return;
+        if (matchSets.isEmpty() || matchSets.stream().anyMatch(List::isEmpty)) {
+            return List.of();
         }
-
-        PatternParameterDescriptor p = patterns.get(idx);
-        DesiredNode refNode;
-
-        switch (p.kind()) {
-            case DIRECT_DEP -> {
-                refNode = PatternMatchingSupport.resolveReference(p, idx, paramNames, bindings);
-                for (DesiredNode neighbor : PatternMatchingSupport.findDirectNeighbors(graph, refNode, p)) {
-                    var newBindings = new LinkedHashMap<>(bindings);
-                    var newArgs = new ArrayList<>(args);
-                    newBindings.put(paramNames[idx], neighbor);
-                    newArgs.set(idx, neighbor);
-                    expandChain(invariant, graph, patterns, paramNames,
-                            newBindings, newArgs, idx + 1, results);
-                }
-            }
-            case REACHES -> {
-                refNode = PatternMatchingSupport.resolveReference(p, idx, paramNames, bindings);
-                for (DesiredNode reached : PatternMatchingSupport.findReachable(graph, refNode, p)) {
-                    var newBindings = new LinkedHashMap<>(bindings);
-                    var newArgs = new ArrayList<>(args);
-                    newBindings.put(paramNames[idx], reached);
-                    newArgs.set(idx, reached);
-                    expandChain(invariant, graph, patterns, paramNames,
-                            newBindings, newArgs, idx + 1, results);
-                }
-            }
-            case NOT_EXISTS -> {
-                boolean exists;
-                if (p.of().isEmpty()) {
-                    exists = PatternMatchingSupport.existsGlobal(graph, p);
-                } else {
-                    refNode = PatternMatchingSupport.resolveReference(p, idx, paramNames, bindings);
-                    exists = PatternMatchingSupport.existsRelational(graph, refNode, p);
-                }
-                if (exists) return;
-                var newArgs = new ArrayList<>(args);
-                newArgs.set(idx, null);
-                expandChain(invariant, graph, patterns, paramNames,
-                        bindings, newArgs, idx + 1, results);
-            }
-            default -> throw new IllegalStateException("Unexpected pattern kind: " + p.kind());
-        }
+        return PatternMatchingSupport.crossProduct(matchSets);
     }
 
     private void invokeInvariant(ResolvedGraphInvariant invariant,
