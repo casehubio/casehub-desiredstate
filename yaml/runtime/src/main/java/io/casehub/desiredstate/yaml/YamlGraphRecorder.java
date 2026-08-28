@@ -105,6 +105,18 @@ public class YamlGraphRecorder {
 
             DesiredStateGraph graph = factory.of(nodes, deps);
 
+            if (yamlGraph != null && !yamlGraph.rules().isEmpty()) {
+                List<io.casehub.desiredstate.annotations.runtime.ResolvedRule> resolvedRules =
+                        new ArrayList<>();
+                for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlRule> ruleEntry :
+                        yamlGraph.rules().entrySet()) {
+                    resolvedRules.add(YamlRuleConverter.toDeclarativeRule(
+                            ruleEntry.getKey(), ruleEntry.getValue(), resolver, registry));
+                }
+                graph = new io.casehub.desiredstate.annotations.runtime.GraphRuleEngine()
+                        .evaluate(graph, resolvedRules);
+            }
+
             if (!invariants.isEmpty()) {
                 new GraphInvariantEngine().validate(graph, invariants);
             }
