@@ -239,7 +239,7 @@ public class YamlDesiredStateProcessor {
         }
 
         for (Map.Entry<String, YamlNode> entry : graph.nodes().entrySet()) {
-            for (String dep : entry.getValue().dependsOn()) {
+            for (String dep : entry.getValue().dependencyNodeIds()) {
                 if (!nodeIds.contains(dep)) {
                     throw new RuntimeException(fileName + ": Node '" + entry.getKey()
                             + "' depends on '" + dep + "' which is not declared");
@@ -248,6 +248,7 @@ public class YamlDesiredStateProcessor {
         }
 
         detectCycles(graph.nodes(), fileName);
+        validateConditionalDependencies(graph.nodes(), fileName);
     }
 
     private void detectCycles(Map<String, YamlNode> nodes, String fileName) {
@@ -258,7 +259,7 @@ public class YamlDesiredStateProcessor {
             adjList.put(id, new ArrayList<>());
         }
         for (Map.Entry<String, YamlNode> entry : nodes.entrySet()) {
-            for (String dep : entry.getValue().dependsOn()) {
+            for (String dep : entry.getValue().dependencyNodeIds()) {
                 adjList.get(dep).add(entry.getKey());
                 inDegree.merge(entry.getKey(), 1, Integer::sum);
             }
@@ -288,6 +289,37 @@ public class YamlDesiredStateProcessor {
                     + ": Cyclic dependency detected involving nodes: " + cyclic);
         }
     }
+
+    private void validateConditionalDependencies(Map<String, io.casehub.desiredstate.yaml.model.YamlNode> nodes,
+                                                 String fileName) {
+        Set<String> conditionalNodes = new HashSet<>();
+        for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry : nodes.entrySet()) {
+            if (entry.getValue().when() != null) {
+                conditionalNodes.add(entry.getKey());
+            }
+        }
+        if (conditionalNodes.isEmpty()) {return;}
+
+        for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry : nodes.entrySet()) {
+            String  nodeId            = entry.getKey();
+            var     node              = entry.getValue();
+            boolean nodeIsConditional = node.when() != null;
+
+            for (Object dep : node.dependsOn()) {
+                String  depId            = io.casehub.desiredstate.yaml.model.YamlNode.dependencyNodeId(dep);
+                boolean depIsConditional = conditionalNodes.contains(depId);
+                boolean depIsOptional    = io.casehub.desiredstate.yaml.model.YamlNode.isDependencyOptional(dep);
+
+                if (depIsConditional && !nodeIsConditional && !depIsOptional) {
+                    throw new RuntimeException(fileName + ": Node '" + nodeId
+                                               + "' unconditionally depends on conditional node '" + depId
+                                               + "' (has when:). Mark the dependency as optional: "
+                                               + "{ node: \"" + depId + "\", optional: true }");
+                }
+            }
+        }
+    }
+
 
     private void validateFaultPolicies(List<io.casehub.desiredstate.yaml.model.YamlFaultPolicy> policies,
                                        Map<String, String> typeRegistry, String fileName) {
@@ -407,7 +439,7 @@ public class YamlDesiredStateProcessor {
                     yamlNode.spec() != null ? yamlNode.spec() : Map.of(),
                     yamlNode.humanGating()));
 
-            for (String dep : yamlNode.dependsOn()) {
+            for (String dep : yamlNode.dependencyNodeIds()) {
                 deps.add(new DependencyDescriptor(nodeId, dep));
             }
         }

@@ -244,7 +244,7 @@ class PipelineYamlTest {
                     yamlNode.spec() != null ? yamlNode.spec() : Map.of(),
                     yamlNode.humanGating()));
 
-            for (String dep : yamlNode.dependsOn()) {
+            for (String dep : yamlNode.dependencyNodeIds()) {
                 deps.add(new DependencyDescriptor(nodeId, dep));
             }
         }

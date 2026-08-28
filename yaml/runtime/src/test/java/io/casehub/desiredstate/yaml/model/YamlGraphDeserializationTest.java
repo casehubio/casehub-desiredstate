@@ -56,7 +56,7 @@ class YamlGraphDeserializationTest {
         YamlGraph graph = mapper.readValue(yaml, YamlGraph.class);
 
         assertThat(graph.variables()).containsEntry("batch", "500");
-        assertThat(graph.nodes().get("ingest").dependsOn()).containsExactly("source");
+        assertThat(graph.nodes().get("ingest").dependencyNodeIds()).containsExactly("source");
     }
 
     @Test
