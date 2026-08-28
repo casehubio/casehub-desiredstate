@@ -1,0 +1,98 @@
+desiredState:
+  namespace: pipeline-yaml
+  name: lifecycle-medallion
+
+variables:
+  source_uri: s3://data/customers.csv
+  batch_size: "1000"
+
+lifecycle:
+  phases:
+    - id: infrastructure
+      completionCondition: allPresent
+      nodes:
+        csv-source:
+          type: data-source
+          spec:
+            name: customers
+            format: CSV
+            uri: ${var.source_uri}
+
+        customer-schema:
+          type: schema
+          spec:
+            name: customer-schema
+            fields: [id, name, email]
+            version: 1
+
+    - id: processing
+      completionCondition: allPresent
+      nodes:
+        csv-ingest:
+          type: ingestion
+          dependsOn: [csv-source]
+          spec:
+            sourceRef: csv-source
+            batchSize: ${var.batch_size}
+            format: CSV
+
+        dedup-cleanser:
+          type: cleanser
+          dependsOn: [csv-ingest, customer-schema]
+          spec:
+            rules: [dedup, nullcheck]
+            deduplication: true
+            nullHandling: DROP
+
+        quality-validator:
+          type: validator
+          dependsOn: [dedup-cleanser, customer-schema]
+          spec:
+            schemaRef: customer-schema
+            qualityThreshold: 0.95
+            anomalyDetection: true
+
+    - id: delivery
+      completionCondition: never
+      nodes:
+        aggregate-tx:
+          type: transformer
+          dependsOn: [quality-validator]
+          spec:
+            aggregations: [sum, avg]
+            reshapeRules: []
+            outputFormat: parquet
+            approvalRequired: true
+
+        warehouse-sink:
+          type: sink
+          dependsOn: [aggregate-tx]
+          spec:
+            destination: s3://warehouse/gold/
+            format: parquet
+            partitionKeys: [date]
+            approvalRequired: true
+
+rules:
+  ensure-monitoring:
+    match:
+      sink: { type: sink }
+    notExists:
+      guard: { type: monitor, of: sink, direction: DEPENDENTS }
+    actions:
+      - addNode:
+          id: "monitor-${match.sink.id}"
+          type: monitor
+          spec:
+            target: "${match.sink.id}"
+      - addDependency:
+          from: "monitor-${match.sink.id}"
+          to: "${match.sink.id}"
+
+invariants:
+  every-sink-has-upstream:
+    match:
+      sink: { type: sink }
+    directDep:
+      upstream: { type: transformer, of: sink, direction: DEPENDENCIES }
+    message: "Sink ${match.sink.id} has no upstream transformer"

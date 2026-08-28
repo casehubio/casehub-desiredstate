@@ -74,21 +74,29 @@ public class YamlDesiredStateProcessor {
             YamlGraph yamlGraph = named.graph();
             String fileName = named.fileName();
 
-            validateYamlGraph(yamlGraph, typeRegistry, fileName);
-
-            GraphDescriptor descriptor = toGraphDescriptor(yamlGraph, typeRegistry);
+            String ns = yamlGraph.desiredState().namespace();
+            String name = yamlGraph.desiredState().name();
 
             List<io.casehub.desiredstate.annotations.runtime.ResolvedInvariant> invariants =
                     buildInvariants(yamlGraph.invariants());
 
             @SuppressWarnings("rawtypes")
-            RuntimeValue<GoalCompiler> compiler = recorder.createYamlGoalCompiler(
-                    descriptor, typeRegistry,
-                    yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                    invariants, yamlGraph);
+            RuntimeValue<GoalCompiler> compiler;
 
-            String ns = yamlGraph.desiredState().namespace();
-            String name = yamlGraph.desiredState().name();
+            if (yamlGraph.lifecycle() != null) {
+                validateLifecycle(yamlGraph, typeRegistry, fileName);
+                compiler = recorder.createYamlLifecycleGoalCompiler(
+                        yamlGraph, typeRegistry,
+                        yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
+                        invariants);
+            } else {
+                validateYamlGraph(yamlGraph, typeRegistry, fileName);
+                GraphDescriptor descriptor = toGraphDescriptor(yamlGraph, typeRegistry);
+                compiler = recorder.createYamlGoalCompiler(
+                        descriptor, typeRegistry,
+                        yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
+                        invariants, yamlGraph);
+            }
 
             syntheticBeans.produce(SyntheticBeanBuildItem.configure(GoalCompiler.class)
                     .scope(ApplicationScoped.class)
