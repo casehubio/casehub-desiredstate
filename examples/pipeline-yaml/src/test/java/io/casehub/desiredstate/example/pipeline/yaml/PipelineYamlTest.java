@@ -64,11 +64,19 @@ class PipelineYamlTest {
 
             GraphDescriptor descriptor = toGraphDescriptor(yamlGraph);
 
+            List<io.casehub.desiredstate.annotations.runtime.ResolvedInvariant> invariants =
+                    new ArrayList<>();
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlInvariant> inv :
+                    yamlGraph.invariants().entrySet()) {
+                invariants.add(io.casehub.desiredstate.yaml.YamlInvariantConverter
+                        .toDeclarativeInvariant(inv.getKey(), inv.getValue()));
+            }
+
             YamlGraphRecorder recorder = new YamlGraphRecorder();
             compiler = recorder.createYamlGoalCompiler(
                     descriptor, TYPE_REGISTRY,
                     yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                    List.of()).getValue();
+                    invariants).getValue();
         }
     }
 
@@ -154,6 +162,16 @@ class PipelineYamlTest {
         assertThat(sinkSpec.format()).isEqualTo("parquet");
         assertThat(sinkSpec.partitionKeys()).containsExactly("date");
     }
+
+    @Test
+    void yamlInvariant_everySinkHasUpstream_passesForMedallionPipeline() {
+        assertThat(parsedYamlGraph.invariants()).containsKey("every-sink-has-upstream");
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.nodes().get(NodeId.of("warehouse-sink"))).isNotNull();
+        assertThat(graph.dependenciesOf(NodeId.of("warehouse-sink")))
+                .contains(NodeId.of("aggregate-tx"));
+    }
+
 
     /**
      * The medallion pipeline's gold-layer transformer keeps failing.

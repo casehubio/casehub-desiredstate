@@ -73,6 +73,14 @@ nodes:
       partitionKeys: [date]
       approvalRequired: true
 
+invariants:
+  every-sink-has-upstream:
+    match:
+      sink: { type: sink }
+    directDep:
+      upstream: { type: transformer, of: sink, direction: DEPENDENCIES }
+    message: "Sink ${match.sink.id} has no upstream transformer"
+
 faultPolicy:
   - faultTypes: [PROVISION_FAILED]
     nodeTypes: [transformer, sink]
