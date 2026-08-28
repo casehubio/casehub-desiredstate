@@ -36,6 +36,9 @@
         <module>yaml</module>
         <module>examples/pipeline-annotated</module>
         <module>examples/pipeline-yaml</module>
+        <module>examples/webapp</module>
+        <module>examples/webapp-annotated</module>
+        <module>examples/webapp-yaml</module>
     </modules>
 
     <properties>

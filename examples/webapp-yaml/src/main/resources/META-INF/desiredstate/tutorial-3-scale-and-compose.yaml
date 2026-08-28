@@ -1,0 +1,105 @@
+# ============================================================================
+# Tutorial 3: Scale & Compose — forEach, Modules & Lifecycle Phases
+# ============================================================================
+#
+# This tutorial adds three features that let you manage larger stores:
+#
+# 1. forEach — stamp copies of a node for each item in a list.
+#    "Create a shipping handler for each warehouse."
+#
+# 2. Modules — reusable building blocks imported with parameters.
+#    "Add order notifications (email + SMS) for both payment and shipping."
+#
+# 3. Lifecycle phases — ordered rollout stages.
+#    "Set up the catalog first, then enable ordering, then add analytics."
+#
+# ============================================================================
+
+desiredState:
+  namespace: tutorial
+  name: scale-and-compose
+
+variables:
+  payment_provider: stripe
+  currency: USD
+
+# Named iteration groups — shared across forEach nodes.
+# Both shipping and its companion tracking node iterate over the
+# same warehouses, keeping their copies aligned (us-east shipping
+# pairs with us-east tracking, not eu-west).
+iterations:
+  warehouses:
+    as: warehouse
+    in: ["us-east", "eu-west", "ap-south"]
+
+nodes:
+  product-catalog:
+    type: product-catalog
+    spec:
+      name: "Main Catalog"
+      maxProducts: 10000
+      currency: ${var.currency}
+
+  shopping-cart:
+    type: shopping-cart
+    dependsOn: [product-catalog]
+    spec:
+      sessionTimeoutMinutes: 30
+      maxItems: 50
+
+  payment:
+    type: payment
+    dependsOn: [shopping-cart]
+    spec:
+      provider: ${var.payment_provider}
+      currency: ${var.currency}
+      maxRetries: 3
+
+  fraud-check:
+    type: fraud-check
+    dependsOn: [payment]
+    spec:
+      riskThreshold: 0.7
+      provider: sift
+
+  order-confirmation:
+    type: order-confirmation
+    dependsOn: [fraud-check]
+    spec:
+      emailTemplate: order-receipt
+      smsEnabled: true
+
+  # ---- forEach: one shipping handler per warehouse ----
+  #
+  # This stamps 3 copies:
+  #   shipping.us-east  → { carrier: fedex, warehouse: us-east, ... }
+  #   shipping.eu-west  → { carrier: fedex, warehouse: eu-west, ... }
+  #   shipping.ap-south → { carrier: fedex, warehouse: ap-south, ... }
+  #
+  # Each copy depends on order-confirmation (a fixed node).
+  shipping:
+    type: shipping
+    forEach: warehouses
+    dependsOn: [order-confirmation]
+    spec:
+      carrier: fedex
+      warehouse: "${each.warehouse}"
+      trackingEnabled: true
+
+# ---- Module imports ----
+# Import the order-notifications module twice — once for payment
+# confirmations, once for shipping updates. Each import gets its
+# own alias, so the node IDs don't collide:
+#   payment-alerts.email, payment-alerts.sms
+#   shipping-alerts.email, shipping-alerts.sms
+imports:
+  - module: order-notifications
+    as: payment-alerts
+    parameters:
+      watched_step: payment
+      email_template: payment-receipt
+
+  - module: order-notifications
+    as: shipping-alerts
+    parameters:
+      watched_step: order-confirmation

@@ -1,0 +1,170 @@
+# ============================================================================
+# Tutorial 2: Smart Defaults — Invariants, Rules, Conditions & Fault Handling
+# ============================================================================
+#
+# Building on Tutorial 1, this adds four powerful features:
+#
+# 1. INVARIANTS — safety checks that catch misconfigurations at startup.
+#    "Every payment processor MUST have a fraud check."
+#
+# 2. RULES — auto-wiring that adds missing pieces.
+#    "For every order step that doesn't have a notification, add one."
+#
+# 3. CONDITIONS (when:) — optional features toggled by configuration.
+#    "Only enable gift wrapping if the store supports it."
+#
+# 4. FAULT POLICIES — what happens when things break.
+#    "If payment fails 3 times, create a fraud review. After 5, escalate
+#    to customer support."
+# ============================================================================
+
+desiredState:
+  namespace: tutorial
+  name: smart-defaults
+
+variables:
+  payment_provider: stripe
+  currency: USD
+  shipping_carrier: fedex
+  gift_wrapping_enabled: "true"
+  loyalty_enabled: "false"
+
+nodes:
+  product-catalog:
+    type: product-catalog
+    spec:
+      name: "Main Catalog"
+      maxProducts: 10000
+      currency: ${var.currency}
+
+  shopping-cart:
+    type: shopping-cart
+    dependsOn: [product-catalog]
+    spec:
+      sessionTimeoutMinutes: 30
+      maxItems: 50
+
+  payment:
+    type: payment
+    dependsOn: [shopping-cart]
+    spec:
+      provider: ${var.payment_provider}
+      currency: ${var.currency}
+      maxRetries: 3
+
+  # Fraud detection — required by the invariant below.
+  # Try removing this node and watch the invariant catch the error.
+  fraud-check:
+    type: fraud-check
+    dependsOn: [payment]
+    spec:
+      riskThreshold: 0.7
+      provider: sift
+
+  order-confirmation:
+    type: order-confirmation
+    dependsOn: [fraud-check]
+    spec:
+      emailTemplate: order-receipt
+      smsEnabled: true
+
+  shipping:
+    type: shipping
+    dependsOn: [order-confirmation]
+    spec:
+      carrier: ${var.shipping_carrier}
+      warehouse: us-east-1
+      trackingEnabled: true
+
+  # ---- Conditional nodes: only included when the variable is "true" ----
+
+  # Gift wrapping — an optional add-on service.
+  # When gift_wrapping_enabled is "false", this node vanishes from the
+  # graph entirely. The optional dependency from shopping-cart is silently
+  # removed too.
+  gift-wrapping:
+    type: gift-wrapping
+    when: "${var.gift_wrapping_enabled}"
+    dependsOn: [shopping-cart]
+    spec:
+      style: premium
+      surcharge: 4.99
+
+  # Loyalty rewards — disabled by default.
+  # Uses an optional dependency on payment so the graph stays valid
+  # when loyalty is off.
+  loyalty-rewards:
+    type: loyalty
+    when: "${var.loyalty_enabled}"
+    dependsOn:
+      - { node: payment, optional: true }
+    spec:
+      pointsPerDollar: 10
+      tier: silver
+
+# ---- INVARIANTS: structural safety checks ----
+# These run at compile time and fail the build if violated.
+
+invariants:
+  # "Every payment processor must have fraud detection."
+  # This catches a dangerous misconfiguration: processing payments
+  # without fraud checks. If someone removes the fraud-check node,
+  # the build fails immediately.
+  payment-requires-fraud-check:
+    match:
+      pay: { type: payment }
+    directDep:
+      fraud: { type: fraud-check, of: pay, direction: DEPENDENTS }
+    message: "Payment '${match.pay.id}' has no fraud check — every payment processor must have fraud detection"
+
+# ---- RULES: auto-wiring missing pieces ----
+# Rules fire in a loop until the graph stabilises. They add nodes and
+# edges that should always be present.
+
+rules:
+  # "For every order confirmation without a notification, add one."
+  # This ensures customers always get notified. If you add more
+  # order-confirmation nodes later, each one automatically gets
+  # a notification — no manual wiring needed.
+  auto-notify-confirmations:
+    match:
+      confirm: { type: order-confirmation }
+    notExists:
+      existing: { type: notification, of: confirm, direction: DEPENDENTS }
+    actions:
+      - addNode:
+          id: "notify-${match.confirm.id}"
+          type: notification
+          spec:
+            channel: email
+            target: "${match.confirm.id}"
+      - addDependency:
+          from: "notify-${match.confirm.id}"
+          to: "${match.confirm.id}"
+
+# ---- FAULT POLICIES: what happens when things break ----
+# When a node fails during reconciliation, the fault policy decides
+# the response. This one escalates payment failures through two tiers.
+
+faultPolicy:
+  - faultTypes: [PROVISION_FAILED]
+    nodeTypes: [payment]
+    ignoreTypes: [fraud-review, support-ticket]
+    namespace: payment-escalation
+    tiers:
+      # After 3 failures: automated fraud review
+      - threshold: 3
+        reviewNode:
+          type: fraud-review
+          spec:
+            targetNodeId: "${fault.nodeId}"
+            errorDetail: "${fault.detail}"
+      # After 5 failures: human customer support
+      - threshold: 5
+        reviewNode:
+          type: support-ticket
+          humanGating: ALL
+          spec:
+            targetNodeId: "${fault.nodeId}"
+            errorDetail: "${fault.detail}"
+            priority: high

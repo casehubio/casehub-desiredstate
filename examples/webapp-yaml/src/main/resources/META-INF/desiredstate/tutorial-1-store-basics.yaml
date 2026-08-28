@@ -1,0 +1,75 @@
+# ============================================================================
+# Tutorial 1: Store Basics — Your First Desired State
+# ============================================================================
+#
+# This is the simplest possible desired-state graph: a chain of services
+# that process a customer's order from browsing to delivery.
+#
+# Each "node" represents a service your store needs. The "dependsOn" field
+# says which services must be running before this one can start.
+#
+# Think of it like setting up a new store: you need the product catalog
+# before customers can browse, the cart before they can add items, payment
+# before they can check out, and so on.
+#
+# Variables let you configure the store differently per environment
+# (dev vs staging vs production) without changing the graph structure.
+# ============================================================================
+
+desiredState:
+  namespace: tutorial
+  name: store-basics
+
+# Configuration that changes per environment
+variables:
+  payment_provider: stripe
+  currency: USD
+  shipping_carrier: fedex
+
+nodes:
+  # The product catalog — the foundation of any store.
+  # No dependencies: it's the first thing you set up.
+  product-catalog:
+    type: product-catalog
+    spec:
+      name: "Main Catalog"
+      maxProducts: 10000
+      currency: ${var.currency}
+
+  # The shopping cart — customers add products here.
+  # Depends on the catalog because you can't add items that don't exist.
+  shopping-cart:
+    type: shopping-cart
+    dependsOn: [product-catalog]
+    spec:
+      sessionTimeoutMinutes: 30
+      maxItems: 50
+
+  # Payment processing — charges the customer.
+  # Depends on the cart because you need to know what they're buying.
+  payment:
+    type: payment
+    dependsOn: [shopping-cart]
+    spec:
+      provider: ${var.payment_provider}
+      currency: ${var.currency}
+      maxRetries: 3
+
+  # Order confirmation — sends the receipt.
+  # Depends on payment because you confirm after successful charge.
+  order-confirmation:
+    type: order-confirmation
+    dependsOn: [payment]
+    spec:
+      emailTemplate: order-receipt
+      smsEnabled: true
+
+  # Shipping — delivers the order.
+  # Depends on confirmation because you ship after the order is confirmed.
+  shipping:
+    type: shipping
+    dependsOn: [order-confirmation]
+    spec:
+      carrier: ${var.shipping_carrier}
+      warehouse: us-east-1
+      trackingEnabled: true
