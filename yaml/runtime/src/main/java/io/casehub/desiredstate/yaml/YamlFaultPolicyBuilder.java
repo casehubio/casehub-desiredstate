@@ -23,7 +23,6 @@ import org.jboss.logging.Logger;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class YamlFaultPolicyBuilder {
@@ -133,7 +132,22 @@ public class YamlFaultPolicyBuilder {
     private static ObjectMapper createCoercionMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.coercionConfigDefaults()
-                .setCoercion(CoercionInputShape.String, CoercionAction.TryConvert);
+              .setCoercion(CoercionInputShape.String, CoercionAction.TryConvert);
+        // Support String → NodeId deserialization for review spec fields like targetNodeId
+        com.fasterxml.jackson.databind.module.SimpleModule module =
+                new com.fasterxml.jackson.databind.module.SimpleModule();
+        module.addDeserializer(io.casehub.desiredstate.api.NodeId.class,
+                               new com.fasterxml.jackson.databind.deser.std.StdDeserializer<>(
+                                       io.casehub.desiredstate.api.NodeId.class) {
+                                   @Override
+                                   public io.casehub.desiredstate.api.NodeId deserialize(
+                                           com.fasterxml.jackson.core.JsonParser p,
+                                           com.fasterxml.jackson.databind.DeserializationContext ctxt)
+                                           throws java.io.IOException {
+                                       return io.casehub.desiredstate.api.NodeId.of(p.getValueAsString());
+                                   }
+                               });
+        mapper.registerModule(module);
         return mapper;
     }
 }

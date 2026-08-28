@@ -72,3 +72,24 @@ nodes:
       format: parquet
       partitionKeys: [date]
       approvalRequired: true
+
+faultPolicy:
+  - faultTypes: [PROVISION_FAILED]
+    nodeTypes: [transformer, sink]
+    ignoreTypes: [ai-review, human-review]
+    namespace: pipeline-escalation
+    tiers:
+      - threshold: 3
+        reviewNode:
+          type: ai-review
+          spec:
+            targetNodeId: "${fault.nodeId}"
+            errorDetail: "${fault.detail}"
+      - threshold: 5
+        reviewNode:
+          type: human-review
+          humanGating: ALL
+          spec:
+            targetNodeId: "${fault.nodeId}"
+            errorDetail: "${fault.detail}"
+            escalationReason: "Automated remediation failed after 5 attempts"

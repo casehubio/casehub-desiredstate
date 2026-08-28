@@ -2,11 +2,11 @@ package io.casehub.desiredstate.yaml.deployment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.casehub.desiredstate.annotations.DesiredStateQualifier;
 import io.casehub.desiredstate.annotations.deployment.DesiredStateGraphBuildItem;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
-import io.casehub.desiredstate.annotations.DesiredStateQualifier;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeTypeId;
@@ -16,9 +16,9 @@ import io.casehub.desiredstate.yaml.model.YamlNode;
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Produce;
 import io.quarkus.deployment.annotations.Record;
-import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.ServiceStartBuildItem;
 import io.quarkus.runtime.RuntimeValue;
@@ -99,6 +99,29 @@ public class YamlDesiredStateProcessor {
                     .done());
 
             graphItems.produce(new DesiredStateGraphBuildItem(ns, name, "yaml:" + fileName));
+
+            // Register YAML fault policies as ThresholdFaultPolicy beans
+            if (!yamlGraph.faultPolicy().isEmpty()) {
+                validateFaultPolicies(yamlGraph.faultPolicy(), typeRegistry, fileName);
+                for (int i = 0; i < yamlGraph.faultPolicy().size(); i++) {
+                    var yamlPolicy = yamlGraph.faultPolicy().get(i);
+                    RuntimeValue<io.casehub.desiredstate.api.ThresholdFaultPolicy> faultPolicy =
+                            recorder.createYamlFaultPolicy(yamlPolicy, typeRegistry);
+
+                    syntheticBeans.produce(SyntheticBeanBuildItem
+                            .configure(io.casehub.desiredstate.api.FaultPolicy.class)
+                            .scope(ApplicationScoped.class)
+                            .unremovable()
+                            .setRuntimeInit()
+                            .addQualifier()
+                                .annotation(DesiredStateQualifier.class)
+                                .addValue("namespace", ns)
+                                .addValue("name", yamlPolicy.namespace())
+                                .done()
+                            .runtimeValue(faultPolicy)
+                            .done());
+                }
+            }
         }
     }
 
@@ -256,6 +279,50 @@ public class YamlDesiredStateProcessor {
                     + ": Cyclic dependency detected involving nodes: " + cyclic);
         }
     }
+
+    private void validateFaultPolicies(List<io.casehub.desiredstate.yaml.model.YamlFaultPolicy> policies,
+                                       Map<String, String> typeRegistry, String fileName) {
+        for (int i = 0; i < policies.size(); i++) {
+            var    policy = policies.get(i);
+            String ctx    = fileName + ": faultPolicy[" + i + "]";
+
+            if (policy.faultTypes().isEmpty()) {
+                throw new RuntimeException(ctx + ": faultTypes must not be empty");
+            }
+
+            if (policy.tiers().isEmpty()) {
+                throw new RuntimeException(ctx + ": at least one tier is required");
+            }
+
+            if (policy.namespace() == null || policy.namespace().isBlank()) {
+                throw new RuntimeException(ctx + ": namespace is required");
+            }
+
+            int prevThreshold = 0;
+            for (int t = 0; t < policy.tiers().size(); t++) {
+                var    tier    = policy.tiers().get(t);
+                String tierCtx = ctx + ".tiers[" + t + "]";
+
+                if (tier.threshold() < 1) {
+                    throw new RuntimeException(tierCtx + ": threshold must be >= 1, got " + tier.threshold());
+                }
+                if (tier.threshold() <= prevThreshold) {
+                    throw new RuntimeException(tierCtx + ": threshold " + tier.threshold()
+                                               + " must be greater than previous threshold " + prevThreshold);
+                }
+                prevThreshold = tier.threshold();
+
+                if (tier.reviewNode() == null || tier.reviewNode().type() == null) {
+                    throw new RuntimeException(tierCtx + ": reviewNode.type is required");
+                }
+                if (!typeRegistry.containsKey(tier.reviewNode().type())) {
+                    throw new RuntimeException(tierCtx + ": unknown reviewNode type '"
+                                               + tier.reviewNode().type() + "'. Available: " + typeRegistry.keySet());
+                }
+            }
+        }
+    }
+
 
     private GraphDescriptor toGraphDescriptor(YamlGraph yamlGraph, Map<String, String> typeRegistry) {
         List<NodeDescriptor> nodes = new ArrayList<>();

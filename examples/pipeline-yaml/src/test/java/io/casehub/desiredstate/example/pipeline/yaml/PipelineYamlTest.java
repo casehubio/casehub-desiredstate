@@ -12,7 +12,6 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
-import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.example.pipeline.DataSourceSpec;
 import io.casehub.desiredstate.example.pipeline.IngestionSpec;
 import io.casehub.desiredstate.example.pipeline.PipelineNodeTypes;
@@ -27,7 +26,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +36,8 @@ class PipelineYamlTest {
     private static GoalCompiler<Void> compiler;
     private static final DefaultDesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
 
+    private static YamlGraph parsedYamlGraph;
+
     private static final Map<String, String> TYPE_REGISTRY = Map.ofEntries(
             Map.entry("data-source", "io.casehub.desiredstate.example.pipeline.DataSourceSpec"),
             Map.entry("schema", "io.casehub.desiredstate.example.pipeline.SchemaSpec"),
@@ -46,7 +46,9 @@ class PipelineYamlTest {
             Map.entry("enricher", "io.casehub.desiredstate.example.pipeline.EnricherSpec"),
             Map.entry("validator", "io.casehub.desiredstate.example.pipeline.ValidatorSpec"),
             Map.entry("transformer", "io.casehub.desiredstate.example.pipeline.TransformerSpec"),
-            Map.entry("sink", "io.casehub.desiredstate.example.pipeline.SinkSpec")
+            Map.entry("sink", "io.casehub.desiredstate.example.pipeline.SinkSpec"),
+            Map.entry("ai-review", "io.casehub.desiredstate.example.pipeline.AiReviewSpec"),
+            Map.entry("human-review", "io.casehub.desiredstate.example.pipeline.HumanReviewSpec")
     );
 
     @BeforeAll
@@ -58,6 +60,7 @@ class PipelineYamlTest {
                 .getResourceAsStream("META-INF/desiredstate/medallion-pipeline.yaml")) {
             assertThat(is).as("YAML file must be on classpath").isNotNull();
             YamlGraph yamlGraph = yamlMapper.readValue(is, YamlGraph.class);
+            parsedYamlGraph = yamlGraph;
 
             GraphDescriptor descriptor = toGraphDescriptor(yamlGraph);
 
@@ -150,6 +153,59 @@ class PipelineYamlTest {
         assertThat(sinkSpec.format()).isEqualTo("parquet");
         assertThat(sinkSpec.partitionKeys()).containsExactly("date");
     }
+
+    /**
+     * The medallion pipeline's gold-layer transformer keeps failing.
+     * The YAML fault policy declares a two-tier escalation:
+     * - After 3 failures: an AI agent reviews the issue
+     * - After 5 failures: a human operator gets pulled in
+     * <p>
+     * This test verifies that the YAML-declared fault policy builds into
+     * a working ThresholdFaultPolicy that resolves ${fault.*} templates
+     * against the actual fault event context.
+     */
+    @Test
+    void faultPolicyEscalation_transformerFails_aiThenHumanReview() {
+        // The YAML declares a fault policy — verify it parsed
+        assertThat(parsedYamlGraph.faultPolicy()).hasSize(1);
+        var yamlPolicy = parsedYamlGraph.faultPolicy().getFirst();
+        assertThat(yamlPolicy.namespace()).isEqualTo("pipeline-escalation");
+        assertThat(yamlPolicy.tiers()).hasSize(2);
+
+        // Build the ThresholdFaultPolicy from the YAML declaration
+        io.casehub.desiredstate.api.ThresholdFaultPolicy policy =
+                io.casehub.desiredstate.yaml.YamlFaultPolicyBuilder.build(
+                        yamlPolicy, TYPE_REGISTRY,
+                        new io.casehub.desiredstate.api.InMemoryFaultCountStore());
+
+        // Set up: the gold-layer transformer is in the graph and keeps failing
+        DesiredStateGraph graph = compileSingleGraph();
+        io.casehub.desiredstate.api.FaultEvent event = new io.casehub.desiredstate.api.FaultEvent(
+                NodeId.of("aggregate-tx"),
+                io.casehub.desiredstate.api.FaultType.PROVISION_FAILED,
+                "Connection timeout to data warehouse");
+        var actualState = new io.casehub.desiredstate.api.ActualState(Map.of());
+
+        // Failures 1-2: the system retries automatically — no escalation yet
+        assertThat(policy.onFault("prod", event, graph, actualState)).isEmpty();
+        assertThat(policy.onFault("prod", event, graph, actualState)).isEmpty();
+
+        // Failure 3: AI agent is called in to review the issue
+        var aiMutations = policy.onFault("prod", event, graph, actualState);
+        assertThat(aiMutations).as("3rd failure triggers AI review").isNotEmpty();
+
+        // Verify the AI review node carries the fault context from the template
+        io.casehub.desiredstate.api.GraphMutation.AddNode aiAdd = aiMutations.stream()
+                                                                             .filter(m -> m instanceof io.casehub.desiredstate.api.GraphMutation.AddNode)
+                                                                             .map(m -> (io.casehub.desiredstate.api.GraphMutation.AddNode) m)
+                                                                             .findFirst().orElseThrow();
+
+        io.casehub.desiredstate.example.pipeline.AiReviewSpec aiSpec =
+                (io.casehub.desiredstate.example.pipeline.AiReviewSpec) aiAdd.node().spec();
+        assertThat(aiSpec.targetNodeId()).isEqualTo(NodeId.of("aggregate-tx"));
+        assertThat(aiSpec.errorDetail()).isEqualTo("Connection timeout to data warehouse");
+    }
+
 
     private DesiredStateGraph compileSingleGraph() {
         return ((CompilationResult.SingleGraph) compiler.compile(null, factory)).graph();

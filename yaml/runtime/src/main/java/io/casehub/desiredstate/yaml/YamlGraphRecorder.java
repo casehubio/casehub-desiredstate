@@ -64,6 +64,16 @@ public class YamlGraphRecorder {
         });
     }
 
+    @SuppressWarnings("rawtypes")
+    public RuntimeValue<io.casehub.desiredstate.api.ThresholdFaultPolicy> createYamlFaultPolicy(
+            io.casehub.desiredstate.yaml.model.YamlFaultPolicy yamlPolicy,
+            Map<String, String> typeRegistryMap) {
+        return new RuntimeValue<>(YamlFaultPolicyBuilder.build(
+                yamlPolicy, typeRegistryMap,
+                new io.casehub.desiredstate.api.InMemoryFaultCountStore()));
+    }
+
+
     private static String findTypeNameForClass(Map<String, String> typeRegistry, String className) {
         for (Map.Entry<String, String> entry : typeRegistry.entrySet()) {
             if (entry.getValue().equals(className)) {
