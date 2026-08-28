@@ -7,11 +7,13 @@ public record YamlGraph(
         YamlDesiredState desiredState,
         Map<String, String> variables,
         Map<String, YamlNode> nodes,
-        List<YamlFaultPolicy> faultPolicy) {
+        List<YamlFaultPolicy> faultPolicy,
+        Map<String, YamlInvariant> invariants) {
 
     public YamlGraph {
-        if (variables == null) variables = Map.of();
-        if (nodes == null) nodes = Map.of();
-        if (faultPolicy == null) faultPolicy = List.of();
+        if (variables == null) {variables = Map.of();}
+        if (nodes == null) {nodes = Map.of();}
+        if (faultPolicy == null) {faultPolicy = List.of();}
+        if (invariants == null) {invariants = Map.of();}
     }
 }

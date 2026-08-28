@@ -100,6 +100,11 @@ public class YamlDesiredStateProcessor {
 
             graphItems.produce(new DesiredStateGraphBuildItem(ns, name, "yaml:" + fileName));
 
+            // Validate YAML invariants
+            if (!yamlGraph.invariants().isEmpty()) {
+                validateInvariants(yamlGraph.invariants(), typeRegistry, fileName);
+            }
+
             // Register YAML fault policies as ThresholdFaultPolicy beans
             if (!yamlGraph.faultPolicy().isEmpty()) {
                 validateFaultPolicies(yamlGraph.faultPolicy(), typeRegistry, fileName);
@@ -320,6 +325,56 @@ public class YamlDesiredStateProcessor {
                                                + tier.reviewNode().type() + "'. Available: " + typeRegistry.keySet());
                 }
             }
+        }
+    }
+
+    private void validateInvariants(Map<String, io.casehub.desiredstate.yaml.model.YamlInvariant> invariants,
+                                    Map<String, String> typeRegistry, String fileName) {
+        for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlInvariant> entry : invariants.entrySet()) {
+            String invName = entry.getKey();
+            var    inv     = entry.getValue();
+            String ctx     = fileName + ": invariants." + invName;
+
+            if (inv.match().isEmpty()) {
+                throw new RuntimeException(ctx + ": at least one 'match' binding is required");
+            }
+
+            Set<String> allBindings = new java.util.LinkedHashSet<>();
+            for (String binding : inv.match().keySet()) {
+                allBindings.add(binding);
+                validatePatternType(inv.match().get(binding).type(), typeRegistry, ctx + ".match." + binding);
+            }
+
+            validatePatternSection(inv.directDep(), "directDep", allBindings, typeRegistry, ctx, true);
+            validatePatternSection(inv.reaches(), "reaches", allBindings, typeRegistry, ctx, true);
+            validatePatternSection(inv.notExists(), "notExists", allBindings, typeRegistry, ctx, false);
+        }
+    }
+
+    private void validatePatternSection(Map<String, io.casehub.desiredstate.yaml.model.YamlPattern> patterns,
+                                        String sectionName, Set<String> allBindings,
+                                        Map<String, String> typeRegistry, String ctx, boolean addsBinding) {
+        for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlPattern> entry : patterns.entrySet()) {
+            String binding    = entry.getKey();
+            var    pattern    = entry.getValue();
+            String patternCtx = ctx + "." + sectionName + "." + binding;
+
+            if (pattern.of() != null && !pattern.of().isEmpty() && !allBindings.contains(pattern.of())) {
+                throw new RuntimeException(patternCtx + ": 'of' references unknown binding '"
+                                           + pattern.of() + "'. Available: " + allBindings);
+            }
+
+            validatePatternType(pattern.type(), typeRegistry, patternCtx);
+
+            if (addsBinding) {
+                allBindings.add(binding);
+            }
+        }
+    }
+
+    private void validatePatternType(String type, Map<String, String> typeRegistry, String ctx) {
+        if (!"*".equals(type) && !typeRegistry.containsKey(type)) {
+            throw new RuntimeException(ctx + ": unknown type '" + type + "'. Available: " + typeRegistry.keySet());
         }
     }
 
