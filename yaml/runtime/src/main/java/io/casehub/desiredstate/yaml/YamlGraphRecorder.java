@@ -57,6 +57,20 @@ public class YamlGraphRecorder {
             List<ResolvedInvariant> invariants,
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
             Map<String, io.casehub.desiredstate.yaml.model.YamlModule> availableModules) {
+        return createYamlGoalCompiler(descriptor, typeRegistryMap, inlineVariables,
+                invariants, yamlGraph, availableModules, List.of(), List.of());
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
+            GraphDescriptor descriptor,
+            Map<String, String> typeRegistryMap,
+            Map<String, String> inlineVariables,
+            List<ResolvedInvariant> invariants,
+            io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
+            Map<String, io.casehub.desiredstate.yaml.model.YamlModule> availableModules,
+            List<io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor> crossSurfaceRuleDescriptors,
+            List<io.casehub.desiredstate.annotations.runtime.GraphInvariantDescriptor> crossSurfaceInvariantDescriptors) {
 
         ObjectMapper     mapper   = new ObjectMapper();
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
@@ -148,16 +162,20 @@ public class YamlGraphRecorder {
             if (yamlGraph != null) {effectiveRules.putAll(yamlGraph.rules());}
             effectiveRules.putAll(promotedRules);
 
-            if (!effectiveRules.isEmpty()) {
-                List<io.casehub.desiredstate.annotations.runtime.ResolvedRule> resolvedRules =
-                        new ArrayList<>();
-                for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlRule> ruleEntry :
-                        effectiveRules.entrySet()) {
-                    resolvedRules.add(YamlRuleConverter.toDeclarativeRule(
-                            ruleEntry.getKey(), ruleEntry.getValue(), resolver, registry));
-                }
+            List<io.casehub.desiredstate.annotations.runtime.ResolvedRule> allResolvedRules =
+                    new ArrayList<>();
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlRule> ruleEntry :
+                    effectiveRules.entrySet()) {
+                allResolvedRules.add(YamlRuleConverter.toDeclarativeRule(
+                        ruleEntry.getKey(), ruleEntry.getValue(), resolver, registry));
+            }
+            if (crossSurfaceRuleDescriptors != null && !crossSurfaceRuleDescriptors.isEmpty()) {
+                allResolvedRules.addAll(io.casehub.desiredstate.annotations.runtime
+                        .GraphDescriptorResolver.resolveRules(crossSurfaceRuleDescriptors));
+            }
+            if (!allResolvedRules.isEmpty()) {
                 graph = new io.casehub.desiredstate.annotations.runtime.GraphRuleEngine()
-                        .evaluate(graph, resolvedRules);
+                        .evaluate(graph, allResolvedRules);
             }
 
             List<ResolvedInvariant> effectiveInvariants = new ArrayList<>(invariants);
@@ -165,6 +183,10 @@ public class YamlGraphRecorder {
                     promotedInvariants.entrySet()) {
                 effectiveInvariants.add(YamlInvariantConverter.toDeclarativeInvariant(
                         invEntry.getKey(), invEntry.getValue()));
+            }
+            if (crossSurfaceInvariantDescriptors != null && !crossSurfaceInvariantDescriptors.isEmpty()) {
+                effectiveInvariants.addAll(io.casehub.desiredstate.annotations.runtime
+                        .GraphDescriptorResolver.resolveInvariants(crossSurfaceInvariantDescriptors));
             }
 
             if (!effectiveInvariants.isEmpty()) {

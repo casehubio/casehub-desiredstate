@@ -52,7 +52,8 @@ public class YamlDesiredStateProcessor {
     void discoverYamlGraphs(CombinedIndexBuildItem indexBuildItem,
                             YamlGraphRecorder recorder,
                             BuildProducer<SyntheticBeanBuildItem> syntheticBeans,
-                            BuildProducer<DesiredStateGraphBuildItem> graphItems) throws IOException, java.net.URISyntaxException {
+                            BuildProducer<DesiredStateGraphBuildItem> graphItems,
+                            List<io.casehub.desiredstate.annotations.deployment.AdditionalRulesBuildItem> additionalRuleItems) throws IOException, java.net.URISyntaxException {
 
         IndexView index = indexBuildItem.getIndex();
         Map<String, String> typeRegistry = scanNodeTypes(index);
@@ -89,6 +90,16 @@ public class YamlDesiredStateProcessor {
                 validateImports(yamlGraph.imports(), availableModules, typeRegistry, fileName);
             }
 
+            List<io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor> crossSurfaceRules = List.of();
+            List<io.casehub.desiredstate.annotations.runtime.GraphInvariantDescriptor> crossSurfaceInvariants = List.of();
+            for (var additional : additionalRuleItems) {
+                if (additional.namespace().equals(ns) && additional.name().equals(name)) {
+                    crossSurfaceRules = additional.rules();
+                    crossSurfaceInvariants = additional.invariants();
+                    break;
+                }
+            }
+
             if (yamlGraph.lifecycle() != null) {
                 validateLifecycle(yamlGraph, typeRegistry, fileName);
                 compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -101,7 +112,8 @@ public class YamlDesiredStateProcessor {
                 compiler = recorder.createYamlGoalCompiler(
                         descriptor, typeRegistry,
                         yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                        invariants, yamlGraph, availableModules);
+                        invariants, yamlGraph, availableModules,
+                        crossSurfaceRules, crossSurfaceInvariants);
             }
 
             syntheticBeans.produce(SyntheticBeanBuildItem.configure(GoalCompiler.class)
