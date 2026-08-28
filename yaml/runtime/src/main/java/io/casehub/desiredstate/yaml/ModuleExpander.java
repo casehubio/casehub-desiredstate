@@ -80,7 +80,8 @@ public final class ModuleExpander {
 
                 allNodes.put(aliasedId, new YamlNode(
                         node.type(), node.spec(), rewrittenDeps,
-                        node.humanGating(), when, node.forEach()));
+                        node.humanGating(), when, node.forEach(),
+                        node.provision(), node.deprovision()));
             }
 
             for (Map.Entry<String, YamlRule> ruleEntry : module.rules().entrySet()) {

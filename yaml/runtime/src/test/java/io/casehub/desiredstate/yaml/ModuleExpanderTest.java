@@ -19,10 +19,10 @@ class ModuleExpanderTest {
                     "alert_email", new YamlModuleParameter("string", false, "ops@example.com")),
             Map.of("monitor", new YamlNode("monitor",
                             Map.of("target", "${var.watched_node_id}"),
-                            List.of("${var.watched_node_id}"), null, null, null),
+                            List.of("${var.watched_node_id}"), null, null, null, null, null),
                     "alerter", new YamlNode("alerter",
                             Map.of("email", "${var.alert_email}"),
-                            List.of("monitor"), null, null, null)),
+                            List.of("monitor"), null, null, null, null, null)),
             Map.of(), Map.of());
 
     @Test
@@ -130,7 +130,7 @@ class ModuleExpanderTest {
         var existingNodes = new LinkedHashMap<String, YamlNode>();
         existingNodes.put("warehouse-sink", new YamlNode("sink",
                 Map.of("destination", "s3://warehouse/"),
-                List.of(), null, null, null));
+                List.of(), null, null, null, null, null));
 
         var imports = List.of(new YamlImport("monitoring", "pipe-monitor", null,
                 Map.of("watched_node_id", "warehouse-sink")));

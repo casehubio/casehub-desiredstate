@@ -19,7 +19,7 @@ class YamlForEachValidationTest {
     @Test
     void validate_dotInNodeId_throwsBuildError() {
         var nodes = Map.of("my.source", new YamlNode("data-source",
-                Map.of(), List.of(), null, null, null));
+                Map.of(), List.of(), null, null, null, null, null));
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateForEach(
                 nodes, Map.of(), TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining(".")
@@ -30,9 +30,9 @@ class YamlForEachValidationTest {
     void validate_nonForEachDependsOnForEachTemplate_throwsBuildError() {
         var nodes = Map.of(
                 "regional-source", new YamlNode("data-source",
-                        Map.of(), List.of(), null, null, "regional"),
+                        Map.of(), List.of(), null, null, "regional", null, null),
                 "processor", new YamlNode("ingestion",
-                        Map.of(), List.of("regional-source"), null, null, null));
+                        Map.of(), List.of("regional-source"), null, null, null, null, null));
         var iterations = Map.of("regional",
                 new YamlIterationGroup("region", List.of("us-east", "eu-west")));
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateForEach(
@@ -46,9 +46,9 @@ class YamlForEachValidationTest {
     void validate_crossGroupDependency_throwsBuildError() {
         var nodes = Map.of(
                 "source", new YamlNode("data-source",
-                        Map.of(), List.of(), null, null, "group-a"),
+                        Map.of(), List.of(), null, null, "group-a", null, null),
                 "sink", new YamlNode("ingestion",
-                        Map.of(), List.of("source"), null, null, "group-b"));
+                        Map.of(), List.of("source"), null, null, "group-b", null, null));
         var iterations = Map.of(
                 "group-a", new YamlIterationGroup("region", List.of("us-east")),
                 "group-b", new YamlIterationGroup("zone", List.of("z1")));
@@ -61,7 +61,7 @@ class YamlForEachValidationTest {
     @Test
     void validate_unknownGroupReference_throwsBuildError() {
         var nodes = Map.of("source", new YamlNode("data-source",
-                Map.of(), List.of(), null, null, "nonexistent"));
+                Map.of(), List.of(), null, null, "nonexistent", null, null));
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateForEach(
                 nodes, Map.of(), TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("nonexistent");
@@ -72,9 +72,9 @@ class YamlForEachValidationTest {
         Map<String, Object> inlineForEach = Map.of("as", "idx", "in", List.of("1", "2"));
         var nodes = Map.of(
                 "named-src", new YamlNode("data-source",
-                        Map.of(), List.of(), null, null, "regional"),
+                        Map.of(), List.of(), null, null, "regional", null, null),
                 "inline-proc", new YamlNode("ingestion",
-                        Map.of(), List.of("named-src"), null, null, inlineForEach));
+                        Map.of(), List.of("named-src"), null, null, inlineForEach, null, null));
         var iterations = Map.of("regional",
                 new YamlIterationGroup("region", List.of("us-east")));
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateForEach(
@@ -88,7 +88,7 @@ class YamlForEachValidationTest {
         var iterations = Map.of("regional",
                 new YamlIterationGroup("region", List.of("us.east", "eu-west")));
         var nodes = Map.of("source", new YamlNode("data-source",
-                Map.of(), List.of(), null, null, "regional"));
+                Map.of(), List.of(), null, null, "regional", null, null));
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateForEach(
                 nodes, iterations, TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("us.east")
@@ -99,11 +99,11 @@ class YamlForEachValidationTest {
     void validate_validForEach_passes() {
         var nodes = new java.util.LinkedHashMap<String, YamlNode>();
         nodes.put("regional-source", new YamlNode("data-source",
-                Map.of(), List.of(), null, null, "regional"));
+                Map.of(), List.of(), null, null, "regional", null, null));
         nodes.put("regional-ingest", new YamlNode("ingestion",
-                Map.of(), List.of("regional-source"), null, null, "regional"));
+                Map.of(), List.of("regional-source"), null, null, "regional", null, null));
         nodes.put("fixed-node", new YamlNode("data-source",
-                Map.of(), List.of(), null, null, null));
+                Map.of(), List.of(), null, null, null, null, null));
         var iterations = Map.of("regional",
                 new YamlIterationGroup("region", List.of("us-east", "eu-west")));
         assertThatCode(() -> YamlDesiredStateProcessor.validateForEach(
@@ -115,9 +115,9 @@ class YamlForEachValidationTest {
     void validate_forEachDependsOnFixedNode_passes() {
         var nodes = new java.util.LinkedHashMap<String, YamlNode>();
         nodes.put("fixed-db", new YamlNode("data-source",
-                Map.of(), List.of(), null, null, null));
+                Map.of(), List.of(), null, null, null, null, null));
         nodes.put("regional-source", new YamlNode("ingestion",
-                Map.of(), List.of("fixed-db"), null, null, "regional"));
+                Map.of(), List.of("fixed-db"), null, null, "regional", null, null));
         var iterations = Map.of("regional",
                 new YamlIterationGroup("region", List.of("us-east")));
         assertThatCode(() -> YamlDesiredStateProcessor.validateForEach(

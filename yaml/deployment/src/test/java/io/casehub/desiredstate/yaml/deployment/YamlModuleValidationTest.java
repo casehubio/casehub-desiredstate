@@ -22,7 +22,7 @@ class YamlModuleValidationTest {
     private final YamlModule monitoringModule = new YamlModule("monitoring",
             Map.of("watched_node_id", new YamlModuleParameter("string", true, null),
                     "alert_email", new YamlModuleParameter("string", false, "ops@example.com")),
-            Map.of("monitor", new YamlNode("monitor", Map.of(), List.of(), null, null, null)),
+            Map.of("monitor", new YamlNode("monitor", Map.of(), List.of(), null, null, null, null, null)),
             Map.of(), Map.of());
 
     @Test

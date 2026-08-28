@@ -26,9 +26,9 @@ class YamlLifecycleValidationTest {
                 Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", "allPresent",
-                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null))),
+                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))),
                         new YamlPhase("app", "never",
-                                Map.of("api", new YamlNode("app", Map.of(), List.of(), null, null, null))))),
+                                Map.of("api", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null))))),
                 null, null);
         assertThatCode(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
@@ -40,11 +40,11 @@ class YamlLifecycleValidationTest {
         var graph = new YamlGraph(
                 new YamlDesiredState("test", "conflict"),
                 Map.of(),
-                Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null)),
+                Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null)),
                 List.of(), Map.of(), Map.of(),
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", "allPresent",
-                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null))))),
+                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
                 null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
@@ -71,7 +71,7 @@ class YamlLifecycleValidationTest {
                 Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", "whenReady",
-                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null))))),
+                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
                 null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
@@ -86,9 +86,9 @@ class YamlLifecycleValidationTest {
                 Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", "allPresent",
-                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null))),
+                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))),
                         new YamlPhase("infra", "never",
-                                Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null))))),
+                                Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null))))),
                 null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
@@ -101,7 +101,7 @@ class YamlLifecycleValidationTest {
         var graph = new YamlGraph(
                 new YamlDesiredState("test", "no-lifecycle"),
                 Map.of(),
-                Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null)),
+                Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null)),
                 List.of(), Map.of(), Map.of(), null, null, null);
         assertThatCode(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
@@ -115,7 +115,7 @@ class YamlLifecycleValidationTest {
                 Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", null,
-                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null))))),
+                                Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
                 null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))

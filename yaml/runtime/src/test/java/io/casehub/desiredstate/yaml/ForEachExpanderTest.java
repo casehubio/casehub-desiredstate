@@ -42,7 +42,7 @@ class ForEachExpanderTest {
         nodes.put("regional-source", new YamlNode("data-source",
                 Map.of("name", "customers-${each.region}",
                        "uri", "s3://${each.region}/data.csv"),
-                List.of(), null, null, inlineForEach));
+                List.of(), null, null, inlineForEach, null, null));
 
         var result = ForEachExpander.expand(nodes, Map.of(), resolver,
                 registry, mapper, 1000);
@@ -67,10 +67,10 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("regional-source", new YamlNode("data-source",
                 Map.of("name", "${each.region}", "uri", "s3://${each.region}"),
-                List.of(), null, null, "regional"));
+                List.of(), null, null, "regional", null, null));
         nodes.put("regional-ingest", new YamlNode("ingestion",
                 Map.of("name", "${each.region}-ingest", "uri", ""),
-                List.of("regional-source"), null, null, "regional"));
+                List.of("regional-source"), null, null, "regional", null, null));
 
         var result = ForEachExpander.expand(nodes, iterations, resolver,
                 registry, mapper, 1000);
@@ -94,10 +94,10 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("fixed-db", new YamlNode("data-source",
                 Map.of("name", "db", "uri", "jdbc://db"),
-                List.of(), null, null, null));
+                List.of(), null, null, null, null, null));
         nodes.put("regional-source", new YamlNode("data-source",
                 Map.of("name", "${each.region}", "uri", ""),
-                List.of("fixed-db"), null, null, "regional"));
+                List.of("fixed-db"), null, null, "regional", null, null));
 
         var result = ForEachExpander.expand(nodes, iterations, resolver,
                 registry, mapper, 1000);
@@ -117,7 +117,7 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("node", new YamlNode("data-source",
                 Map.of("name", "${each.idx}", "uri", ""),
-                List.of(), null, null, inlineForEach));
+                List.of(), null, null, inlineForEach, null, null));
 
         assertThatThrownBy(() -> ForEachExpander.expand(nodes, Map.of(),
                 resolver, registry, mapper, 3))
@@ -135,7 +135,7 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("source", new YamlNode("data-source",
                 Map.of("name", "${each.region}", "uri", ""),
-                List.of(), null, null, "regional"));
+                List.of(), null, null, "regional", null, null));
 
         var result = ForEachExpander.expand(nodes, iterations, resolver,
                 registry, mapper, 1000);
@@ -154,7 +154,7 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("source", new YamlNode("data-source",
                 Map.of("name", "${each.region}", "uri", ""),
-                List.of(), null, "${var.enable_sources}", inlineForEach));
+                List.of(), null, "${var.enable_sources}", inlineForEach, null, null));
 
         var result = ForEachExpander.expand(nodes, Map.of(), resolver,
                 registry, mapper, 1000);
@@ -170,7 +170,7 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("empty-template", new YamlNode("data-source",
                 Map.of("name", "x", "uri", ""),
-                List.of(), null, null, inlineForEach));
+                List.of(), null, null, inlineForEach, null, null));
 
         var result = ForEachExpander.expand(nodes, Map.of(), resolver,
                 registry, mapper, 1000);
@@ -185,13 +185,13 @@ class ForEachExpanderTest {
         var nodes = new LinkedHashMap<String, YamlNode>();
         nodes.put("fixed-db", new YamlNode("data-source",
                 Map.of("name", "db", "uri", "jdbc://db"),
-                List.of(), null, null, null));
+                List.of(), null, null, null, null, null));
         nodes.put("fixed-schema", new YamlNode("data-source",
                 Map.of("name", "schema", "uri", ""),
-                List.of(), null, null, null));
+                List.of(), null, null, null, null, null));
         nodes.put("regional-source", new YamlNode("data-source",
                 Map.of("name", "${each.region}", "uri", ""),
-                List.of("fixed-db"), null, null, "regional"));
+                List.of("fixed-db"), null, null, "regional", null, null));
 
         var result = ForEachExpander.expand(nodes, iterations, resolver,
                 registry, mapper, 1000);

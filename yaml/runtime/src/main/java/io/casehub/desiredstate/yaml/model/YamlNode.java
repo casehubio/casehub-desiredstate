@@ -11,7 +11,9 @@ public record YamlNode(
         List<Object> dependsOn,
         HumanGating humanGating,
         String when,
-        Object forEach) {
+        Object forEach,
+        YamlHooks provision,
+        YamlHooks deprovision) {
 
     public YamlNode {
         if (spec == null) {spec = Map.of();}

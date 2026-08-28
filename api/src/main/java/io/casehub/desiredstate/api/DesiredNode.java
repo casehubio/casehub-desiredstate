@@ -2,7 +2,11 @@ package io.casehub.desiredstate.api;
 
 import java.util.Objects;
 
-public record DesiredNode(NodeId id, NodeSpec spec, HumanGating humanGating) {
+public record DesiredNode(NodeId id, NodeSpec spec, HumanGating humanGating, HookDescriptor hooks) {
+
+    public DesiredNode(NodeId id, NodeSpec spec, HumanGating humanGating) {
+        this(id, spec, humanGating, null);
+    }
 
     public DesiredNode {
         Objects.requireNonNull(id, "DesiredNode id must not be null");
