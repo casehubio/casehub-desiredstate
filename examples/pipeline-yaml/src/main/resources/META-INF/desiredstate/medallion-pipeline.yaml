@@ -112,3 +112,19 @@ faultPolicy:
             targetNodeId: "${fault.nodeId}"
             errorDetail: "${fault.detail}"
             escalationReason: "Automated remediation failed after 5 attempts"
+
+rules:
+  ensure-monitoring:
+    match:
+      sink: { type: sink }
+    notExists:
+      guard: { type: monitor, of: sink, direction: DEPENDENTS }
+    actions:
+      - addNode:
+          id: "monitor-${match.sink.id}"
+          type: monitor
+          spec:
+            target: "${match.sink.id}"
+      - addDependency:
+          from: "monitor-${match.sink.id}"
+          to: "${match.sink.id}"

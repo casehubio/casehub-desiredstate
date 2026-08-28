@@ -14,6 +14,7 @@ import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.example.pipeline.DataSourceSpec;
 import io.casehub.desiredstate.example.pipeline.IngestionSpec;
+import io.casehub.desiredstate.example.pipeline.MonitorSpec;
 import io.casehub.desiredstate.example.pipeline.PipelineNodeTypes;
 import io.casehub.desiredstate.example.pipeline.SinkSpec;
 import io.casehub.desiredstate.example.pipeline.TransformerSpec;
@@ -48,7 +49,8 @@ class PipelineYamlTest {
             Map.entry("transformer", "io.casehub.desiredstate.example.pipeline.TransformerSpec"),
             Map.entry("sink", "io.casehub.desiredstate.example.pipeline.SinkSpec"),
             Map.entry("ai-review", "io.casehub.desiredstate.example.pipeline.AiReviewSpec"),
-            Map.entry("human-review", "io.casehub.desiredstate.example.pipeline.HumanReviewSpec")
+            Map.entry("human-review", "io.casehub.desiredstate.example.pipeline.HumanReviewSpec"),
+            Map.entry("monitor", "io.casehub.desiredstate.example.pipeline.MonitorSpec")
     );
 
     @BeforeAll
@@ -81,9 +83,10 @@ class PipelineYamlTest {
     }
 
     @Test
-    void yamlGraphHasAllEightNodes() {
+    void yamlGraphHasAllNineNodes() {
         DesiredStateGraph graph = compileSingleGraph();
-        assertThat(graph.nodes()).hasSize(8);
+        // 8 declared + 1 rule-generated monitor (debug-validator excluded by when:false)
+        assertThat(graph.nodes()).hasSize(9);
     }
 
     @Test
@@ -176,7 +179,8 @@ class PipelineYamlTest {
     void yamlWhen_debugModeFalse_debugValidatorExcluded() {
         DesiredStateGraph graph = compileSingleGraph();
         assertThat(graph.nodes()).doesNotContainKey(NodeId.of("debug-validator"));
-        assertThat(graph.nodes()).hasSize(8);
+        // 8 declared + 1 rule-generated monitor = 9
+        assertThat(graph.nodes()).hasSize(9);
     }
 
 
@@ -230,6 +234,28 @@ class PipelineYamlTest {
                 (io.casehub.desiredstate.example.pipeline.AiReviewSpec) aiAdd.node().spec();
         assertThat(aiSpec.targetNodeId()).isEqualTo(NodeId.of("aggregate-tx"));
         assertThat(aiSpec.errorDetail()).isEqualTo("Connection timeout to data warehouse");
+    }
+
+    @Test
+    void yamlRule_ensureMonitoring_addMonitorForSink() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.nodes()).containsKey(NodeId.of("monitor-warehouse-sink"));
+
+        MonitorSpec monSpec = (MonitorSpec) graph.nodes()
+                                                 .get(NodeId.of("monitor-warehouse-sink")).spec();
+        assertThat(monSpec.target()).isEqualTo("warehouse-sink");
+
+        assertThat(graph.dependenciesOf(NodeId.of("monitor-warehouse-sink")))
+                .contains(NodeId.of("warehouse-sink"));
+    }
+
+    @Test
+    void yamlRule_ensureMonitoring_convergesWithOneMonitor() {
+        DesiredStateGraph graph = compileSingleGraph();
+        long monitorCount = graph.nodes().values().stream()
+                                 .filter(n -> n.type().equals(io.casehub.desiredstate.api.NodeType.of("monitor")))
+                                 .count();
+        assertThat(monitorCount).isEqualTo(1);
     }
 
 
