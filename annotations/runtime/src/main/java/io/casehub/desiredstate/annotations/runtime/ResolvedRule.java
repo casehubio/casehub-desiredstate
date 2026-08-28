@@ -28,6 +28,9 @@ public sealed interface ResolvedRule {
     }
 
     record DeclarativeRule(String name, List<PatternParameterDescriptor> patterns,
-                           String[] bindingNames) implements ResolvedRule {
+                           String[] bindingNames,
+                           java.util.function.Function<java.util.Map<String, io.casehub.desiredstate.api.DesiredNode>,
+                                                              java.util.List<io.casehub.desiredstate.api.GraphMutation>> actionEvaluator)
+            implements ResolvedRule {
     }
 }

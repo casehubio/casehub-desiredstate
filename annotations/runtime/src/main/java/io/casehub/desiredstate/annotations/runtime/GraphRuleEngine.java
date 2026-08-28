@@ -61,9 +61,8 @@ public class GraphRuleEngine {
         return switch (rule) {
             case ResolvedRule.ImperativeRule imp -> evaluateImperative(imp, graph);
             case ResolvedRule.ParameterizedReflectiveRule param -> evaluateParameterized(param, graph);
-            case ResolvedRule.DeclarativeRule decl -> List.of();
-        };
-    }
+            case ResolvedRule.DeclarativeRule decl -> evaluateDeclarative(decl, graph);
+        };}
 
     @SuppressWarnings("unchecked")
     private List<GraphMutation> evaluateImperative(ResolvedRule.ImperativeRule rule, DesiredStateGraph graph) {
@@ -96,6 +95,21 @@ public class GraphRuleEngine {
 
         return allMutations;
     }
+
+    private List<GraphMutation> evaluateDeclarative(ResolvedRule.DeclarativeRule rule,
+                                                    DesiredStateGraph graph) {
+        List<GraphMutation> allMutations = new ArrayList<>();
+        List<Map<String, io.casehub.desiredstate.api.DesiredNode>> allBindings =
+                PatternEvaluator.evaluate(graph, rule.patterns(), rule.bindingNames());
+        for (Map<String, io.casehub.desiredstate.api.DesiredNode> binding : allBindings) {
+            List<GraphMutation> mutations = rule.actionEvaluator().apply(binding);
+            if (mutations != null && !mutations.isEmpty()) {
+                allMutations.addAll(mutations);
+            }
+        }
+        return allMutations;
+    }
+
 
     private List<GraphMutation> deduplicateMutations(List<GraphMutation> mutations) {
         return new ArrayList<>(new LinkedHashSet<>(mutations));

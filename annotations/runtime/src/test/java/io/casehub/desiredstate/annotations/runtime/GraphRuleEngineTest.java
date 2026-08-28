@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -347,4 +349,68 @@ class GraphRuleEngineTest {
         assertThat(result.nodes()).containsKey(NodeId.of("validator-tx"));
         assertThat(result.nodes()).hasSize(2);
     }
+
+    // --- Declarative rule tests ---
+
+    @Test
+    void declarativeRuleAddsNodeViaActionEvaluator() {
+        var graph = factory.of(List.of(
+                                       new DesiredNode(NodeId.of("sink-1"), new Spec("sink-1", "sink"), HumanGating.NONE)),
+                               List.of());
+
+        Function<Map<String, DesiredNode>, List<GraphMutation>> evaluator = bindings -> {
+            DesiredNode sink = bindings.get("sink");
+            DesiredNode monitor = new DesiredNode(
+                    NodeId.of("monitor-" + sink.id().value()),
+                    new Spec("monitor-" + sink.id().value(), "monitor"), HumanGating.NONE);
+            return List.of(
+                    new GraphMutation.AddNode(monitor),
+                    new GraphMutation.AddDependency(new Dependency(monitor.id(), sink.id())));
+        };
+
+        var rule = new ResolvedRule.DeclarativeRule("ensure-monitoring",
+                                                    List.of(
+                                                            new PatternParameterDescriptor(PatternKind.MATCH, "sink", "", Direction.DEPENDENCIES),
+                                                            new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "monitor", "sink", Direction.DEPENDENTS)),
+                                                    new String[]{"sink", "guard"},
+                                                    evaluator);
+
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).hasSize(2);
+        assertThat(result.nodes()).containsKey(NodeId.of("monitor-sink-1"));
+        assertThat(result.dependencies()).contains(
+                new Dependency(NodeId.of("monitor-sink-1"), NodeId.of("sink-1")));
+    }
+
+    @Test
+    void declarativeRuleConvergesWithGuard() {
+        var graph = factory.of(List.of(
+                                       new DesiredNode(NodeId.of("sink-1"), new Spec("sink-1", "sink"), HumanGating.NONE),
+                                       new DesiredNode(NodeId.of("sink-2"), new Spec("sink-2", "sink"), HumanGating.NONE)),
+                               List.of());
+
+        Function<Map<String, DesiredNode>, List<GraphMutation>> evaluator = bindings -> {
+            DesiredNode sink = bindings.get("sink");
+            DesiredNode monitor = new DesiredNode(
+                    NodeId.of("monitor-" + sink.id().value()),
+                    new Spec("monitor", "monitor"), HumanGating.NONE);
+            return List.of(
+                    new GraphMutation.AddNode(monitor),
+                    new GraphMutation.AddDependency(new Dependency(monitor.id(), sink.id())));
+        };
+
+        var rule = new ResolvedRule.DeclarativeRule("ensure-monitoring",
+                                                    List.of(
+                                                            new PatternParameterDescriptor(PatternKind.MATCH, "sink", "", Direction.DEPENDENCIES),
+                                                            new PatternParameterDescriptor(PatternKind.NOT_EXISTS, "monitor", "sink", Direction.DEPENDENTS)),
+                                                    new String[]{"sink", "guard"},
+                                                    evaluator);
+
+        var result = engine.evaluate(graph, List.of(rule));
+        assertThat(result.nodes()).hasSize(4);
+        assertThat(result.nodes()).containsKey(NodeId.of("monitor-sink-1"));
+        assertThat(result.nodes()).containsKey(NodeId.of("monitor-sink-2"));
+    }
+
+
 }
