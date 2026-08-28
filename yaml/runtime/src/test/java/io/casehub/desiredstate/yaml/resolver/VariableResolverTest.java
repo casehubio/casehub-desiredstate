@@ -14,7 +14,7 @@ class VariableResolverTest {
     @Test
     void resolvesFromInlineMap() {
         var resolver = new VariableResolver(Map.of("batch", "500"), null, null);
-        assertThat(resolver.resolveString("${batch}", "test-node"))
+        assertThat(resolver.resolveString("${var.batch}", "test-node"))
                 .isEqualTo("500");
     }
 
@@ -29,7 +29,7 @@ class VariableResolverTest {
     void resolvesNestedMapValues() {
         var resolver = new VariableResolver(Map.of("uri", "s3://data"), null, null);
         Map<String, Object> input = new LinkedHashMap<>();
-        input.put("destination", "${uri}");
+        input.put("destination", "${var.uri}");
         input.put("count", 42);
 
         @SuppressWarnings("unchecked")
@@ -44,7 +44,7 @@ class VariableResolverTest {
         var resolver = new VariableResolver(Map.of("field", "email"), null, null);
         @SuppressWarnings("unchecked")
         List<Object> resolved = (List<Object>) resolver.resolveList(
-                List.of("name", "${field}"), "node");
+                List.of("name", "${var.field}"), "node");
 
         assertThat(resolved).containsExactly("name", "email");
     }
@@ -53,7 +53,13 @@ class VariableResolverTest {
     void throwsOnUnresolvedVariable() {
         var resolver = new VariableResolver(Map.of("batch_size", "100"), null, null);
 
+        // Bare name now throws with prefix guidance
         assertThatThrownBy(() -> resolver.resolveString("${bacth_size}", "csv-ingest"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("${var.bacth_size}");
+
+        // Correct prefix but typo still throws as unresolved
+        assertThatThrownBy(() -> resolver.resolveString("${var.bacth_size}", "csv-ingest"))
                 .isInstanceOf(UnresolvedVariableException.class)
                 .hasMessageContaining("bacth_size")
                 .hasMessageContaining("csv-ingest");
@@ -62,7 +68,7 @@ class VariableResolverTest {
     @Test
     void embeddedVariableInLargerString() {
         var resolver = new VariableResolver(Map.of("bucket", "prod"), null, null);
-        assertThat(resolver.resolveString("s3://${bucket}/data", "node"))
+        assertThat(resolver.resolveString("s3://${var.bucket}/data", "node"))
                 .isEqualTo("s3://prod/data");
     }
 
@@ -78,7 +84,46 @@ class VariableResolverTest {
     void multipleVariablesInOneString() {
         var resolver = new VariableResolver(
                 Map.of("proto", "s3", "bucket", "data"), null, null);
-        assertThat(resolver.resolveString("${proto}://${bucket}/path", "node"))
+        assertThat(resolver.resolveString("${var.proto}://${var.bucket}/path", "node"))
                 .isEqualTo("s3://data/path");
+    }
+
+    @Test
+    void resolveString_withVarPrefix_resolvesFromInlineVariables() {
+        var resolver = new VariableResolver(Map.of("source_uri", "s3://data/test.csv"), null, null);
+        assertThat(resolver.resolveString("${var.source_uri}", "test-node"))
+                .isEqualTo("s3://data/test.csv");
+    }
+
+    @Test
+    void resolveString_bareName_throwsWithGuidance() {
+        var resolver = new VariableResolver(Map.of("source_uri", "s3://data/test.csv"), null, null);
+        assertThatThrownBy(() -> resolver.resolveString("${source_uri}", "test-node"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("${var.source_uri}");
+    }
+
+    @Test
+    void resolveString_matchPrefix_throwsWithGuidance() {
+        var resolver = new VariableResolver(Map.of(), null, null);
+        assertThatThrownBy(() -> resolver.resolveString("${match.sink.id}", "test-node"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("rule evaluation time");
+    }
+
+    @Test
+    void resolveString_faultPrefix_throwsWithGuidance() {
+        var resolver = new VariableResolver(Map.of(), null, null);
+        assertThatThrownBy(() -> resolver.resolveString("${fault.nodeId}", "test-node"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("fault");
+    }
+
+    @Test
+    void resolveString_eachPrefix_throwsWithGuidance() {
+        var resolver = new VariableResolver(Map.of(), null, null);
+        assertThatThrownBy(() -> resolver.resolveString("${each.region}", "test-node"))
+                .isInstanceOf(UnresolvedVariableException.class)
+                .hasMessageContaining("forEach");
     }
 }

@@ -12,7 +12,7 @@ nodes:
     spec:
       name: customers
       format: CSV
-      uri: ${source_uri}
+      uri: ${var.source_uri}
 
   customer-schema:
     type: schema
@@ -26,7 +26,7 @@ nodes:
     dependsOn: [csv-source]
     spec:
       sourceRef: csv-source
-      batchSize: ${batch_size}
+      batchSize: ${var.batch_size}
       format: CSV
 
   dedup-cleanser:

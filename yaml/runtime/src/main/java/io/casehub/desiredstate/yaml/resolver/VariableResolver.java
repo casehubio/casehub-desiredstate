@@ -3,9 +3,9 @@ package io.casehub.desiredstate.yaml.resolver;
 import org.eclipse.microprofile.config.Config;
 
 import java.util.LinkedHashMap;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -77,16 +77,45 @@ public class VariableResolver {
     }
 
     private String lookupVariable(String key, String nodeContext) {
-        String value = inlineVariables.get(key);
-        if (value != null) return value;
+        if (key.startsWith("var.")) {
+            String varName = key.substring(4);
+            return lookupVarPrefixed(varName, nodeContext);
+        }
+        if (key.startsWith("match.")) {
+            throw new UnresolvedVariableException(key, nodeContext,
+                                                  "${match.*} references are resolved at rule evaluation time, "
+                                                  + "not during variable resolution. This placeholder will be "
+                                                  + "resolved by the DeclarativeRuleAdapter.");
+        }
+        if (key.startsWith("fault.")) {
+            throw new UnresolvedVariableException(key, nodeContext,
+                                                  "${fault.*} references are resolved at fault time, "
+                                                  + "not during variable resolution. This placeholder will be "
+                                                  + "resolved by the fault policy template factory.");
+        }
+        if (key.startsWith("each.")) {
+            throw new UnresolvedVariableException(key, nodeContext,
+                                                  "${each.*} references are resolved during forEach expansion, "
+                                                  + "not during variable resolution.");
+        }
+        // Bare name — no prefix
+        throw new UnresolvedVariableException(key, nodeContext,
+                                              "Bare variable references are no longer supported. "
+                                              + "Use ${var." + key + "} instead of ${" + key + "}.");
+    }
+
+    private String lookupVarPrefixed(String varName, String nodeContext) {
+        String value = inlineVariables.get(varName);
+        if (value != null) {return value;}
 
         if (config != null) {
-            Optional<String> configValue = config.getOptionalValue(key, String.class);
-            if (configValue.isPresent()) return configValue.get();
+            Optional<String> configValue = config.getOptionalValue(varName, String.class);
+            if (configValue.isPresent()) {return configValue.get();}
         }
 
-        throw new UnresolvedVariableException(key, nodeContext,
-                "Not found in: inline variables " + inlineVariables.keySet()
-                        + ", MicroProfile Config.");
+        throw new UnresolvedVariableException("var." + varName, nodeContext,
+                                              "Not found in: inline variables " + inlineVariables.keySet()
+                                              + ", MicroProfile Config.");
     }
+
 }
