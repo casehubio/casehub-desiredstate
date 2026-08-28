@@ -5,6 +5,7 @@ desiredState:
 variables:
   batch_size: "1000"
   source_uri: s3://data/customers.csv
+  debug_mode: "false"
 
 nodes:
   csv-source:
@@ -72,6 +73,16 @@ nodes:
       format: parquet
       partitionKeys: [date]
       approvalRequired: true
+
+  debug-validator:
+    type: validator
+    when: "${var.debug_mode}"
+    dependsOn:
+      - { node: csv-ingest, optional: true }
+    spec:
+      schemaRef: customer-schema
+      qualityThreshold: 0.0
+      anomalyDetection: false
 
 invariants:
   every-sink-has-upstream:

@@ -85,7 +85,7 @@ public class YamlDesiredStateProcessor {
             RuntimeValue<GoalCompiler> compiler = recorder.createYamlGoalCompiler(
                     descriptor, typeRegistry,
                     yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                    invariants);
+                    invariants, yamlGraph);
 
             String ns = yamlGraph.desiredState().namespace();
             String name = yamlGraph.desiredState().name();

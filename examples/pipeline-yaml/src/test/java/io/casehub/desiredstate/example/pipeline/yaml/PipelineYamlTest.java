@@ -76,7 +76,7 @@ class PipelineYamlTest {
             compiler = recorder.createYamlGoalCompiler(
                     descriptor, TYPE_REGISTRY,
                     yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                    invariants).getValue();
+                    invariants, yamlGraph).getValue();
         }
     }
 
@@ -170,6 +170,13 @@ class PipelineYamlTest {
         assertThat(graph.nodes().get(NodeId.of("warehouse-sink"))).isNotNull();
         assertThat(graph.dependenciesOf(NodeId.of("warehouse-sink")))
                 .contains(NodeId.of("aggregate-tx"));
+    }
+
+    @Test
+    void yamlWhen_debugModeFalse_debugValidatorExcluded() {
+        DesiredStateGraph graph = compileSingleGraph();
+        assertThat(graph.nodes()).doesNotContainKey(NodeId.of("debug-validator"));
+        assertThat(graph.nodes()).hasSize(8);
     }
 
 
