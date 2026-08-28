@@ -3,9 +3,9 @@ package io.casehub.desiredstate.yaml.resolver;
 import org.eclipse.microprofile.config.Config;
 
 import java.util.LinkedHashMap;
-import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -75,6 +75,53 @@ public class VariableResolver {
                 })
                 .toList();
     }
+
+    public String resolveTemplateString(String template, String nodeContext) {
+        Matcher       matcher = VAR_PATTERN.matcher(template);
+        StringBuilder sb      = new StringBuilder();
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            if (key.startsWith("var.")) {
+                String resolved = lookupVarPrefixed(key.substring(4), nodeContext);
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(resolved));
+            } else {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group()));
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> resolveTemplateMap(Map<?, ?> input, String nodeContext) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : input.entrySet()) {
+            String key = entry.getKey().toString();
+            Object val = entry.getValue();
+            if (val instanceof String s && s.contains("${")) {
+                result.put(key, resolveTemplateString(s, nodeContext));
+            } else if (val instanceof Map<?, ?> nested) {
+                result.put(key, resolveTemplateMap(nested, nodeContext));
+            } else if (val instanceof List<?> list) {
+                result.put(key, resolveTemplateList(list, nodeContext));
+            } else {
+                result.put(key, val);
+            }
+        }
+        return result;
+    }
+
+    public List<?> resolveTemplateList(List<?> input, String nodeContext) {
+        return input.stream()
+                    .map(item -> {
+                        if (item instanceof String s && s.contains("${")) {
+                            return resolveTemplateString(s, nodeContext);
+                        }
+                        return item;
+                    })
+                    .toList();
+    }
+
 
     private String lookupVariable(String key, String nodeContext) {
         if (key.startsWith("var.")) {

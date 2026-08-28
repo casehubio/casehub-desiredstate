@@ -126,4 +126,42 @@ class VariableResolverTest {
                 .isInstanceOf(UnresolvedVariableException.class)
                 .hasMessageContaining("forEach");
     }
+
+
+    // --- Template mode: resolves ${var.*}, passes through ${match.*} ---
+
+    @Test
+    void resolveTemplateString_resolvesVarPrefix_passesMatchThrough() {
+        var resolver = new VariableResolver(Map.of("region", "us-east"), null, null);
+        String result = resolver.resolveTemplateString(
+                "monitor-${match.sink.id}-${var.region}", "test-rule");
+        assertThat(result).isEqualTo("monitor-${match.sink.id}-us-east");
+    }
+
+    @Test
+    void resolveTemplateString_noVarReferences_passesAllThrough() {
+        var resolver = new VariableResolver(Map.of(), null, null);
+        String result = resolver.resolveTemplateString(
+                "${match.sink.id}", "test-rule");
+        assertThat(result).isEqualTo("${match.sink.id}");
+    }
+
+    @Test
+    void resolveTemplateString_onlyVar_resolvesCompletely() {
+        var    resolver = new VariableResolver(Map.of("name", "test"), null, null);
+        String result   = resolver.resolveTemplateString("${var.name}", "test-rule");
+        assertThat(result).isEqualTo("test");
+    }
+
+    @Test
+    void resolveTemplateMap_resolvesVarInNestedSpec() {
+        var resolver = new VariableResolver(Map.of("region", "us-east"), null, null);
+        Map<String, Object> input = Map.of(
+                "target", "${match.sink.id}",
+                "region", "${var.region}");
+        Map<String, Object> result = resolver.resolveTemplateMap(input, "test-rule");
+        assertThat(result.get("target")).isEqualTo("${match.sink.id}");
+        assertThat(result.get("region")).isEqualTo("us-east");
+    }
+
 }

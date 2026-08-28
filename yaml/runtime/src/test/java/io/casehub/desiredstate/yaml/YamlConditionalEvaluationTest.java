@@ -123,8 +123,7 @@ class YamlConditionalEvaluationTest {
     private YamlGraph buildGraph(Map<String, String> variables, Map<String, YamlNode> nodes) {
         return new YamlGraph(
                 new io.casehub.desiredstate.yaml.model.YamlDesiredState("test", "cond"),
-                variables, nodes, List.of(), Map.of());
-    }
+                variables, nodes, List.of(), Map.of(), Map.of());}
 
     @SuppressWarnings("unchecked")
     private DesiredStateGraph compile(YamlGraph yamlGraph) {
