@@ -7,6 +7,8 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.LifecycleStepExecutor;
+import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeSpec;
@@ -39,6 +41,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 class ReconciliationTracingTest {
+
+    private static final LifecycleStepExecutor noOpStepExecutor = (step, tenancyId) -> new StepOutcome.Succeeded();
 
     private InMemorySpanExporter spanExporter;
     private SdkTracerProvider tracerProvider;
@@ -142,8 +146,7 @@ class ReconciliationTracingTest {
         actualAdapter.setStatuses(Map.of());
 
         var router = new DefaultNodeProvisionerRouter(List.of(new SucceedingProvisioner()));
-        SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
-                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
         var adapterRouterLocal = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
         ReconciliationLoop loopWithSimple = ReconciliationLoop.builder(planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream)
                 .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
@@ -177,8 +180,7 @@ class ReconciliationTracingTest {
         actualAdapter.setStatuses(Map.of());
 
         var router = new DefaultNodeProvisionerRouter(List.of(new FailingProvisioner()));
-        SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
-                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
         var adapterRouterLocal = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
         ReconciliationLoop loopWithSimple = ReconciliationLoop.builder(planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream)
                 .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();
@@ -207,8 +209,7 @@ class ReconciliationTracingTest {
                 NodeId.of("orphan"), NodeStatus.PRESENT));
 
         var router = new DefaultNodeProvisionerRouter(List.of(new SucceedingProvisioner()));
-        SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(
-                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor simpleExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
         var adapterRouterLocal = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
         ReconciliationLoop loopWithSimple = ReconciliationLoop.builder(planner, simpleExecutor, adapterRouterLocal, faultEngine, testEventSource::stream)
                 .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).build();

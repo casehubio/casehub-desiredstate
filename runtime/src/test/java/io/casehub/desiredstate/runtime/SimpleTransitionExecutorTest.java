@@ -6,8 +6,11 @@ import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HookDescriptor;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.HumanNodeHandler;
+import io.casehub.desiredstate.api.LifecycleStep;
+import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeSpec;
@@ -36,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SimpleTransitionExecutorTest {
 
+    private static final LifecycleStepExecutor noOpStepExecutor = (step, tenancyId) -> new StepOutcome.Succeeded();
+
     private DesiredStateGraphFactory factory;
     private MockNodeProvisioner mockProvisioner;
     private SimpleTransitionExecutor executor;
@@ -45,7 +50,7 @@ class SimpleTransitionExecutorTest {
         factory = new DefaultDesiredStateGraphFactory();
         mockProvisioner = new MockNodeProvisioner();
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
     }
 
     @Test
@@ -158,7 +163,7 @@ class SimpleTransitionExecutorTest {
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor =
-            new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler());
+            new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.ALL);
         DesiredNode normalNode = new DesiredNode(NodeId.of("n1"), new TestSpec("normal"), HumanGating.NONE);
@@ -199,7 +204,7 @@ class SimpleTransitionExecutorTest {
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor capturingExecutor =
-            new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler());
+            new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.ALL);
 
@@ -283,8 +288,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -329,8 +333,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(capturingProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -365,8 +368,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -413,8 +415,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(pendingProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("db-prod"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -443,8 +444,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("old-db"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.empty();
@@ -476,8 +476,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("old-db"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.empty();
@@ -524,8 +523,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(capturingProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("old-db"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.empty();
@@ -570,8 +568,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(pendingProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("old-db"), new TestSpec(NodeType.of("database"), "pg"), HumanGating.NONE);
         DesiredStateGraph graph = factory.empty();
@@ -600,8 +597,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.ALL);
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
@@ -634,7 +630,7 @@ class SimpleTransitionExecutorTest {
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor handlerExecutor =
-                new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler());
+                new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.ALL);
 
@@ -678,7 +674,7 @@ class SimpleTransitionExecutorTest {
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
         SimpleTransitionExecutor capturingExecutor =
-                new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler());
+                new SimpleTransitionExecutor(router, capturingHandler, new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.ALL);
 
@@ -713,8 +709,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(
-                router, new NoOpHumanNodeHandler(), handler);
+        SimpleTransitionExecutor handlerExecutor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), handler, noOpStepExecutor);
 
         DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.ALL);
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
@@ -745,8 +740,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
-                router, handler, new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("val"), HumanGating.PROVISION_ONLY);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -784,8 +778,7 @@ class SimpleTransitionExecutorTest {
         };
 
         var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
-        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
-                router, handler, new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(router, handler, new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("val"), HumanGating.DEPROVISION_ONLY);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
@@ -806,4 +799,141 @@ class SimpleTransitionExecutorTest {
     }
 
 
+    @Test
+    void preProvisionHookFails_provisioningSkipped() {
+        LifecycleStepExecutor failingExecutor = (step, tenancyId) -> new StepOutcome.Failed("health check failed");
+
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), failingExecutor);
+
+        HookDescriptor hooks = new HookDescriptor(
+                List.of(new LifecycleStep.Verify("http://localhost/health", 5)),
+                List.of(), List.of(), List.of());
+        DesiredNode node = new DesiredNode(NodeId.of("api"), new TestSpec("api"), HumanGating.NONE, hooks);
+
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
+
+        TransitionResult result = exec.execute(plan, "tenant1");
+
+        StepOutcome outcome = result.outcomes().get(NodeId.of("api"));
+        assertInstanceOf(StepOutcome.Failed.class, outcome);
+        assertTrue(((StepOutcome.Failed) outcome).reason().contains("pre-provision hook failed"));
+        assertTrue(mockProvisioner.callOrder.isEmpty(), "Provisioner should NOT be called when pre-hook fails");
+    }
+
+    @Test
+    void preProvisionHookSucceeds_provisioningProceeds() {
+        HookDescriptor hooks = new HookDescriptor(
+                List.of(new LifecycleStep.Wait(0)),
+                List.of(), List.of(), List.of());
+        DesiredNode node = new DesiredNode(NodeId.of("api"), new TestSpec("api"), HumanGating.NONE, hooks);
+
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
+
+        TransitionResult result = executor.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("api")));
+        assertEquals(1, mockProvisioner.callOrder.size());
+        assertEquals("provision:api", mockProvisioner.callOrder.get(0));
+    }
+
+    @Test
+    void postProvisionHookFails_provisioningStillSucceeded() {
+        LifecycleStepExecutor selectiveExecutor = (step, tenancyId) -> {
+            if (step instanceof LifecycleStep.Notify) {
+                return new StepOutcome.Failed("notification channel down");
+            }
+            return new StepOutcome.Succeeded();
+        };
+
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), selectiveExecutor);
+
+        HookDescriptor hooks = new HookDescriptor(
+                List.of(), List.of(new LifecycleStep.Notify("email", "deployed")),
+                List.of(), List.of());
+        DesiredNode node = new DesiredNode(NodeId.of("api"), new TestSpec("api"), HumanGating.NONE, hooks);
+
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
+
+        TransitionResult result = exec.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("api")));
+        assertEquals(1, mockProvisioner.callOrder.size());
+    }
+
+    @Test
+    void preDeprovisionHookFails_deprovisioningSkipped() {
+        LifecycleStepExecutor failingExecutor = (step, tenancyId) -> new StepOutcome.Failed("drain failed");
+
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), failingExecutor);
+
+        HookDescriptor hooks = new HookDescriptor(
+                List.of(), List.of(),
+                List.of(new LifecycleStep.Wait(5)), List.of());
+        DesiredNode node = new DesiredNode(NodeId.of("api"), new TestSpec("api"), HumanGating.NONE, hooks);
+
+        DesiredStateGraph graph = factory.empty();
+        TransitionPlan plan = new TransitionPlan(
+                List.of(new OrderedStep(node, StepAction.DEPROVISION)), List.of(), graph, graph);
+
+        TransitionResult result = exec.execute(plan, "tenant1");
+
+        StepOutcome outcome = result.outcomes().get(NodeId.of("api"));
+        assertInstanceOf(StepOutcome.Failed.class, outcome);
+        assertTrue(((StepOutcome.Failed) outcome).reason().contains("pre-deprovision hook failed"));
+        assertTrue(mockProvisioner.callOrder.isEmpty(), "Provisioner should NOT be called when pre-hook fails");
+    }
+
+    @Test
+    void postDeprovisionHookFails_deprovisioningStillSucceeded() {
+        LifecycleStepExecutor selectiveExecutor = (step, tenancyId) -> {
+            if (step instanceof LifecycleStep.Notify) {
+                return new StepOutcome.Failed("notification channel down");
+            }
+            return new StepOutcome.Succeeded();
+        };
+
+        var router = new DefaultNodeProvisionerRouter(List.of(mockProvisioner));
+        SimpleTransitionExecutor exec = new SimpleTransitionExecutor(
+                router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), selectiveExecutor);
+
+        HookDescriptor hooks = new HookDescriptor(
+                List.of(), List.of(),
+                List.of(), List.of(new LifecycleStep.Notify("ops", "removed")));
+        DesiredNode node = new DesiredNode(NodeId.of("api"), new TestSpec("api"), HumanGating.NONE, hooks);
+
+        DesiredStateGraph graph = factory.empty();
+        TransitionPlan plan = new TransitionPlan(
+                List.of(new OrderedStep(node, StepAction.DEPROVISION)), List.of(), graph, graph);
+
+        TransitionResult result = exec.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("api")));
+        assertEquals(1, mockProvisioner.callOrder.size());
+    }
+
+    @Test
+    void noHooks_unchangedBehavior() {
+        DesiredNode node = new DesiredNode(NodeId.of("plain"), new TestSpec("plain"), HumanGating.NONE);
+
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.PROVISION)), graph, graph);
+
+        TransitionResult result = executor.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("plain")));
+        assertEquals(1, mockProvisioner.callOrder.size());
+    }
 }

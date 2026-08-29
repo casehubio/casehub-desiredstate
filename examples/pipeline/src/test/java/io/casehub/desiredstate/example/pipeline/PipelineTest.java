@@ -14,6 +14,7 @@ import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
@@ -59,6 +60,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Plain JUnit — no Quarkus container needed.
  */
 class PipelineTest {
+
+    private static final LifecycleStepExecutor noOpStepExecutor = (step, tenancyId) -> new StepOutcome.Succeeded();
 
     private DesiredStateGraphFactory factory;
     private PipelineGoalCompiler compiler;
@@ -231,7 +234,7 @@ class PipelineTest {
 
         // Execute all additions via SimpleTransitionExecutor
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
         TransitionResult transitionResult = executor.execute(plan, "default");
 
         // All 8 nodes should succeed
@@ -287,7 +290,7 @@ class PipelineTest {
         // Provision the full pipeline first
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
         executor.execute(plan, "default");
@@ -753,8 +756,7 @@ class PipelineTest {
 
         MockPendingApprovalHandler approvalHandler = new MockPendingApprovalHandler();
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), approvalHandler);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), approvalHandler, noOpStepExecutor);
 
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
@@ -802,8 +804,7 @@ class PipelineTest {
             new ApprovalCheckResult.Rejected("gold-tier:session-agg", "Too expensive"));
 
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), approvalHandler);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), approvalHandler, noOpStepExecutor);
 
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
@@ -822,8 +823,7 @@ class PipelineTest {
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
 
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
         TransitionResult result = executor.execute(planner.plan(graph, new ActualState(Map.of())),
             "default");
 

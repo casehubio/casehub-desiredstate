@@ -5,7 +5,10 @@ import io.casehub.desiredstate.api.DeprovisionContext;
 import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.HookDescriptor;
 import io.casehub.desiredstate.api.HumanNodeHandler;
+import io.casehub.desiredstate.api.LifecycleStep;
+import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
 import io.casehub.desiredstate.api.OrderedStep;
@@ -17,6 +20,7 @@ import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
+import org.jboss.logging.Logger;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
@@ -38,18 +42,22 @@ import java.util.Map;
 @ApplicationScoped
 public class SimpleTransitionExecutor implements TransitionExecutor {
 
+    private static final Logger LOG = Logger.getLogger(SimpleTransitionExecutor.class);
     private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
     private final NodeProvisionerRouter router;
     private final HumanNodeHandler humanNodeHandler;
     private final PendingApprovalHandler pendingApprovalHandler;
+    private final LifecycleStepExecutor lifecycleStepExecutor;
 
     public SimpleTransitionExecutor(NodeProvisionerRouter router,
                                      HumanNodeHandler humanNodeHandler,
-                                     PendingApprovalHandler pendingApprovalHandler) {
+                                     PendingApprovalHandler pendingApprovalHandler,
+                                     LifecycleStepExecutor lifecycleStepExecutor) {
         this.router = router;
         this.humanNodeHandler = humanNodeHandler;
         this.pendingApprovalHandler = pendingApprovalHandler;
+        this.lifecycleStepExecutor = lifecycleStepExecutor;
     }
 
     @Override
@@ -98,10 +106,30 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                 case ApprovalCheckResult.None ignored -> {}
             }
 
+            if (node.hooks() != null) {
+                for (LifecycleStep step : node.hooks().provisionPre()) {
+                    StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                    if (hookResult instanceof StepOutcome.Failed f) {
+                        span.setStatus(StatusCode.ERROR, "pre-provision hook failed: " + f.reason());
+                        return new StepOutcome.Failed("pre-provision hook failed: " + f.reason());
+                    }
+                }
+            }
+
             ProvisionResult result = router.provision(node, context);
 
             return switch (result) {
-                case ProvisionResult.Success ignored -> new StepOutcome.Succeeded();
+                case ProvisionResult.Success ignored -> {
+                    if (node.hooks() != null) {
+                        for (LifecycleStep step : node.hooks().provisionPost()) {
+                            StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                            if (hookResult instanceof StepOutcome.Failed f) {
+                                LOG.warnf("post-provision hook failed for %s: %s", node.id().value(), f.reason());
+                            }
+                        }
+                    }
+                    yield new StepOutcome.Succeeded();
+                }
                 case ProvisionResult.Failed f -> {
                     span.setStatus(StatusCode.ERROR, f.reason());
                     yield new StepOutcome.Failed(f.reason());
@@ -142,10 +170,30 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                 case ApprovalCheckResult.None ignored -> {}
             }
 
+            if (node.hooks() != null) {
+                for (LifecycleStep step : node.hooks().deprovisionPre()) {
+                    StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                    if (hookResult instanceof StepOutcome.Failed f) {
+                        span.setStatus(StatusCode.ERROR, "pre-deprovision hook failed: " + f.reason());
+                        return new StepOutcome.Failed("pre-deprovision hook failed: " + f.reason());
+                    }
+                }
+            }
+
             DeprovisionResult result = router.deprovision(node, context);
 
             return switch (result) {
-                case DeprovisionResult.Success ignored -> new StepOutcome.Succeeded();
+                case DeprovisionResult.Success ignored -> {
+                    if (node.hooks() != null) {
+                        for (LifecycleStep step : node.hooks().deprovisionPost()) {
+                            StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                            if (hookResult instanceof StepOutcome.Failed f) {
+                                LOG.warnf("post-deprovision hook failed for %s: %s", node.id().value(), f.reason());
+                            }
+                        }
+                    }
+                    yield new StepOutcome.Succeeded();
+                }
                 case DeprovisionResult.Failed f -> {
                     span.setStatus(StatusCode.ERROR, f.reason());
                     yield new StepOutcome.Failed(f.reason());
@@ -156,4 +204,5 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
             span.end();
         }
     }
+
 }

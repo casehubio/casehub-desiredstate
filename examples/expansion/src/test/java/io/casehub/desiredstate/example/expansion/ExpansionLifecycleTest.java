@@ -18,6 +18,8 @@ import static org.awaitility.Awaitility.await;
 
 class ExpansionLifecycleTest {
 
+    private static final LifecycleStepExecutor noOpStepExecutor = (step, tenancyId) -> new StepOutcome.Succeeded();
+
     private DesiredStateGraphFactory factory;
     private ExpansionGoalCompiler compiler;
     private ExpansionWorld world;
@@ -35,8 +37,7 @@ class ExpansionLifecycleTest {
         adapter = new ExpansionActualStateAdapter(world);
 
         DefaultNodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(
-            router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler());
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
         loop = ReconciliationLoop.builder(new TransitionPlanner(), executor, adapterRouter,
