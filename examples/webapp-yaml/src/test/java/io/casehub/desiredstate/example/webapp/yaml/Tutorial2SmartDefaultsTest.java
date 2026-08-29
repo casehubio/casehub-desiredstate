@@ -2,16 +2,15 @@ package io.casehub.desiredstate.example.webapp.yaml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GoalCompiler;
-import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.InMemoryFaultCountStore;
 import io.casehub.desiredstate.api.NodeId;
-import io.casehub.desiredstate.api.NodeType;
-import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.example.webapp.FraudReviewSpec;
 import io.casehub.desiredstate.example.webapp.NotificationSpec;
 import io.casehub.desiredstate.example.webapp.StoreNodeTypes;
@@ -159,6 +158,44 @@ class Tutorial2SmartDefaultsTest {
         // + 1 rule-generated (notify-order-confirmation)
         assertThat(graph.nodes()).hasSize(8);
     }
+
+    @Test
+    void hooks_paymentNodeHasProvisionHooks() {
+        DesiredStateGraph graph   = compile();
+        var               payment = graph.nodes().get(NodeId.of("payment"));
+        assertThat(payment.hooks()).isNotNull();
+        assertThat(payment.hooks().provisionPre()).hasSize(1);
+        assertThat(payment.hooks().provisionPre().get(0))
+                .isInstanceOf(io.casehub.desiredstate.api.LifecycleStep.Verify.class);
+        var verify = (io.casehub.desiredstate.api.LifecycleStep.Verify) payment.hooks().provisionPre().get(0);
+        assertThat(verify.url()).isEqualTo("http://localhost:5432/health");
+        assertThat(verify.timeoutSeconds()).isEqualTo(10);
+        assertThat(payment.hooks().provisionPost()).hasSize(1);
+        assertThat(payment.hooks().provisionPost().get(0))
+                .isInstanceOf(io.casehub.desiredstate.api.LifecycleStep.Notify.class);
+    }
+
+    @Test
+    void hooks_paymentNodeHasDeprovisionHooks() {
+        DesiredStateGraph graph   = compile();
+        var               payment = graph.nodes().get(NodeId.of("payment"));
+        assertThat(payment.hooks().deprovisionPre()).hasSize(1);
+        assertThat(payment.hooks().deprovisionPre().get(0))
+                .isInstanceOf(io.casehub.desiredstate.api.LifecycleStep.Wait.class);
+        var wait = (io.casehub.desiredstate.api.LifecycleStep.Wait) payment.hooks().deprovisionPre().get(0);
+        assertThat(wait.seconds()).isEqualTo(5);
+        assertThat(payment.hooks().deprovisionPost()).hasSize(1);
+    }
+
+    @Test
+    void hooks_nodesWithoutHooks_hooksIsNull() {
+        DesiredStateGraph graph   = compile();
+        var               catalog = graph.nodes().get(NodeId.of("product-catalog"));
+        assertThat(catalog.hooks()).isNull();
+        var cart = graph.nodes().get(NodeId.of("shopping-cart"));
+        assertThat(cart.hooks()).isNull();
+    }
+
 
     private DesiredStateGraph compile() {
         return ((CompilationResult.SingleGraph) compiler.compile(null, factory)).graph();

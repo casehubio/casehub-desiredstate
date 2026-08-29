@@ -136,7 +136,11 @@ public class YamlGraphRecorder {
                                     + spec.nodeType().value() + "\" on " + specClass.getName());
                         }
 
-                        nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating()));
+                        io.casehub.desiredstate.api.HookDescriptor hooks = null;
+                        if (yamlGraph != null && yamlGraph.nodes().containsKey(in.id())) {
+                            hooks = HookResolver.resolveHooks(yamlGraph.nodes().get(in.id()), resolver, in.id());
+                        }
+                        nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), hooks));
                     }
                 }
 
@@ -286,7 +290,8 @@ public class YamlGraphRecorder {
                         Map<String, Object> resolvedSpec = resolver.resolveMap(
                                 yamlNode.spec() != null ? yamlNode.spec() : Map.of(), nodeId);
                         NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
-                        phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating()));
+                        phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating(),
+                                HookResolver.resolveHooks(yamlNode, resolver, nodeId)));
                         phaseNodeIds.add(nodeId);
                     }
 

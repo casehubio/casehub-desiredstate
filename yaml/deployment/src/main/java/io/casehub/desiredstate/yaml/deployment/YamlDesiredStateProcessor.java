@@ -319,9 +319,66 @@ public class YamlDesiredStateProcessor {
             }
         }
 
+        for (Map.Entry<String, YamlNode> entry : graph.nodes().entrySet()) {
+            validateNodeHooks(entry.getValue(), entry.getKey(), fileName);
+        }
+
         detectCycles(graph.nodes(), fileName);
         validateConditionalDependencies(graph.nodes(), fileName);
         validateForEach(graph.nodes(), graph.iterations(), typeRegistry, fileName);
+    }
+
+    private static void validateNodeHooks(YamlNode node, String nodeId, String fileName) {
+        validateHookBlock(node.provision(), "provision", nodeId, fileName);
+        validateHookBlock(node.deprovision(), "deprovision", nodeId, fileName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void validateHookBlock(io.casehub.desiredstate.yaml.model.YamlHooks hooks,
+                                           String phase, String nodeId, String fileName) {
+        if (hooks == null) return;
+        for (Map<String, Object> step : hooks.pre()) {
+            validateHookStep(step, phase + ".pre", nodeId, fileName);
+        }
+        for (Map<String, Object> step : hooks.post()) {
+            validateHookStep(step, phase + ".post", nodeId, fileName);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void validateHookStep(Map<String, Object> step, String ctx,
+                                          String nodeId, String fileName) {
+        if (step.containsKey("verify")) {
+            Map<String, Object> params = (Map<String, Object>) step.get("verify");
+            if (params.get("url") == null || params.get("url").toString().isEmpty()) {
+                throw new RuntimeException(fileName + ": node '" + nodeId + "' " + ctx
+                        + ": verify.url is required");
+            }
+            if (params.containsKey("timeout") && ((Number) params.get("timeout")).intValue() <= 0) {
+                throw new RuntimeException(fileName + ": node '" + nodeId + "' " + ctx
+                        + ": verify.timeout must be positive");
+            }
+        } else if (step.containsKey("notify")) {
+            Map<String, Object> params = (Map<String, Object>) step.get("notify");
+            if (params.get("channel") == null || params.get("channel").toString().isEmpty()) {
+                throw new RuntimeException(fileName + ": node '" + nodeId + "' " + ctx
+                        + ": notify.channel is required");
+            }
+            if (params.get("message") == null || params.get("message").toString().isEmpty()) {
+                throw new RuntimeException(fileName + ": node '" + nodeId + "' " + ctx
+                        + ": notify.message is required");
+            }
+        } else if (step.containsKey("wait")) {
+            Map<String, Object> params = (Map<String, Object>) step.get("wait");
+            if (((Number) params.get("seconds")).intValue() <= 0) {
+                throw new RuntimeException(fileName + ": node '" + nodeId + "' " + ctx
+                        + ": wait.seconds must be positive");
+            }
+        } else {
+            throw new RuntimeException(fileName + ": node '" + nodeId + "' " + ctx
+                    + ": unknown step type " + step.keySet()
+                    + ". Valid types: verify, notify, wait");
+        }
     }
 
     private void detectCycles(Map<String, YamlNode> nodes, String fileName) {

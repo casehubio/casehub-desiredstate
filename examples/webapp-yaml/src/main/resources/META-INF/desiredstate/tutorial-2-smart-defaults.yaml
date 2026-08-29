@@ -47,6 +47,16 @@ nodes:
   payment:
     type: payment
     dependsOn: [shopping-cart]
+    provision:
+      pre:
+        - verify: { url: "http://localhost:5432/health", timeout: 10 }
+      post:
+        - notify: { channel: email, message: "Payment processor deployed" }
+    deprovision:
+      pre:
+        - wait: { seconds: 5 }
+      post:
+        - notify: { channel: email, message: "Payment processor removed" }
     spec:
       provider: ${var.payment_provider}
       currency: ${var.currency}

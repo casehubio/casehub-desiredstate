@@ -123,7 +123,7 @@ public final class ForEachExpander {
                         yamlNode.spec(), nodeId);
                 NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
                 allNodes.add(new DesiredNode(NodeId.of(nodeId), spec,
-                        yamlNode.humanGating()));
+                        yamlNode.humanGating(), HookResolver.resolveHooks(yamlNode, nodeResolver, nodeId)));
                 continue;
             }
 
@@ -149,7 +149,7 @@ public final class ForEachExpander {
                         yamlNode.spec(), stampedId);
                 NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
                 allNodes.add(new DesiredNode(NodeId.of(stampedId), spec,
-                        yamlNode.humanGating()));
+                        yamlNode.humanGating(), HookResolver.resolveHooks(yamlNode, eachResolver, stampedId)));
             }
         }
 
