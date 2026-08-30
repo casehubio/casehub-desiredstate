@@ -3,7 +3,7 @@ package io.casehub.desiredstate.engine;
 import io.casehub.api.context.PropagationContext;
 import io.casehub.api.engine.CaseHubRuntime;
 import io.casehub.api.model.CaseDefinition;
-import io.casehub.api.model.HumanTaskTarget;
+import io.casehub.api.model.JudgmentTarget;
 import io.casehub.api.model.event.CaseEventLogRecord;
 import io.casehub.api.model.event.CaseHubEventType;
 import io.casehub.api.model.event.EventStreamType;
@@ -140,15 +140,15 @@ class CaseTransitionExecutorTest {
         CaseDefinition caseDefinition = executor.buildCaseDefinition(plan, "test-exec-id");
 
         long humanTaskBindings = caseDefinition.getBindings().stream()
-                .filter(b -> b.target() instanceof HumanTaskTarget)
+                .filter(b -> b.target() instanceof JudgmentTarget)
                 .count();
 
         assertThat(humanTaskBindings)
                 .as("Human nodes should produce humanTask bindings")
                 .isEqualTo(1);
 
-        HumanTaskTarget target = (HumanTaskTarget) caseDefinition.getBindings().stream()
-                .filter(b -> b.target() instanceof HumanTaskTarget)
+        JudgmentTarget target = (JudgmentTarget) caseDefinition.getBindings().stream()
+                .filter(b -> b.target() instanceof JudgmentTarget)
                 .findFirst().orElseThrow()
                 .target();
 
@@ -220,7 +220,7 @@ class CaseTransitionExecutorTest {
         CaseDefinition caseDefinition = executor.buildCaseDefinition(plan, "test-exec-id");
 
         long humanTaskBindings = caseDefinition.getBindings().stream()
-                .filter(b -> b.target() instanceof HumanTaskTarget)
+                .filter(b -> b.target() instanceof JudgmentTarget)
                 .count();
 
         assertThat(humanTaskBindings).isZero();
@@ -243,7 +243,7 @@ class CaseTransitionExecutorTest {
 
         assertThat(caseDefinition.getWorkers()).isEmpty();
         assertThat(caseDefinition.getBindings()).hasSize(1);
-        assertThat(caseDefinition.getBindings().get(0).target()).isInstanceOf(HumanTaskTarget.class);
+        assertThat(caseDefinition.getBindings().get(0).target()).isInstanceOf(JudgmentTarget.class);
     }
 
     @Test
@@ -367,7 +367,7 @@ class CaseTransitionExecutorTest {
 
         boolean hasHumanBinding = caseDef.getBindings().stream()
                                          .anyMatch(b -> b.getName().equals("human-deprovision-h1")
-                                                        && b.target() instanceof HumanTaskTarget);
+                                                        && b.target() instanceof JudgmentTarget);
         assertThat(hasHumanBinding)
                 .as("Should have humanTask binding for human removal")
                 .isTrue();
@@ -435,7 +435,7 @@ class CaseTransitionExecutorTest {
 
         boolean hasNamespacedBinding = caseDef.getBindings().stream()
                                               .anyMatch(b -> b.getName().equals("human-provision-h1")
-                                                             && b.target() instanceof HumanTaskTarget);
+                                                             && b.target() instanceof JudgmentTarget);
         assertThat(hasNamespacedBinding)
                 .as("Human addition binding should use 'human-provision-<nodeId>' format")
                 .isTrue();

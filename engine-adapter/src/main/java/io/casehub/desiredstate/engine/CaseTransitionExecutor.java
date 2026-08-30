@@ -4,7 +4,7 @@ import io.casehub.api.engine.CaseHubRuntime;
 import io.casehub.api.model.Binding;
 import io.casehub.api.model.CaseDefinition;
 import io.casehub.api.model.ContextChangeTrigger;
-import io.casehub.api.model.HumanTaskTarget;
+import io.casehub.api.model.JudgmentTarget;
 import io.casehub.desiredstate.api.ApprovalCheckResult;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.OrderedStep;
@@ -222,25 +222,27 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         }
 
         for (OrderedStep step : humanRemovals) {
-            HumanTaskTarget humanTask = HumanTaskTarget.inline()
-                                                       .title("Review removal: " + step.node().id().value())
-                                                       .build();
+            JudgmentTarget judgment = JudgmentTarget.builder()
+                                                    .prompt("Review removal: " + step.node().id().value())
+                                                    .title("Review removal: " + step.node().id().value())
+                                                    .build();
 
             bindings.add(Binding.builder()
                                 .name("human-deprovision-" + step.node().id().value())
-                                .humanTask(humanTask)
+                                .judgment(judgment)
                                 .on(new ContextChangeTrigger("."))
                                 .build());
         }
 
         for (OrderedStep step : humanAdditions) {
-            HumanTaskTarget humanTask = HumanTaskTarget.inline()
-                                                       .title("Review: " + step.node().id().value())
-                                                       .build();
+            JudgmentTarget judgment = JudgmentTarget.builder()
+                                                    .prompt("Review: " + step.node().id().value())
+                                                    .title("Review: " + step.node().id().value())
+                                                    .build();
 
             bindings.add(Binding.builder()
                                 .name("human-provision-" + step.node().id().value())
-                                .humanTask(humanTask)
+                                .judgment(judgment)
                                 .on(new ContextChangeTrigger("."))
                                 .build());
         }

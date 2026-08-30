@@ -8,3 +8,6 @@ package-lock.json
 .idea
 .claude
 proj
+.m2/
+node_modules/
+tsj/
