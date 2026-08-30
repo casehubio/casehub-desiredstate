@@ -1,0 +1,33 @@
+{
+    "kind": "single",
+    "namespace": "pipeline",
+    "name": "medallion-ts",
+    "nodes": [
+        {
+            "id": "source-us-east",
+            "type": "data-source",
+            "spec": { "name": "customers-us-east", "format": "CSV", "uri": "s3://us-east/customers.csv" }
+        },
+        {
+            "id": "source-eu-west",
+            "type": "data-source",
+            "spec": { "name": "customers-eu-west", "format": "CSV", "uri": "s3://eu-west/customers.csv" }
+        },
+        {
+            "id": "csv-ingest",
+            "type": "transformer",
+            "spec": { "aggregations": [], "reshapeRules": [], "outputFormat": "PARQUET", "approvalRequired": false }
+        },
+        {
+            "id": "warehouse-sink",
+            "type": "sink",
+            "spec": { "destination": "warehouse", "format": "PARQUET", "partitionKeys": ["region"], "approvalRequired": false },
+            "humanGating": "PROVISION_ONLY"
+        }
+    ],
+    "dependencies": [
+        { "from": "csv-ingest", "to": "source-us-east" },
+        { "from": "csv-ingest", "to": "source-eu-west" },
+        { "from": "warehouse-sink", "to": "csv-ingest" }
+    ]
+}
