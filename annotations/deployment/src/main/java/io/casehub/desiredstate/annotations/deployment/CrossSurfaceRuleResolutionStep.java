@@ -28,7 +28,7 @@ public class CrossSurfaceRuleResolutionStep {
                         List<StandaloneInvariantBuildItem> standaloneInvariants,
                         List<AdditionalRulesBuildItem> results) {
         for (DesiredStateGraphBuildItem graph : graphs) {
-            if (!graph.source().startsWith("yaml:")) {continue;}
+            if (graph.source().startsWith("annotation:")) {continue;}
 
             String graphKey = graph.qualifiedName();
             List<GraphRuleDescriptor> matchedRules = new ArrayList<>();
