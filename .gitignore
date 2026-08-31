@@ -1,4 +1,5 @@
 target/
+.build
 .build/
 .idea/
 *.iml
@@ -8,6 +9,12 @@ package-lock.json
 .idea
 .claude
 proj
+.m2
 .m2/
 node_modules/
+tsj
 tsj/
+.mvn/maven.config
+.mvn/slot-settings.xml
+.worktrees
+.worktrees/
