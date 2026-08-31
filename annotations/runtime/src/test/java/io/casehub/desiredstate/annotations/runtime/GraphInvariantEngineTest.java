@@ -143,6 +143,90 @@ class GraphInvariantEngineTest {
 
     // --- helpers ---
 
+
+    public static void haMinimum(DesiredNode instance) {}
+
+
+    @Test
+    void matchMinCountViolation_tooFewNodes() {
+        var graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("i1"), new Spec("i1", "compute"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("i2"), new Spec("i2", "compute"), HumanGating.NONE)),
+                List.of());
+
+        var invariant = parameterizedInvariant("haMinimum",
+                                               List.of(new PatternParameterDescriptor(
+                                                       PatternKind.MATCH, "compute", "", Direction.DEPENDENCIES, 3, -1)));
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertEquals(1, ex.violations().size());
+        assertTrue(ex.violations().get(0).message().contains("at least 3"));
+        assertTrue(ex.violations().get(0).message().contains("found 2"));
+    }
+
+    @Test
+    void matchMinCountPasses_exactlyEnough() {
+        var graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("i1"), new Spec("i1", "compute"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("i2"), new Spec("i2", "compute"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("i3"), new Spec("i3", "compute"), HumanGating.NONE)),
+                List.of());
+
+        var invariant = parameterizedInvariant("haMinimum",
+                                               List.of(new PatternParameterDescriptor(
+                                                       PatternKind.MATCH, "compute", "", Direction.DEPENDENCIES, 3, -1)));
+
+        assertDoesNotThrow(() -> engine.validate(graph, List.of(invariant)));
+    }
+
+    @Test
+    void matchMaxCountViolation_tooManyNodes() {
+        var graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("cp1"), new Spec("cp1", "control-plane"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("cp2"), new Spec("cp2", "control-plane"), HumanGating.NONE)),
+                List.of());
+
+        var invariant = parameterizedInvariant("haMinimum",
+                                               List.of(new PatternParameterDescriptor(
+                                                       PatternKind.MATCH, "control-plane", "", Direction.DEPENDENCIES, 1, 1)));
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertEquals(1, ex.violations().size());
+        assertTrue(ex.violations().get(0).message().contains("at most 1"));
+    }
+
+    @Test
+    void matchSingletonPasses() {
+        var graph = factory.of(
+                List.of(new DesiredNode(NodeId.of("cp1"), new Spec("cp1", "control-plane"), HumanGating.NONE)),
+                List.of());
+
+        var invariant = parameterizedInvariant("haMinimum",
+                                               List.of(new PatternParameterDescriptor(
+                                                       PatternKind.MATCH, "control-plane", "", Direction.DEPENDENCIES, 1, 1)));
+
+        assertDoesNotThrow(() -> engine.validate(graph, List.of(invariant)));
+    }
+
+    @Test
+    void matchSingletonViolation_zeroNodes() {
+        var graph = factory.of(List.of(), List.of());
+
+        var invariant = parameterizedInvariant("haMinimum",
+                                               List.of(new PatternParameterDescriptor(
+                                                       PatternKind.MATCH, "control-plane", "", Direction.DEPENDENCIES, 1, 1)));
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertEquals(1, ex.violations().size());
+        assertTrue(ex.violations().get(0).message().contains("at least 1"));
+    }
+
     private ResolvedInvariant parameterizedInvariant(String methodName,
             List<PatternParameterDescriptor> patterns) {
         try {

@@ -55,6 +55,13 @@ public class GraphInvariantEngine {
         List<PatternParameterDescriptor> patterns   = invariant.patterns();
         String[]                         paramNames = invariant.bindingNames();
 
+        if (hasMatchCardinalityConstraint(patterns)) {
+            validateMatchCardinality(invariant.name(),
+                    invariant.method().getDeclaringClass().getName(),
+                    graph, patterns, violations);
+            return;
+        }
+
         List<Integer> matchIndices = new ArrayList<>();
         for (int i = 0; i < patterns.size(); i++) {
             if (patterns.get(i).kind() == PatternKind.MATCH) {
@@ -101,6 +108,12 @@ public class GraphInvariantEngine {
         List<PatternParameterDescriptor> patterns     = invariant.patterns();
         String[]                         bindingNames = invariant.bindingNames();
 
+        if (hasMatchCardinalityConstraint(patterns)) {
+            validateMatchCardinality(invariant.name(), "yaml",
+                    graph, patterns, violations);
+            return;
+        }
+
         List<Integer> matchIndices = new ArrayList<>();
         for (int i = 0; i < patterns.size(); i++) {
             if (patterns.get(i).kind() == PatternKind.MATCH) {
@@ -145,6 +158,41 @@ public class GraphInvariantEngine {
             resolved = resolved.replace("${match." + binding + ".type}", node.type().value());
         }
         return resolved;
+    }
+
+
+    private boolean hasMatchCardinalityConstraint(List<PatternParameterDescriptor> patterns) {
+        return patterns.stream()
+                       .anyMatch(p -> p.kind() == PatternKind.MATCH && p.hasCardinalityConstraint());
+    }
+
+    private void validateMatchCardinality(String invariantName, String sourceClass,
+                                          DesiredStateGraph graph, List<PatternParameterDescriptor> patterns,
+                                          List<GraphViolation> violations) {
+        for (PatternParameterDescriptor p : patterns) {
+            if (p.kind() != PatternKind.MATCH) {continue;}
+            long count = countMatchingNodes(graph, p.nodeType());
+            if (count < p.effectiveMinCount()) {
+                violations.add(new GraphViolation(invariantName, sourceClass,
+                                                  invariantName + ": expected at least " + p.effectiveMinCount()
+                                                  + " node(s) of type '" + p.nodeType() + "', found " + count,
+                                                  List.of()));
+            }
+            if (count > p.effectiveMaxCount()) {
+                violations.add(new GraphViolation(invariantName, sourceClass,
+                                                  invariantName + ": expected at most " + p.effectiveMaxCount()
+                                                  + " node(s) of type '" + p.nodeType() + "', found " + count,
+                                                  List.of()));
+            }
+        }
+    }
+
+    private long countMatchingNodes(DesiredStateGraph graph, String nodeType) {
+        if ("*".equals(nodeType)) {return graph.nodes().size();}
+        NodeType target = NodeType.of(nodeType);
+        return graph.nodes().values().stream()
+                    .filter(n -> n.type().equals(target))
+                    .count();
     }
 
     private List<List<DesiredNode>> buildExpectedAnchors(DesiredStateGraph graph,
