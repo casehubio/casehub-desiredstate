@@ -532,22 +532,31 @@ public class DesiredStateAnnotationsProcessor {
 
             DotName annName = ann.name();
             if (annName.equals(MATCH)) {
+                int minCount = ann.valueWithDefault(index, "minCount").asInt();
+                int maxCount = ann.valueWithDefault(index, "maxCount").asInt();
                 return new PatternParameterDescriptor(
-                        PatternKind.MATCH, ann.value("type").asString(), "", Direction.DEPENDENCIES);
+                        PatternKind.MATCH, ann.value("type").asString(),
+                        "", Direction.DEPENDENCIES, minCount, maxCount);
             }
             if (annName.equals(DIRECT_DEP)) {
+                int minCount = ann.valueWithDefault(index, "minCount").asInt();
+                int maxCount = ann.valueWithDefault(index, "maxCount").asInt();
                 return new PatternParameterDescriptor(
                         PatternKind.DIRECT_DEP,
                         ann.value("type").asString(),
                         ann.valueWithDefault(index, "of").asString(),
-                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()));
+                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()),
+                        minCount, maxCount);
             }
             if (annName.equals(REACHES)) {
+                int minCount = ann.valueWithDefault(index, "minCount").asInt();
+                int maxCount = ann.valueWithDefault(index, "maxCount").asInt();
                 return new PatternParameterDescriptor(
                         PatternKind.REACHES,
                         ann.value("type").asString(),
                         ann.valueWithDefault(index, "of").asString(),
-                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()));
+                        Direction.valueOf(ann.valueWithDefault(index, "direction").asEnum()),
+                        minCount, maxCount);
             }
             if (annName.equals(NOT_EXISTS)) {
                 return new PatternParameterDescriptor(

@@ -13,4 +13,6 @@ public @interface DirectDep {
     String type();
     String of() default "";
     Direction direction() default Direction.DEPENDENCIES;
+    int minCount() default -1;
+    int maxCount() default -1;
 }

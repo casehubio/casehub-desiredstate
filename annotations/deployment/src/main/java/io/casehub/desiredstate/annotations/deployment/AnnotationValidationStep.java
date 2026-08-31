@@ -423,6 +423,26 @@ public class AnnotationValidationStep {
                         }
                     }
                 }
+
+                if (annName.equals(MATCH) || annName.equals(DIRECT_DEP) || annName.equals(REACHES)) {
+                    AnnotationValue minVal = ann.value("minCount");
+                    AnnotationValue maxVal = ann.value("maxCount");
+                    int minCount = minVal != null ? minVal.asInt() : -1;
+                    int maxCount = maxVal != null ? maxVal.asInt() : -1;
+                    if (minCount != -1 && minCount < 0) {
+                        errors.add("@" + annName.local() + " on parameter '"
+                                + paramName + "' has invalid minCount: " + minCount);
+                    }
+                    if (maxCount != -1 && maxCount < 0) {
+                        errors.add("@" + annName.local() + " on parameter '"
+                                + paramName + "' has invalid maxCount: " + maxCount);
+                    }
+                    if (minCount != -1 && maxCount != -1 && minCount > maxCount) {
+                        errors.add("@" + annName.local() + " on parameter '"
+                                + paramName + "' has minCount (" + minCount
+                                + ") > maxCount (" + maxCount + ")");
+                    }
+                }
             }
             previousParamName = paramName;
         }

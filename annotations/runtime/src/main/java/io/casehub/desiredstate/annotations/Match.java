@@ -9,4 +9,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.PARAMETER)
 public @interface Match {
     String type();
+    int minCount() default -1;
+    int maxCount() default -1;
 }

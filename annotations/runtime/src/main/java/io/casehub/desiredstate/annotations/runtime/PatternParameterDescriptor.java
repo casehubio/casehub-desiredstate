@@ -1,5 +1,7 @@
 package io.casehub.desiredstate.annotations.runtime;
 
+import io.quarkus.runtime.annotations.RecordableConstructor;
+
 public record PatternParameterDescriptor(
         PatternKind kind,
         String nodeType,
@@ -9,6 +11,9 @@ public record PatternParameterDescriptor(
         int maxCount) {
 
     public static final int UNSPECIFIED = -1;
+
+    @RecordableConstructor
+    public PatternParameterDescriptor {}
 
     public PatternParameterDescriptor(PatternKind kind, String nodeType,
                                        String of, Direction direction) {
