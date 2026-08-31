@@ -301,6 +301,20 @@ The runtime emits CloudEvents during reconciliation:
 
 ---
 
+## Cardinality Constraints
+
+`@Match`, `@DirectDep`, and `@Reaches` annotations support `minCount`/`maxCount` cardinality fields. `PatternParameterDescriptor` carries cardinality metadata. `GraphInvariantEngine` validates both match-level and expansion-level cardinality at build time. YAML patterns support `minCount`/`maxCount` via `YamlPattern` converter + validation.
+
+## TypeScript SDK (ts-core)
+
+`TsGraphRecorder` enables graph definitions in TypeScript via `defineGraph()`, `defineLifecycle()`, and `node()` helpers. Produces a JSON envelope consumed by `GoalCompiler`. `TsDesiredStateProcessor` processes TypeScript graphs with cross-surface filter broadening. Cross-surface `@GraphRule` annotations apply rules across Java and TypeScript graph surfaces.
+
+## YAML Lifecycle Hooks
+
+`verify`, `notify`, and `wait` hooks are available in YAML lifecycle definitions for declarative lifecycle management — verify a condition, send a notification, or wait for a duration/event before proceeding.
+
+---
+
 ## What This Repo Does NOT Do
 
 - Persist desired-state graphs -- graphs are in-memory per tenant
