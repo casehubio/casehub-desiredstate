@@ -514,6 +514,36 @@ public class YamlDesiredStateProcessor {
             validatePatternSection(inv.directDep(), "directDep", allBindings, typeRegistry, ctx, true);
             validatePatternSection(inv.reaches(), "reaches", allBindings, typeRegistry, ctx, true);
             validatePatternSection(inv.notExists(), "notExists", allBindings, typeRegistry, ctx, false);
+
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlPattern> me : inv.match().entrySet()) {
+                validatePatternCardinality(me.getValue(), ctx + ".match." + me.getKey());
+            }
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlPattern> de : inv.directDep().entrySet()) {
+                validatePatternCardinality(de.getValue(), ctx + ".directDep." + de.getKey());
+            }
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlPattern> re : inv.reaches().entrySet()) {
+                validatePatternCardinality(re.getValue(), ctx + ".reaches." + re.getKey());
+            }
+            for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlPattern> ne : inv.notExists().entrySet()) {
+                io.casehub.desiredstate.yaml.model.YamlPattern p = ne.getValue();
+                if (p.minCount() != null || p.maxCount() != null) {
+                    throw new RuntimeException(ctx + ".notExists." + ne.getKey()
+                            + ": notExists does not support minCount/maxCount");
+                }
+            }
+        }
+    }
+
+    private void validatePatternCardinality(io.casehub.desiredstate.yaml.model.YamlPattern p, String ctx) {
+        if (p.minCount() != null && p.minCount() < 0) {
+            throw new RuntimeException(ctx + ": invalid minCount: " + p.minCount());
+        }
+        if (p.maxCount() != null && p.maxCount() < 0) {
+            throw new RuntimeException(ctx + ": invalid maxCount: " + p.maxCount());
+        }
+        if (p.minCount() != null && p.maxCount() != null && p.minCount() > p.maxCount()) {
+            throw new RuntimeException(ctx + ": minCount (" + p.minCount()
+                    + ") > maxCount (" + p.maxCount() + ")");
         }
     }
 

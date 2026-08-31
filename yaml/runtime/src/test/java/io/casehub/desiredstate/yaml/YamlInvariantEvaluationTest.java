@@ -141,4 +141,92 @@ class YamlInvariantEvaluationTest {
         assertThat(ex.violations().get(0).message()).contains("every-sink-has-upstream");
         assertThat(ex.violations().get(0).message()).contains("sink-1");
     }
+
+    @Test
+    void declarativeInvariant_matchMinCount_violated() {
+        DesiredStateGraph graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("i1"), new Spec("i1", "compute"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("i2"), new Spec("i2", "compute"), HumanGating.NONE)),
+                List.of());
+
+        YamlInvariant yamlInv = new YamlInvariant(
+                List.of(),
+                Map.of("instance", new YamlPattern("compute", null, Direction.DEPENDENCIES, 3, null)),
+                Map.of(), Map.of(), Map.of(),
+                "HA requires at least 3 compute instances");
+
+        ResolvedInvariant invariant = YamlInvariantConverter.toDeclarativeInvariant(
+                "ha-minimum", yamlInv);
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertThat(ex.violations()).hasSize(1);
+        assertThat(ex.violations().get(0).message()).contains("at least 3");
+    }
+
+    @Test
+    void declarativeInvariant_matchMinCount_passes() {
+        DesiredStateGraph graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("i1"), new Spec("i1", "compute"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("i2"), new Spec("i2", "compute"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("i3"), new Spec("i3", "compute"), HumanGating.NONE)),
+                List.of());
+
+        YamlInvariant yamlInv = new YamlInvariant(
+                List.of(),
+                Map.of("instance", new YamlPattern("compute", null, Direction.DEPENDENCIES, 3, null)),
+                Map.of(), Map.of(), Map.of(),
+                "HA requires at least 3 compute instances");
+
+        ResolvedInvariant invariant = YamlInvariantConverter.toDeclarativeInvariant(
+                "ha-minimum", yamlInv);
+
+        assertDoesNotThrow(() -> engine.validate(graph, List.of(invariant)));
+    }
+
+    @Test
+    void declarativeInvariant_expansionMinCount_violated() {
+        DesiredStateGraph graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("lb1"), new Spec("lb1", "load-balancer"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("t1"), new Spec("t1", "target"), HumanGating.NONE)),
+                List.of(new Dependency(NodeId.of("t1"), NodeId.of("lb1"))));
+
+        YamlInvariant yamlInv = new YamlInvariant(
+                List.of(),
+                Map.of("lb", new YamlPattern("load-balancer", null, Direction.DEPENDENCIES)),
+                Map.of("target", new YamlPattern("target", "lb", Direction.DEPENDENTS, 2, null)),
+                Map.of(), Map.of(),
+                "LB ${match.lb.id} must route to at least 2 targets");
+
+        ResolvedInvariant invariant = YamlInvariantConverter.toDeclarativeInvariant(
+                "lb-routing", yamlInv);
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertThat(ex.violations()).hasSize(1);
+    }
+
+    @Test
+    void declarativeInvariant_noCardinality_existingBehaviorPreserved() {
+        DesiredStateGraph graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("sink-1"), new Spec("s1", "sink"), HumanGating.NONE)),
+                List.of());
+
+        YamlInvariant yamlInv = new YamlInvariant(
+                List.of(),
+                Map.of("sink", new YamlPattern("sink", null, Direction.DEPENDENCIES)),
+                Map.of("upstream", new YamlPattern("transformer", "sink", Direction.DEPENDENCIES)),
+                Map.of(), Map.of(), null);
+
+        ResolvedInvariant invariant = YamlInvariantConverter.toDeclarativeInvariant(
+                "every-sink-has-upstream", yamlInv);
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertThat(ex.violations()).hasSize(1);
+    }
 }

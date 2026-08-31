@@ -121,6 +121,11 @@ invariants:
       upstream: { type: transformer, of: sink, direction: DEPENDENCIES }
     message: "Sink ${match.sink.id} has no upstream transformer"
 
+  minimum-data-sources:
+    match:
+      source: { type: data-source, minCount: 1 }
+    message: "Pipeline requires at least one data source"
+
 faultPolicy:
   - faultTypes: [PROVISION_FAILED]
     nodeTypes: [transformer, sink]

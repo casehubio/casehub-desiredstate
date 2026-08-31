@@ -22,10 +22,12 @@ public final class YamlInvariantConverter {
 
         for (Map.Entry<String, YamlPattern> entry : yamlInvariant.match().entrySet()) {
             YamlPattern p = entry.getValue();
+            int min = p.minCount() != null ? p.minCount() : PatternParameterDescriptor.UNSPECIFIED;
+            int max = p.maxCount() != null ? p.maxCount() : PatternParameterDescriptor.UNSPECIFIED;
             patterns.add(new PatternParameterDescriptor(
                     PatternKind.MATCH, p.type(),
                     p.of() != null ? p.of() : "",
-                    p.direction()));
+                    p.direction(), min, max));
             bindingNamesList.add(entry.getKey());
         }
 
@@ -42,10 +44,12 @@ public final class YamlInvariantConverter {
             List<PatternParameterDescriptor> patterns, List<String> bindingNames) {
         for (Map.Entry<String, YamlPattern> entry : section.entrySet()) {
             YamlPattern p = entry.getValue();
+            int min = p.minCount() != null ? p.minCount() : PatternParameterDescriptor.UNSPECIFIED;
+            int max = p.maxCount() != null ? p.maxCount() : PatternParameterDescriptor.UNSPECIFIED;
             patterns.add(new PatternParameterDescriptor(
                     kind, p.type(),
                     p.of() != null ? p.of() : "",
-                    p.direction()));
+                    p.direction(), min, max));
             bindingNames.add(entry.getKey());
         }
     }
