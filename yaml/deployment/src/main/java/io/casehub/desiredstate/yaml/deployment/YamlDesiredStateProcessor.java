@@ -108,7 +108,7 @@ public class YamlDesiredStateProcessor {
                 compiler = recorder.createYamlLifecycleGoalCompiler(
                         yamlGraph, typeRegistry,
                         yamlGraph.variables() != null ? yamlGraph.variables() : Map.of(),
-                        invariants, factoryProviders);
+                        invariants, availableModules, factoryProviders);
             } else {
                 validateYamlGraph(yamlGraph, typeRegistry, fileName);
                 GraphDescriptor descriptor = toGraphDescriptor(yamlGraph, typeRegistry);
@@ -670,12 +670,7 @@ public class YamlDesiredStateProcessor {
                                        + "When lifecycle is present, nodes live inside phases.");
         }
 
-        if (!graph.imports().isEmpty()) {
-            throw new RuntimeException(fileName
-                                       + ": module imports are not yet supported with lifecycle phases. "
-                                       + "Use module imports with single-graph mode, "
-                                       + "or inline the module nodes into the appropriate phase.");
-        }
+        
 
         List<io.casehub.desiredstate.yaml.model.YamlPhase> phases = graph.lifecycle().phases();
         if (phases.isEmpty()) {

@@ -36,6 +36,22 @@ class YamlLifecycleValidationTest {
     }
 
     @Test
+    void validate_lifecycleWithImports_passes() {
+        var graph = new YamlGraph(
+                new YamlDesiredState("test", "with-imports"),
+                Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
+                new YamlLifecycle(List.of(
+                        new YamlPhase("infra", "allPresent",
+                                      Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
+                null,
+                List.of(new io.casehub.desiredstate.yaml.model.YamlImport(
+                        "load-balancer", "lb", null, Map.of("target_service", "web", "namespace", "prod"))));
+        assertThatCode(() -> YamlDesiredStateProcessor.validateLifecycle(
+                graph, TYPE_REGISTRY, "test.yaml"))
+                .doesNotThrowAnyException();}
+
+
+    @Test
     void validate_lifecycleAndTopLevelNodes_throwsBuildError() {
         var graph = new YamlGraph(
                 new YamlDesiredState("test", "conflict"),

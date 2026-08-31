@@ -269,7 +269,7 @@ public class YamlGraphRecorder {
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
             Map<String, String> typeRegistryMap,
             Map<String, String> inlineVariables,
-            List<ResolvedInvariant> invariants) {return createYamlLifecycleGoalCompiler(yamlGraph, typeRegistryMap, inlineVariables, invariants, List.of());}
+            List<ResolvedInvariant> invariants) {return createYamlLifecycleGoalCompiler(yamlGraph, typeRegistryMap, inlineVariables, invariants, null, List.of());}
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public RuntimeValue<GoalCompiler> createYamlLifecycleGoalCompiler(
@@ -277,6 +277,7 @@ public class YamlGraphRecorder {
             Map<String, String> typeRegistryMap,
             Map<String, String> inlineVariables,
             List<ResolvedInvariant> invariants,
+            Map<String, io.casehub.desiredstate.yaml.model.YamlModule> availableModules,
             List<String> factoryProviderClassNames) {
 
         ObjectMapper     mapper   = new ObjectMapper();
@@ -288,17 +289,38 @@ public class YamlGraphRecorder {
             List<DesiredNode>                            carryForwardNodes = new ArrayList<>();
             List<io.casehub.desiredstate.api.Dependency> carryForwardDeps  = new ArrayList<>();
 
+            Map<String, Map<String, String>>                              globalModuleScopes       = Map.of();
+            Map<String, io.casehub.desiredstate.yaml.model.YamlRule>      globalPromotedRules      = Map.of();
+            Map<String, io.casehub.desiredstate.yaml.model.YamlInvariant> globalPromotedInvariants = Map.of();
+
+            if (!yamlGraph.imports().isEmpty() && availableModules != null) {
+                ModuleExpander.ExpandedGraph moduleExpanded = ModuleExpander.expand(
+                        yamlGraph.imports(), availableModules, new java.util.LinkedHashMap<>());
+                globalModuleScopes       = moduleExpanded.moduleScopes();
+                globalPromotedRules      = moduleExpanded.promotedRules();
+                globalPromotedInvariants = moduleExpanded.promotedInvariants();
+            }
+
             for (io.casehub.desiredstate.yaml.model.YamlPhase yamlPhase : yamlGraph.lifecycle().phases()) {
-                boolean                                      phaseHasForEach = yamlPhase.nodes().values().stream().anyMatch(n -> n.forEach() != null);
+                Map<String, io.casehub.desiredstate.yaml.model.YamlNode> phaseEffectiveNodes =
+                        new java.util.LinkedHashMap<>(yamlPhase.nodes());
+
+                if (!yamlGraph.imports().isEmpty() && availableModules != null) {
+                    ModuleExpander.ExpandedGraph phaseExpanded = ModuleExpander.expand(
+                            yamlGraph.imports(), availableModules, phaseEffectiveNodes);
+                    phaseEffectiveNodes = phaseExpanded.expandedNodes();
+                }
+
+                boolean                                      phaseHasForEach = phaseEffectiveNodes.values().stream().anyMatch(n -> n.forEach() != null);
                 List<DesiredNode>                            phaseNodes;
                 List<io.casehub.desiredstate.api.Dependency> phaseDeps;
                 Set<String>                                  phaseNodeIds    = new HashSet<>();
 
                 if (phaseHasForEach) {
                     ForEachExpander.ExpandedNodes expanded = ForEachExpander.expand(
-                            yamlPhase.nodes(),
+                            phaseEffectiveNodes,
                             yamlGraph.iterations() != null ? yamlGraph.iterations() : Map.of(),
-                            resolver, registry, mapper, 1000);
+                            resolver, registry, mapper, 1000, globalModuleScopes);
                     phaseNodes = expanded.nodes();
                     phaseDeps  = new ArrayList<>(expanded.dependencies());
                     phaseNodes.forEach(n -> phaseNodeIds.add(n.id().value()));
@@ -306,7 +328,7 @@ public class YamlGraphRecorder {
                     Set<String> excludedNodeIds = new HashSet<>();
                     phaseNodes = new ArrayList<>();
                     phaseDeps  = new ArrayList<>();
-                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry : yamlPhase.nodes().entrySet()) {
+                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry : phaseEffectiveNodes.entrySet()) {
                         String                                      nodeId   = entry.getKey();
                         io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
                         if (yamlNode.when() != null) {
@@ -316,14 +338,15 @@ public class YamlGraphRecorder {
                                 continue;
                             }
                         }
-                        Map<String, Object> resolvedSpec = resolver.resolveMap(
+                        VariableResolver nodeResolver = globalModuleScopes.isEmpty() ? resolver : resolverForNode(resolver, nodeId, globalModuleScopes);
+                        Map<String, Object> resolvedSpec = nodeResolver.resolveMap(
                                 yamlNode.spec() != null ? yamlNode.spec() : Map.of(), nodeId);
                         NodeSpec spec = registry.resolve(yamlNode.type()).create(resolvedSpec);
                         phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating(),
-                                                       HookResolver.resolveHooks(yamlNode, resolver, nodeId)));
+                                                       HookResolver.resolveHooks(yamlNode, nodeResolver, nodeId)));
                         phaseNodeIds.add(nodeId);
                     }
-                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry : yamlPhase.nodes().entrySet()) {
+                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlNode> entry : phaseEffectiveNodes.entrySet()) {
                         String nodeId = entry.getKey();
                         if (excludedNodeIds.contains(nodeId)) {continue;}
                         for (Object dep : entry.getValue().dependsOn()) {
@@ -351,16 +374,25 @@ public class YamlGraphRecorder {
                 }
 
                 io.casehub.desiredstate.api.DesiredStateGraph phaseGraph = factory.of(allNodes, phaseDeps);
-                if (!yamlGraph.rules().isEmpty()) {
+
+                Map<String, io.casehub.desiredstate.yaml.model.YamlRule> effectiveRules = new java.util.LinkedHashMap<>(yamlGraph.rules());
+                effectiveRules.putAll(globalPromotedRules);
+                if (!effectiveRules.isEmpty()) {
                     List<io.casehub.desiredstate.annotations.runtime.ResolvedRule> resolvedRules = new ArrayList<>();
-                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlRule> ruleEntry : yamlGraph.rules().entrySet()) {
+                    for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlRule> ruleEntry : effectiveRules.entrySet()) {
                         resolvedRules.add(YamlRuleConverter.toDeclarativeRule(ruleEntry.getKey(), ruleEntry.getValue(), resolver, registry));
                     }
                     phaseGraph = new io.casehub.desiredstate.annotations.runtime.GraphRuleEngine().evaluate(phaseGraph, resolvedRules);
                 }
-                if (!invariants.isEmpty()) {
-                    new io.casehub.desiredstate.annotations.runtime.GraphInvariantEngine().validate(phaseGraph, invariants);
+
+                List<ResolvedInvariant> effectiveInvariants = new ArrayList<>(invariants);
+                for (Map.Entry<String, io.casehub.desiredstate.yaml.model.YamlInvariant> invEntry : globalPromotedInvariants.entrySet()) {
+                    effectiveInvariants.add(YamlInvariantConverter.toDeclarativeInvariant(invEntry.getKey(), invEntry.getValue()));
                 }
+                if (!effectiveInvariants.isEmpty()) {
+                    new io.casehub.desiredstate.annotations.runtime.GraphInvariantEngine().validate(phaseGraph, effectiveInvariants);
+                }
+
                 io.casehub.desiredstate.api.CompletionCondition cc = resolveCompletionCondition(yamlPhase.completionCondition());
                 phases.add(new io.casehub.desiredstate.api.Phase(yamlPhase.id(), phaseGraph, cc));
                 carryForwardNodes = new ArrayList<>(phaseGraph.nodes().values());
@@ -399,4 +431,15 @@ public class YamlGraphRecorder {
         }
         return null;
     }
+
+    private static VariableResolver resolverForNode(VariableResolver base, String nodeId,
+                                                    Map<String, Map<String, String>> moduleScopes) {
+        if (moduleScopes.isEmpty()) {return base;}
+        int dot = nodeId.indexOf('.');
+        if (dot < 0) {return base;}
+        String              prefix = nodeId.substring(0, dot);
+        Map<String, String> scope  = moduleScopes.get(prefix);
+        return scope != null ? base.withModuleScope(scope) : base;
+    }
+
 }
