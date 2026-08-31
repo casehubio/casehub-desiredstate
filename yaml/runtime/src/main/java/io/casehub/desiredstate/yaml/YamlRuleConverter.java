@@ -84,8 +84,7 @@ public final class YamlRuleConverter {
                     Map<String, Object> specMap = params.containsKey("spec")
                             ? resolveMatchInMap((Map<String, Object>) params.get("spec"), bindings)
                             : Map.of();
-                    Class<? extends NodeSpec> specClass = registry.resolve(type);
-                    NodeSpec spec = mapper.convertValue(specMap, specClass);
+                    NodeSpec spec = registry.resolve(type).create(specMap);
                     HumanGating gating = params.containsKey("humanGating")
                             ? HumanGating.valueOf((String) params.get("humanGating"))
                             : HumanGating.NONE;
@@ -105,8 +104,7 @@ public final class YamlRuleConverter {
                     Map<String, Object> specMap = params.containsKey("spec")
                             ? resolveMatchInMap((Map<String, Object>) params.get("spec"), bindings)
                             : Map.of();
-                    Class<? extends NodeSpec> specClass = registry.resolve(type);
-                    NodeSpec spec = mapper.convertValue(specMap, specClass);
+                    NodeSpec spec = registry.resolve(type).create(specMap);
                     HumanGating gating = params.containsKey("humanGating")
                             ? HumanGating.valueOf((String) params.get("humanGating"))
                             : HumanGating.NONE;

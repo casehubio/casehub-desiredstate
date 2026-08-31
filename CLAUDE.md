@@ -95,6 +95,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `HumanNodeHandler` | `default onDeprovision(DesiredNode, DeprovisionContext) → StepOutcome` | Handle human-gated nodes during deprovision (default: Skipped; called when `requiresHuman(DEPROVISION)`) |
 | `PendingApprovalHandler` | `check(DesiredNode, StepAction, String tenancyId) → ApprovalCheckResult` | Track approval lifecycle for provisioner-initiated PendingApproval requests |
 | `SituationRecompiler` | `recompile(String tenancyId, DesiredStateGraph, ActualState, ActiveSituation, DesiredStateGraphFactory) → Optional<CompilationResult>` | Situation-driven graph recompilation — independent of GoalCompiler. `priority()` default method for chain ordering |
+| `NodeSpecFactory` | `create(Map<String, Object> specMap) → NodeSpec` | Pluggable NodeSpec creation from raw spec map — `@FunctionalInterface`. DirectCast (Jackson) is the default; domains override for wrapping (e.g. InfraWrappingFactory) |
+| `NodeSpecFactoryProvider` | `provide() → Map<String, NodeSpecFactory>` | CDI-discoverable SPI — registers factories by type name. Providers discovered via Jandex at build time, instantiated at RUNTIME_INIT |
 | `ConfigurationRetriever` | `retrieve(RetrievalContext, int maxResults) → List<RetrievedConfiguration>` | CBR Retrieve — find similar past configurations by fault/situation context |
 | `ConfigurationAdapter` | `adapt(RetrievedConfiguration, RetrievalContext) → Optional<AdaptedConfiguration>` | CBR Reuse — adapt retrieved configuration to current context |
 | `ReconciliationListener` | `onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph, ActualState)` | Per-tenant post-cycle callback for lifecycle phase completion checks |

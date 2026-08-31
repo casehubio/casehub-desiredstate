@@ -17,7 +17,6 @@ import io.casehub.desiredstate.api.ThresholdFaultPolicy;
 import io.casehub.desiredstate.api.TypedFaultPolicy;
 import io.casehub.desiredstate.yaml.model.YamlFaultPolicy;
 import io.casehub.desiredstate.yaml.model.YamlFaultTier;
-import io.casehub.desiredstate.yaml.registry.NodeSpecRegistry;
 import org.jboss.logging.Logger;
 
 import java.util.LinkedHashMap;
@@ -34,7 +33,6 @@ public class YamlFaultPolicyBuilder {
             Map<String, String> typeRegistryMap,
             FaultCountStore faultCountStore) {
 
-        NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
         ObjectMapper coercionMapper = createCoercionMapper();
 
         var builder = ThresholdFaultPolicy.builder()
@@ -54,7 +52,13 @@ public class YamlFaultPolicyBuilder {
 
         for (YamlFaultTier tier : yamlPolicy.tiers()) {
             NodeType outputType = NodeType.of(tier.reviewNode().type());
-            Class<? extends NodeSpec> specClass = registry.resolve(tier.reviewNode().type());
+            String className = typeRegistryMap.get(tier.reviewNode().type());
+            if (className == null) {
+                throw new IllegalArgumentException("Unknown node type in fault policy tier: '"
+                        + tier.reviewNode().type() + "'. Available: " + typeRegistryMap.keySet());
+            }
+            @SuppressWarnings("unchecked")
+            Class<? extends NodeSpec> specClass = loadSpecClass(className);
             Map<String, Object> specTemplate = tier.reviewNode().spec();
             HumanGating gating = tier.reviewNode().humanGating();
 
@@ -128,6 +132,17 @@ public class YamlFaultPolicyBuilder {
                 .replace("${fault.type}", event.type().name())
                 .replace("${fault.detail}", event.detail() != null ? event.detail() : "");
     }
+
+    @SuppressWarnings("unchecked")
+    private static Class<? extends NodeSpec> loadSpecClass(String className) {
+        try {
+            return (Class<? extends NodeSpec>) Thread.currentThread()
+                                                     .getContextClassLoader().loadClass(className);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("NodeSpec class not found: " + className, e);
+        }
+    }
+
 
     private static ObjectMapper createCoercionMapper() {
         ObjectMapper mapper = new ObjectMapper();

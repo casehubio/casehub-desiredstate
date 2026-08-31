@@ -118,10 +118,9 @@ public final class ForEachExpander {
                         continue;
                     }
                 }
-                Class<? extends NodeSpec> specClass = registry.resolve(yamlNode.type());
                 Map<String, Object> resolvedSpec = nodeResolver.resolveMap(
                         yamlNode.spec(), nodeId);
-                NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
+                NodeSpec spec = registry.resolve(yamlNode.type()).create(resolvedSpec);
                 allNodes.add(new DesiredNode(NodeId.of(nodeId), spec,
                         yamlNode.humanGating(), HookResolver.resolveHooks(yamlNode, nodeResolver, nodeId)));
                 continue;
@@ -144,10 +143,9 @@ public final class ForEachExpander {
                     }
                 }
 
-                Class<? extends NodeSpec> specClass = registry.resolve(yamlNode.type());
                 Map<String, Object> resolvedSpec = eachResolver.resolveMap(
                         yamlNode.spec(), stampedId);
-                NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
+                NodeSpec spec = registry.resolve(yamlNode.type()).create(resolvedSpec);
                 allNodes.add(new DesiredNode(NodeId.of(stampedId), spec,
                         yamlNode.humanGating(), HookResolver.resolveHooks(yamlNode, eachResolver, stampedId)));
             }
