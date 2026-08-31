@@ -83,21 +83,28 @@ public class GraphInvariantEngine {
 
         for (List<DesiredNode> anchor : expectedAnchors) {
             List<Map<String, DesiredNode>> expansions = byAnchor.get(anchor);
-            if (expansions == null || expansions.isEmpty()) {
-                String anchorDesc = anchor.stream()
-                                          .map(n -> n.id().value())
-                                          .collect(Collectors.joining(", "));
-                violations.add(new GraphViolation(invariant.name(),
-                                                  invariant.method().getDeclaringClass().getName(),
-                                                  invariant.name() + " violated for [" + anchorDesc + "]",
-                                                  anchor.stream().map(DesiredNode::id).toList()));
-            } else {
-                for (Map<String, DesiredNode> binding : expansions) {
-                    List<Object> args = new ArrayList<>(paramNames.length);
-                    for (String paramName : paramNames) {
-                        args.add(binding.get(paramName));
+
+            boolean cardinalityFailed = checkExpansionCardinality(
+                    invariant.name(), invariant.method().getDeclaringClass().getName(),
+                    patterns, paramNames, anchor, expansions, violations);
+
+            if (!cardinalityFailed) {
+                if (expansions == null || expansions.isEmpty()) {
+                    String anchorDesc = anchor.stream()
+                                              .map(n -> n.id().value())
+                                              .collect(Collectors.joining(", "));
+                    violations.add(new GraphViolation(invariant.name(),
+                                                      invariant.method().getDeclaringClass().getName(),
+                                                      invariant.name() + " violated for [" + anchorDesc + "]",
+                                                      anchor.stream().map(DesiredNode::id).toList()));
+                } else {
+                    for (Map<String, DesiredNode> binding : expansions) {
+                        List<Object> args = new ArrayList<>(paramNames.length);
+                        for (String paramName : paramNames) {
+                            args.add(binding.get(paramName));
+                        }
+                        invokeReflectiveInvariant(invariant, args, violations);
                     }
-                    invokeReflectiveInvariant(invariant, args, violations);
                 }
             }
         }
@@ -135,15 +142,22 @@ public class GraphInvariantEngine {
 
         for (List<DesiredNode> anchor : expectedAnchors) {
             List<Map<String, DesiredNode>> expansions = byAnchor.get(anchor);
-            if (expansions == null || expansions.isEmpty()) {
-                String anchorDesc = anchor.stream()
-                                          .map(n -> n.id().value())
-                                          .collect(Collectors.joining(", "));
-                String message = invariant.messageTemplate() != null
-                                 ? resolveMatchTemplate(invariant.messageTemplate(), anchor, matchIndices, bindingNames)
-                                 : invariant.name() + " violated for [" + anchorDesc + "]";
-                violations.add(new GraphViolation(invariant.name(), "yaml",
-                                                  message, anchor.stream().map(DesiredNode::id).toList()));
+
+            boolean cardinalityFailed = checkExpansionCardinality(
+                    invariant.name(), "yaml",
+                    patterns, bindingNames, anchor, expansions, violations);
+
+            if (!cardinalityFailed) {
+                if (expansions == null || expansions.isEmpty()) {
+                    String anchorDesc = anchor.stream()
+                                              .map(n -> n.id().value())
+                                              .collect(Collectors.joining(", "));
+                    String message = invariant.messageTemplate() != null
+                                     ? resolveMatchTemplate(invariant.messageTemplate(), anchor, matchIndices, bindingNames)
+                                     : invariant.name() + " violated for [" + anchorDesc + "]";
+                    violations.add(new GraphViolation(invariant.name(), "yaml",
+                                                      message, anchor.stream().map(DesiredNode::id).toList()));
+                }
             }
         }
     }
@@ -160,6 +174,44 @@ public class GraphInvariantEngine {
         return resolved;
     }
 
+
+    private boolean checkExpansionCardinality(String invariantName, String sourceClass,
+                                              List<PatternParameterDescriptor> patterns,
+                                              String[] bindingNames, List<DesiredNode> anchor,
+                                              List<Map<String, DesiredNode>> expansions, List<GraphViolation> violations) {
+        boolean failed = false;
+        for (int i = 0; i < patterns.size(); i++) {
+            PatternParameterDescriptor p = patterns.get(i);
+            if (p.kind() == PatternKind.MATCH || p.kind() == PatternKind.NOT_EXISTS) {continue;}
+            if (!p.hasCardinalityConstraint()) {continue;}
+            final int idx = i;
+            long bindingCount = expansions == null ? 0
+                                                   : expansions.stream()
+                                                               .map(b -> b.get(bindingNames[idx]))
+                                                               .distinct()
+                                                               .count();
+            String anchorDesc = anchor.stream()
+                                      .map(n -> n.id().value())
+                                      .collect(Collectors.joining(", "));
+            if (bindingCount < p.effectiveMinCount()) {
+                violations.add(new GraphViolation(invariantName, sourceClass,
+                                                  invariantName + " for [" + anchorDesc + "]: expected at least "
+                                                  + p.effectiveMinCount() + " '" + p.nodeType()
+                                                  + "' binding(s), found " + bindingCount,
+                                                  anchor.stream().map(DesiredNode::id).toList()));
+                failed = true;
+            }
+            if (bindingCount > p.effectiveMaxCount()) {
+                violations.add(new GraphViolation(invariantName, sourceClass,
+                                                  invariantName + " for [" + anchorDesc + "]: expected at most "
+                                                  + p.effectiveMaxCount() + " '" + p.nodeType()
+                                                  + "' binding(s), found " + bindingCount,
+                                                  anchor.stream().map(DesiredNode::id).toList()));
+                failed = true;
+            }
+        }
+        return failed;
+    }
 
     private boolean hasMatchCardinalityConstraint(List<PatternParameterDescriptor> patterns) {
         return patterns.stream()

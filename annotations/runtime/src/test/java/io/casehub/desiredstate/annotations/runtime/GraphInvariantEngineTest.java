@@ -144,6 +144,74 @@ class GraphInvariantEngineTest {
     // --- helpers ---
 
 
+    public static void lbMinTargets(DesiredNode lb, DesiredNode target) {}
+
+
+    @Test
+    void expansionMinCountViolation_tooFewDeps() {
+        var graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("lb1"), new Spec("lb1", "load-balancer"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("t1"), new Spec("t1", "target"), HumanGating.NONE)),
+                List.of(new Dependency(NodeId.of("t1"), NodeId.of("lb1"))));
+
+        var invariant = parameterizedInvariant("lbMinTargets",
+                                               List.of(
+                                                       new PatternParameterDescriptor(PatternKind.MATCH, "load-balancer", "", Direction.DEPENDENCIES),
+                                                       new PatternParameterDescriptor(PatternKind.DIRECT_DEP, "target", "lb",
+                                                                                      Direction.DEPENDENTS, 2, -1)));
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertEquals(1, ex.violations().size());
+        assertTrue(ex.violations().get(0).message().contains("at least 2"));
+    }
+
+    @Test
+    void expansionMinCountPasses_enoughDeps() {
+        var graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("lb1"), new Spec("lb1", "load-balancer"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("t1"), new Spec("t1", "target"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("t2"), new Spec("t2", "target"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("t3"), new Spec("t3", "target"), HumanGating.NONE)),
+                List.of(
+                        new Dependency(NodeId.of("t1"), NodeId.of("lb1")),
+                        new Dependency(NodeId.of("t2"), NodeId.of("lb1")),
+                        new Dependency(NodeId.of("t3"), NodeId.of("lb1"))));
+
+        var invariant = parameterizedInvariant("lbMinTargets",
+                                               List.of(
+                                                       new PatternParameterDescriptor(PatternKind.MATCH, "load-balancer", "", Direction.DEPENDENCIES),
+                                                       new PatternParameterDescriptor(PatternKind.DIRECT_DEP, "target", "lb",
+                                                                                      Direction.DEPENDENTS, 2, -1)));
+
+        assertDoesNotThrow(() -> engine.validate(graph, List.of(invariant)));
+    }
+
+    @Test
+    void expansionMaxCountViolation_tooManyDeps() {
+        var graph = factory.of(
+                List.of(
+                        new DesiredNode(NodeId.of("svc1"), new Spec("svc1", "service"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("db1"), new Spec("db1", "database"), HumanGating.NONE),
+                        new DesiredNode(NodeId.of("db2"), new Spec("db2", "database"), HumanGating.NONE)),
+                List.of(
+                        new Dependency(NodeId.of("svc1"), NodeId.of("db1")),
+                        new Dependency(NodeId.of("svc1"), NodeId.of("db2"))));
+
+        var invariant = parameterizedInvariant("lbMinTargets",
+                                               List.of(
+                                                       new PatternParameterDescriptor(PatternKind.MATCH, "service", "", Direction.DEPENDENCIES),
+                                                       new PatternParameterDescriptor(PatternKind.DIRECT_DEP, "database", "lb",
+                                                                                      Direction.DEPENDENCIES, -1, 1)));
+
+        var ex = assertThrows(GraphInvariantViolationsException.class,
+                              () -> engine.validate(graph, List.of(invariant)));
+        assertEquals(1, ex.violations().size());
+        assertTrue(ex.violations().get(0).message().contains("at most 1"));
+    }
+
     public static void haMinimum(DesiredNode instance) {}
 
 
