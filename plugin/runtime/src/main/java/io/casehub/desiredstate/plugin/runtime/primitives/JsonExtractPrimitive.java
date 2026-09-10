@@ -28,10 +28,9 @@ public class JsonExtractPrimitive implements StepPrimitive {
                 "json-extract: 'input' and 'path' parameters are required");
         }
 
-        String resolvedInput = interpolator.interpolate(inputRef, context);
         String resolvedPath = interpolator.interpolate(path, context);
 
-        Object source = context.resolve(resolvedInput);
+        Object source = context.resolve(inputRef);
         if (source == null) {
             return StepResult.of(Map.of("value", "null"));
         }

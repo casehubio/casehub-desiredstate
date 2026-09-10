@@ -92,18 +92,8 @@ public class StepPipelineExecutor {
                                      int stepIndex) {
         try {
             return primitive.execute(params, context);
-        } catch (StepExecutionException e) {
-            String onError = step.onError();
-            if ("skip".equals(onError)) {
-                return StepResult.empty();
-            }
-            throw new StepExecutionException(
-                "Step " + stepIndex + " (" + step.primitiveName() + ") failed: "
-                    + e.getMessage(),
-                e, null, stepIndex, step.primitiveName());
         } catch (RuntimeException e) {
-            String onError = step.onError();
-            if ("skip".equals(onError)) {
+            if ("skip".equals(step.onError())) {
                 return StepResult.empty();
             }
             throw new StepExecutionException(

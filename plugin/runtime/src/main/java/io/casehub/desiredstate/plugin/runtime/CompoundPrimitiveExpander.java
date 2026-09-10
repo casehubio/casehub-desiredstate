@@ -67,8 +67,6 @@ public class CompoundPrimitiveExpander {
             expanded.addAll(innerExpanded);
         }
 
-        visited.remove(name);
-
         if (invocation.resultName() != null && compound.resultBinding() != null) {
             if (!expanded.isEmpty()) {
                 PluginStepDef last = expanded.get(expanded.size() - 1);
