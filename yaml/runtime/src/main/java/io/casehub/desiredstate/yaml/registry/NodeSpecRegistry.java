@@ -1,22 +1,34 @@
 package io.casehub.desiredstate.yaml.registry;
 
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeSpecFactory;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class NodeSpecRegistry {
 
     private final Map<String, Class<? extends NodeSpec>> typeMap;
+    private final Map<String, NodeSpecFactory> factoryMap;
 
-    private NodeSpecRegistry(Map<String, Class<? extends NodeSpec>> typeMap) {
+    private NodeSpecRegistry(Map<String, Class<? extends NodeSpec>> typeMap,
+                             Map<String, NodeSpecFactory> factoryMap) {
         this.typeMap = Map.copyOf(typeMap);
+        this.factoryMap = Map.copyOf(factoryMap);
     }
 
     @SuppressWarnings("unchecked")
     public static NodeSpecRegistry of(Map<String, String> typeToClassName) {
+        return of(typeToClassName, Map.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    public static NodeSpecRegistry of(Map<String, String> typeToClassName,
+                                      Map<String, NodeSpecFactory> factories) {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         Map<String, Class<? extends NodeSpec>> resolved = new HashMap<>();
         for (Map.Entry<String, String> entry : typeToClassName.entrySet()) {
@@ -27,7 +39,7 @@ public class NodeSpecRegistry {
                 throw new RuntimeException("NodeSpec class not found: " + entry.getValue(), e);
             }
         }
-        return new NodeSpecRegistry(resolved);
+        return new NodeSpecRegistry(resolved, factories);
     }
 
     public Class<? extends NodeSpec> resolve(String typeName) {
@@ -39,6 +51,14 @@ public class NodeSpecRegistry {
         return cls;
     }
 
+    public Optional<NodeSpecFactory> resolveFactory(String typeName) {
+        return Optional.ofNullable(factoryMap.get(typeName));
+    }
+
+    public boolean isFactoryType(String typeName) {
+        return factoryMap.containsKey(typeName);
+    }
+
     public Class<? extends NodeSpec> resolveByClassName(String className) {
         for (Class<? extends NodeSpec> cls : typeMap.values()) {
             if (cls.getName().equals(className)) return cls;
@@ -47,6 +67,8 @@ public class NodeSpecRegistry {
     }
 
     public Set<String> availableTypes() {
-        return Collections.unmodifiableSet(typeMap.keySet());
+        Set<String> all = new HashSet<>(typeMap.keySet());
+        all.addAll(factoryMap.keySet());
+        return Collections.unmodifiableSet(all);
     }
 }
