@@ -1,0 +1,109 @@
+plugin:
+  type: test-resource
+  version: 1
+  resyncInterval: 30s
+  auth:
+    test-api:
+      credentialRef: test-api-credentials
+
+spec:
+  fields:
+    name:
+      type: string
+      required: true
+    count:
+      type: integer
+      default: 1
+      min: 0
+      max: 100
+    enabled:
+      type: boolean
+      default: true
+    mode:
+      type: enum
+      values: [fast, slow, balanced]
+      default: balanced
+    tags:
+      type: list
+      item-type: string
+    metadata:
+      type: map
+      value-type: string
+
+actual-state:
+  steps:
+    - rest-call:
+        method: GET
+        url: "https://${auth.test-api.endpoint}/resources/${spec.name}"
+        auth: test-api
+        result: response
+    - compare-state:
+        present-when: "${result.response.status} == 200"
+        drifted-when: "${result.response.body.count} < ${spec.count}"
+        absent-when: "${result.response.status} == 404"
+
+provisioner:
+  provision:
+    steps:
+      - rest-call:
+          method: PUT
+          url: "https://${auth.test-api.endpoint}/resources/${spec.name}"
+          auth: test-api
+          headers:
+            Content-Type: application/json
+          body:
+            name: "${spec.name}"
+            count: ${spec.count}
+          result: response
+      - assert:
+          condition: "${result.response.status} in [200, 201]"
+          message: "Provision failed: HTTP ${result.response.status}"
+  deprovision:
+    steps:
+      - rest-call:
+          method: DELETE
+          url: "https://${auth.test-api.endpoint}/resources/${spec.name}"
+          auth: test-api
+          result: response
+      - assert:
+          condition: "${result.response.status} in [200, 404]"
+          message: "Deprovision failed: HTTP ${result.response.status}"
+
+fault-policy:
+  - faultTypes:
+      - PROVISION_FAILED
+    nodeTypes:
+      - test-resource
+    namespace: test-resource-escalation
+    tiers:
+      - threshold: 3
+        reviewNode:
+          type: human-review
+          humanGating: ALL
+          spec:
+            target: "${fault.nodeId}"
+            detail: "${fault.detail}"
+
+cbr:
+  features:
+    - name: count
+      source: spec.count
+      similarity: numeric
+    - name: mode
+      source: spec.mode
+      similarity: categorical
+  outcome-signals:
+    success: "${result.response.body.count} >= ${spec.count}"
+
+ras:
+  situations:
+    - name: repeated-failures
+      events:
+        - NODE_FAULTED
+        - NODE_RECOVERED
+      correlation-window: 10m
+      chain-mode:
+        streak: 3
+      trigger: create-case
+      trigger-mode: fire-once
+      correlation-key: "${spec.name}"
