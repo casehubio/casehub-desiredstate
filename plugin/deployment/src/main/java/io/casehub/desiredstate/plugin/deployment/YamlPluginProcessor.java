@@ -7,7 +7,7 @@ import io.casehub.desiredstate.plugin.model.PluginFieldDef;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.desiredstate.plugin.model.PluginStepDef;
+import io.casehub.yaml.step.StepDef;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import org.jboss.jandex.AnnotationInstance;
@@ -147,12 +147,12 @@ public class YamlPluginProcessor {
         }
     }
 
-    static void validateSteps(String type, String section, List<PluginStepDef> steps,
+    static void validateSteps(String type, String section, List<StepDef> steps,
                               PluginSpecSchema spec, Set<String> knownPrimitives) {
         Set<String> resultBindings = new HashSet<>();
 
         for (int i = 0; i < steps.size(); i++) {
-            PluginStepDef step = steps.get(i);
+            StepDef step = steps.get(i);
 
             if (!knownPrimitives.contains(step.primitiveName())) {
                 String suggestion = suggestSimilar(step.primitiveName(), knownPrimitives);
@@ -249,7 +249,7 @@ public class YamlPluginProcessor {
     }
 
     static void validateActualStateHasCompareState(String type,
-                                                   List<PluginStepDef> steps) {
+                                                   List<StepDef> steps) {
         long count = steps.stream()
             .filter(s -> "compare-state".equals(s.primitiveName()))
             .count();
@@ -260,7 +260,7 @@ public class YamlPluginProcessor {
     }
 
     static void validateActualStateNoApprovalGate(String type,
-                                                  List<PluginStepDef> steps) {
+                                                  List<StepDef> steps) {
         if (steps.stream().anyMatch(s -> "approval-gate".equals(s.primitiveName()))) {
             throw new PluginValidationException(type,
                 "actual-state must not contain 'approval-gate' steps");

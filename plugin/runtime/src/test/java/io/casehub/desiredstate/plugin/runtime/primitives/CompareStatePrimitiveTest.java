@@ -1,8 +1,8 @@
 package io.casehub.desiredstate.plugin.runtime.primitives;
 
-import io.casehub.desiredstate.plugin.api.StepContext;
-import io.casehub.desiredstate.plugin.api.StepParameters;
-import io.casehub.desiredstate.plugin.api.StepResult;
+import io.casehub.yaml.step.StepContext;
+import io.casehub.yaml.step.StepParameters;
+import io.casehub.yaml.step.StepResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -16,13 +16,10 @@ class CompareStatePrimitiveTest {
     @Test
     void mapsToPresent() {
         var params = StepParameters.of(Map.of(
-            "present-when", "${result.r.status} == 200",
-            "drifted-when", "${result.r.replicas} < 3",
-            "absent-when", "${result.r.status} == 404"));
-        var ctx = StepContext.builder()
-            .spec(Map.of())
-            .addResult("r", StepResult.of(Map.of("status", 200, "replicas", 3)))
-            .build();
+            "present-when", "200 == 200",
+            "drifted-when", "3 < 3",
+            "absent-when", "200 == 404"));
+        var ctx = StepContext.builder().build();
         var result = primitive.execute(params, ctx);
         assertThat(result.get("nodeStatus")).isEqualTo("PRESENT");
     }
@@ -30,13 +27,10 @@ class CompareStatePrimitiveTest {
     @Test
     void mapsToDrifted() {
         var params = StepParameters.of(Map.of(
-            "present-when", "${result.r.status} == 200",
-            "drifted-when", "${result.r.replicas} < 3",
-            "absent-when", "${result.r.status} == 404"));
-        var ctx = StepContext.builder()
-            .spec(Map.of())
-            .addResult("r", StepResult.of(Map.of("status", 200, "replicas", 1)))
-            .build();
+            "present-when", "200 == 200",
+            "drifted-when", "1 < 3",
+            "absent-when", "200 == 404"));
+        var ctx = StepContext.builder().build();
         var result = primitive.execute(params, ctx);
         assertThat(result.get("nodeStatus")).isEqualTo("DRIFTED");
     }
@@ -44,12 +38,9 @@ class CompareStatePrimitiveTest {
     @Test
     void mapsToAbsent() {
         var params = StepParameters.of(Map.of(
-            "present-when", "${result.r.status} == 200",
-            "absent-when", "${result.r.status} == 404"));
-        var ctx = StepContext.builder()
-            .spec(Map.of())
-            .addResult("r", StepResult.of(Map.of("status", 404)))
-            .build();
+            "present-when", "404 == 200",
+            "absent-when", "404 == 404"));
+        var ctx = StepContext.builder().build();
         var result = primitive.execute(params, ctx);
         assertThat(result.get("nodeStatus")).isEqualTo("ABSENT");
     }
@@ -57,11 +48,8 @@ class CompareStatePrimitiveTest {
     @Test
     void mapsToUnknownWhenNoConditionMatches() {
         var params = StepParameters.of(Map.of(
-            "present-when", "${result.r.status} == 200"));
-        var ctx = StepContext.builder()
-            .spec(Map.of())
-            .addResult("r", StepResult.of(Map.of("status", 500)))
-            .build();
+            "present-when", "500 == 200"));
+        var ctx = StepContext.builder().build();
         var result = primitive.execute(params, ctx);
         assertThat(result.get("nodeStatus")).isEqualTo("UNKNOWN");
     }
@@ -69,13 +57,10 @@ class CompareStatePrimitiveTest {
     @Test
     void absentCheckedBeforeDrifted() {
         var params = StepParameters.of(Map.of(
-            "present-when", "${result.r.status} == 200",
-            "drifted-when", "${result.r.status} == 404",
-            "absent-when", "${result.r.status} == 404"));
-        var ctx = StepContext.builder()
-            .spec(Map.of())
-            .addResult("r", StepResult.of(Map.of("status", 404)))
-            .build();
+            "present-when", "404 == 200",
+            "drifted-when", "404 == 404",
+            "absent-when", "404 == 404"));
+        var ctx = StepContext.builder().build();
         var result = primitive.execute(params, ctx);
         assertThat(result.get("nodeStatus")).isEqualTo("ABSENT");
     }
@@ -83,11 +68,8 @@ class CompareStatePrimitiveTest {
     @Test
     void handlesNullConditionValues() {
         var params = StepParameters.of(Map.of(
-            "present-when", "${result.r.missing} == 200"));
-        var ctx = StepContext.builder()
-            .spec(Map.of())
-            .addResult("r", StepResult.of(Map.of("status", 200)))
-            .build();
+            "present-when", "null == 200"));
+        var ctx = StepContext.builder().build();
         var result = primitive.execute(params, ctx);
         assertThat(result.get("nodeStatus")).isEqualTo("UNKNOWN");
     }

@@ -5,11 +5,12 @@ import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
-import io.casehub.desiredstate.plugin.api.PluginInterpolator;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.desiredstate.plugin.model.PluginStepDef;
 import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
+import io.casehub.yaml.step.PrimitiveRegistry;
+import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.StepPipelineExecutor;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +26,7 @@ class YamlPluginActualStateAdapterTest {
 
     @Test
     void readsActualStateForPluginTypes() {
-        var compareStep = new PluginStepDef("compare-state", Map.of(
+        var compareStep = new StepDef("compare-state", Map.of(
             "present-when", "${spec.status} == 1",
             "absent-when", "${spec.status} == 0"),
             null, null, null, 3, null);
@@ -37,7 +38,7 @@ class YamlPluginActualStateAdapterTest {
 
         var registry = PrimitiveRegistry.of(Map.of(
             "compare-state", new CompareStatePrimitive()));
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+        var executor = new StepPipelineExecutor(registry);
         var adapter = new YamlPluginActualStateAdapter(
             Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
 
@@ -51,7 +52,7 @@ class YamlPluginActualStateAdapterTest {
 
     @Test
     void returnsAbsentForAbsentNode() {
-        var compareStep = new PluginStepDef("compare-state", Map.of(
+        var compareStep = new StepDef("compare-state", Map.of(
             "present-when", "${spec.status} == 1",
             "absent-when", "${spec.status} == 0"),
             null, null, null, 3, null);
@@ -63,7 +64,7 @@ class YamlPluginActualStateAdapterTest {
 
         var registry = PrimitiveRegistry.of(Map.of(
             "compare-state", new CompareStatePrimitive()));
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+        var executor = new StepPipelineExecutor(registry);
         var adapter = new YamlPluginActualStateAdapter(
             Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
 
@@ -77,7 +78,7 @@ class YamlPluginActualStateAdapterTest {
 
     @Test
     void skipsNodesNotHandledByPlugin() {
-        var compareStep = new PluginStepDef("compare-state", Map.of(
+        var compareStep = new StepDef("compare-state", Map.of(
             "present-when", "${spec.status} == 1"),
             null, null, null, 3, null);
 
@@ -88,7 +89,7 @@ class YamlPluginActualStateAdapterTest {
 
         var registry = PrimitiveRegistry.of(Map.of(
             "compare-state", new CompareStatePrimitive()));
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+        var executor = new StepPipelineExecutor(registry);
         var adapter = new YamlPluginActualStateAdapter(
             Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
 
@@ -116,7 +117,7 @@ class YamlPluginActualStateAdapterTest {
             List.of(), List.of(), List.of(), null, null);
 
         var registry = PrimitiveRegistry.of(Map.of());
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+        var executor = new StepPipelineExecutor(registry);
         var adapter = new YamlPluginActualStateAdapter(
             Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
 

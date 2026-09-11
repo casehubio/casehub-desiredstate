@@ -7,7 +7,7 @@ import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginRasDef;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.desiredstate.plugin.model.PluginStepDef;
+import io.casehub.yaml.step.StepDef;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -263,7 +263,7 @@ class YamlPluginProcessorTest {
     }
 
     private static PluginModel createPluginWithSteps(String type, PluginSpecSchema spec,
-                                                     List<PluginStepDef> actualSteps) {
+                                                     List<StepDef> actualSteps) {
         var provisionSteps = List.of(
             step("assert", Map.of("condition", "true"), null));
         return new PluginModel(
@@ -279,9 +279,9 @@ class YamlPluginProcessorTest {
                 null, null, null, null, null, null, null)));
     }
 
-    private static PluginStepDef step(String primitive, Map<String, Object> params,
+    private static StepDef step(String primitive, Map<String, Object> params,
                                       String result) {
-        return new PluginStepDef(primitive, params, result, null, null, 3, null);
+        return new StepDef(primitive, params, result, null, null, 3, null);
     }
 
     private static PluginCbrDef emptyCbr() {

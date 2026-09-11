@@ -8,13 +8,17 @@ import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
-import io.casehub.desiredstate.plugin.api.PluginInterpolator;
-import io.casehub.desiredstate.plugin.api.StepParameters;
-import io.casehub.desiredstate.plugin.api.StepPrimitive;
-import io.casehub.desiredstate.plugin.api.StepResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.desiredstate.plugin.model.PluginStepDef;
+import io.casehub.yaml.step.PrimitiveRegistry;
+import io.casehub.yaml.step.StepContext;
+import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.StepExecutionException;
+import io.casehub.yaml.step.StepParameters;
+import io.casehub.yaml.step.StepPipelineExecutor;
+import io.casehub.yaml.step.StepPrimitive;
+import io.casehub.yaml.step.StepResult;
+import io.casehub.yaml.step.primitives.AssertPrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.Test;
 
@@ -90,7 +94,7 @@ class YamlPluginProvisionerTest {
             public String name() { return "spec-check"; }
 
             @Override
-            public StepResult execute(StepParameters params, io.casehub.desiredstate.plugin.api.StepContext context) {
+            public StepResult execute(StepParameters params, io.casehub.yaml.step.StepContext context) {
                 Object name = context.resolve("spec.name");
                 if (!"my-resource".equals(name)) {
                     throw new StepExecutionException("Expected 'my-resource' but got: " + name);
@@ -100,12 +104,12 @@ class YamlPluginProvisionerTest {
         };
 
         var registry = PrimitiveRegistry.of(Map.of("spec-check", specChecker));
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+        var executor = new StepPipelineExecutor(registry);
 
         var descriptor = new PluginDescriptor(
             "test-resource", 1, Duration.ofMinutes(5), Map.of(),
             new PluginSpecSchema(Map.of()), List.of(),
-            List.of(new PluginStepDef("spec-check", Map.of(), null, null, null, 3, null)),
+            List.of(new StepDef("spec-check", Map.of(), null, null, null, 3, null)),
             List.of(), List.of(), null, null);
 
         var provisioner = new YamlPluginProvisioner(
@@ -126,7 +130,7 @@ class YamlPluginProvisionerTest {
             public String name() { return "auth-check"; }
 
             @Override
-            public StepResult execute(StepParameters params, io.casehub.desiredstate.plugin.api.StepContext context) {
+            public StepResult execute(StepParameters params, io.casehub.yaml.step.StepContext context) {
                 Object token = context.resolve("auth.api.token");
                 if (!"secret-token".equals(token)) {
                     throw new StepExecutionException("Expected 'secret-token' but got: " + token);
@@ -136,13 +140,13 @@ class YamlPluginProvisionerTest {
         };
 
         var registry = PrimitiveRegistry.of(Map.of("auth-check", authChecker));
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+        var executor = new StepPipelineExecutor(registry);
 
         var descriptor = new PluginDescriptor(
             "test-resource", 1, Duration.ofMinutes(5),
             Map.of("api", "api-credentials"),
             new PluginSpecSchema(Map.of()), List.of(),
-            List.of(new PluginStepDef("auth-check", Map.of(), null, null, null, 3, null)),
+            List.of(new StepDef("auth-check", Map.of(), null, null, null, 3, null)),
             List.of(), List.of(), null, null);
 
         var provisioner = new YamlPluginProvisioner(
@@ -159,14 +163,14 @@ class YamlPluginProvisionerTest {
 
     private YamlPluginProvisioner createProvisioner(PluginDescriptor descriptor) {
         var registry = PrimitiveRegistry.of(Map.of(
-            "assert", new io.casehub.desiredstate.plugin.runtime.primitives.AssertPrimitive()));
-        var executor = new StepPipelineExecutor(registry, new PluginInterpolator());
+            "assert", new AssertPrimitive()));
+        var executor = new StepPipelineExecutor(registry);
         return new YamlPluginProvisioner(
             Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
     }
 
-    private static PluginDescriptor createDescriptor(List<PluginStepDef> provisionSteps,
-                                                     List<PluginStepDef> deprovisionSteps) {
+    private static PluginDescriptor createDescriptor(List<StepDef> provisionSteps,
+                                                     List<StepDef> deprovisionSteps) {
         return new PluginDescriptor(
             "test-resource", 1, Duration.ofMinutes(5), Map.of(),
             new PluginSpecSchema(Map.of()), List.of(),
@@ -180,8 +184,8 @@ class YamlPluginProvisionerTest {
             List.of(assertStep("1 == 1")), List.of(), List.of(), null, null);
     }
 
-    private static PluginStepDef assertStep(String condition) {
-        return new PluginStepDef("assert", Map.of("condition", condition),
+    private static StepDef assertStep(String condition) {
+        return new StepDef("assert", Map.of("condition", condition),
             null, null, null, 3, null);
     }
 

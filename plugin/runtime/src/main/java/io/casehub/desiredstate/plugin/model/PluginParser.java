@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.casehub.yaml.step.StepDef;
+
 public class PluginParser {
 
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
@@ -87,11 +89,11 @@ public class PluginParser {
         );
     }
 
-    private static List<PluginStepDef> parseSteps(JsonNode stepsNode) {
+    private static List<StepDef> parseSteps(JsonNode stepsNode) {
         if (stepsNode.isMissingNode() || !stepsNode.isArray()) {
             return List.of();
         }
-        List<PluginStepDef> steps = new ArrayList<>();
+        List<StepDef> steps = new ArrayList<>();
         for (JsonNode stepNode : stepsNode) {
             Iterator<Map.Entry<String, JsonNode>> fields = stepNode.fields();
             if (!fields.hasNext()) {
@@ -114,7 +116,7 @@ public class PluginParser {
                 }
             });
 
-            steps.add(new PluginStepDef(
+            steps.add(new StepDef(
                 primitiveName, Map.copyOf(parameters),
                 resultName, when, onError, maxRetries, backoff));
         }

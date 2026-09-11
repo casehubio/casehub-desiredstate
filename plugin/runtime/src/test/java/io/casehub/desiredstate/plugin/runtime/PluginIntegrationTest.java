@@ -9,14 +9,15 @@ import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
-import io.casehub.desiredstate.plugin.api.PluginInterpolator;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.desiredstate.plugin.model.PluginStepDef;
-import io.casehub.desiredstate.plugin.runtime.primitives.AssertPrimitive;
 import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
+import io.casehub.yaml.step.PrimitiveRegistry;
+import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.StepPipelineExecutor;
+import io.casehub.yaml.step.primitives.AssertPrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -161,7 +162,7 @@ class PluginIntegrationTest {
         var registry = PrimitiveRegistry.of(Map.of(
             "assert", new AssertPrimitive(),
             "compare-state", new CompareStatePrimitive()));
-        return new StepPipelineExecutor(registry, new PluginInterpolator());
+        return new StepPipelineExecutor(registry);
     }
 
     private static PluginDescriptor toDescriptor(PluginModel model) {

@@ -7,8 +7,11 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
-import io.casehub.desiredstate.plugin.api.StepContext;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
+import io.casehub.yaml.core.resolver.VariableResolver;
+import io.casehub.yaml.step.StepContext;
+import io.casehub.yaml.step.StepPipelineExecutor;
+import io.casehub.yaml.step.PrimitiveRegistry;
 import io.casehub.platform.api.credentials.CredentialResolver;
 
 import java.util.HashMap;
@@ -18,14 +21,14 @@ import java.util.Set;
 public class YamlPluginActualStateAdapter implements ActualStateAdapter {
 
     private final Map<NodeType, PluginDescriptor> plugins;
-    private final StepPipelineExecutor executor;
+    private final ActualStateStepExecutor actualStateExecutor;
     private final CredentialResolver credentialResolver;
 
     public YamlPluginActualStateAdapter(Map<NodeType, PluginDescriptor> plugins,
                                         StepPipelineExecutor executor,
                                         CredentialResolver credentialResolver) {
         this.plugins = Map.copyOf(plugins);
-        this.executor = executor;
+        this.actualStateExecutor = new ActualStateStepExecutor(executor);
         this.credentialResolver = credentialResolver;
     }
 
@@ -43,8 +46,9 @@ public class YamlPluginActualStateAdapter implements ActualStateAdapter {
                 try {
                     PluginDescriptor plugin = plugins.get(node.type());
                     StepContext context = buildContext(node, plugin);
-                    NodeStatus status = executor.executeActualState(
-                        plugin.actualStateSteps(), context);
+                    VariableResolver resolver = context.toResolver();
+                    NodeStatus status = actualStateExecutor.execute(
+                        plugin.actualStateSteps(), context, resolver);
                     states.put(node.id(), status);
                 } catch (RuntimeException e) {
                     states.put(node.id(), NodeStatus.UNKNOWN);

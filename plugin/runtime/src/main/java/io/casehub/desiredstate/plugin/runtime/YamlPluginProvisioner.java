@@ -7,9 +7,10 @@ import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
-import io.casehub.desiredstate.plugin.api.StepContext;
-import io.casehub.desiredstate.plugin.api.StepResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
+import io.casehub.yaml.core.resolver.VariableResolver;
+import io.casehub.yaml.step.StepContext;
+import io.casehub.yaml.step.StepPipelineExecutor;
 import io.casehub.platform.api.credentials.CredentialResolver;
 
 import java.time.Duration;
@@ -52,7 +53,8 @@ public class YamlPluginProvisioner implements NodeProvisioner {
         }
         try {
             StepContext stepContext = buildContext(node, plugin);
-            executor.execute(plugin.provisionSteps(), stepContext);
+            VariableResolver resolver = stepContext.toResolver();
+            executor.execute(plugin.provisionSteps(), stepContext, resolver);
             return new ProvisionResult.Success();
         } catch (RuntimeException e) {
             return new ProvisionResult.Failed(e.getMessage());
@@ -68,7 +70,8 @@ public class YamlPluginProvisioner implements NodeProvisioner {
         }
         try {
             StepContext stepContext = buildContext(node, plugin);
-            executor.execute(plugin.deprovisionSteps(), stepContext);
+            VariableResolver resolver = stepContext.toResolver();
+            executor.execute(plugin.deprovisionSteps(), stepContext, resolver);
             return new DeprovisionResult.Success();
         } catch (RuntimeException e) {
             return new DeprovisionResult.Failed(e.getMessage());
