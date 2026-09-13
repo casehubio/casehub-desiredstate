@@ -9,19 +9,19 @@ import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.InMemoryReconciliationStateStore;
 import io.casehub.desiredstate.api.MergedEventSource;
 import io.casehub.desiredstate.api.NodeDriftedData;
 import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
-import io.casehub.desiredstate.api.ReconciliationStateStore;
-import io.casehub.desiredstate.api.InMemoryReconciliationStateStore;
 import io.casehub.desiredstate.api.NodeRecoveredData;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.ReconciliationCompletedData;
 import io.casehub.desiredstate.api.ReconciliationListener;
+import io.casehub.desiredstate.api.ReconciliationStateStore;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.desiredstate.api.TransitionPlan;
@@ -331,7 +331,7 @@ public class ReconciliationLoop {
     }
 
     @PreDestroy
-    void shutdown() {
+    public void shutdown() {
         for (String tenancyId : loops.keySet()) {
             stop(tenancyId);
         }

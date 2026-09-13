@@ -209,6 +209,31 @@ public class CrossDomainCompositionEngine implements GlobalReconciliationListene
         return composed;
     }
 
+    public DesiredStateGraph buildMetaGraph() {
+        Map<NodeType, DomainId> providerOf = new LinkedHashMap<>();
+        for (var entry : domainConfigs.entrySet()) {
+            for (NodeType t : entry.getValue().provides()) {providerOf.put(t, entry.getKey());}
+        }
+
+        List<DesiredNode> nodes = new ArrayList<>();
+        List<Dependency>  deps  = new ArrayList<>();
+        for (DomainId id : topologicalOrder) {
+            var reg    = domainConfigs.get(id);
+            var spec   = new DomainNodeSpec(id, reg);
+            var nodeId = NodeId.of("domain:" + id.value());
+            nodes.add(new DesiredNode(nodeId, spec, io.casehub.desiredstate.api.HumanGating.NONE));
+
+            for (NodeType req : reg.requires()) {
+                DomainId provider = providerOf.get(req);
+                if (provider != null) {
+                    deps.add(new Dependency(nodeId, NodeId.of("domain:" + provider.value())));
+                }
+            }
+        }
+        return graphFactory.of(nodes, deps);
+    }
+
+
     private DesiredStateGraph addCrossDomainEdges(DesiredStateGraph composed, TenantCompositionState tenantState) {
         Map<NodeType, DomainId> providerOf = new LinkedHashMap<>();
         for (DomainId id : topologicalOrder)
