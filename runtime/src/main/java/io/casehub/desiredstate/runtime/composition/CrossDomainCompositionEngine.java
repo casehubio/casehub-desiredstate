@@ -1,6 +1,9 @@
 package io.casehub.desiredstate.runtime.composition;
 
 import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.CompletionCondition;
+import io.casehub.desiredstate.api.Phase;
 import io.casehub.desiredstate.api.Dependency;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
@@ -234,10 +237,48 @@ public class CrossDomainCompositionEngine implements GlobalReconciliationListene
         return composed;
     }
 
+
+    public void setTenantState(String tenancyId, TenantCompositionState state) {
+        tenantStates.put(tenancyId, state);
+    }
+
+    public TenantCompositionState getTenantState(String tenancyId) {
+        return tenantStates.get(tenancyId);
+    }
+
     @Override
     public void onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph desired, ActualState actual) {
-        // Implemented in Task 4
-    }
+        TenantCompositionState tenantState = tenantStates.get(tenancyId);
+        if (tenantState == null) {return;}
+
+        synchronized (recomposeLock) {
+            boolean                recomposeNeeded = false;
+            TenantCompositionState current         = tenantStates.get(tenancyId);
+            if (current == null) {return;}
+
+            for (var entry : current.phases().entrySet()) {
+                DomainId         domainId   = entry.getKey();
+                DomainPhaseState phaseState = entry.getValue();
+                if (!phaseState.hasLifecycle() || phaseState.isAtFinalPhase()) {continue;}
+
+                CompilationResult.Lifecycle                     lc           = (CompilationResult.Lifecycle) phaseState.currentResult();
+                Phase currentPhase = lc.phases().get(phaseState.phaseIndex());
+                CompletionCondition condition    = currentPhase.completionCondition();
+
+                DesiredStateGraph domainGraph = phaseState.currentGraph();
+                if (condition.isComplete(domainGraph, actual)) {
+                    current         = current.withPhase(domainId, phaseState.withAdvancedPhase());
+                    recomposeNeeded = true;
+                    LOG.info("Domain '" + domainId.value() + "' phase transition: '"
+                             + currentPhase.id() + "' → '"
+                             + lc.phases().get(phaseState.phaseIndex() + 1).id() + "'");
+                }
+            }
+
+            if (recomposeNeeded) {
+                tenantStates.put(tenancyId, current);
+            }
+        }}
 
     @Override
     public void onTenantStopped(String tenancyId) {
