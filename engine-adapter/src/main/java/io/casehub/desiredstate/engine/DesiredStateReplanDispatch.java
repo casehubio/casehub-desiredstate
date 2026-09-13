@@ -1,6 +1,11 @@
 package io.casehub.desiredstate.engine;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapterRouter;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.desiredstate.runtime.LifecycleManager;
 import io.casehub.desiredstate.runtime.ReconciliationLoop;
 import io.casehub.desiredstate.runtime.SituationRecompilerEngine;
@@ -42,6 +47,9 @@ public class DesiredStateReplanDispatch {
     private final DesiredStateGraphFactory graphFactory;
     private final CallableDispatchRegistry callRegistry;
     private final ActualStateAdapterRouter actualStateRouter;
+    @Inject
+    jakarta.enterprise.inject.Instance<io.casehub.desiredstate.runtime.composition.CrossDomainCompositionEngine> compositionEngine;
+
 
     @Inject
     public DesiredStateReplanDispatch(
@@ -71,34 +79,40 @@ public class DesiredStateReplanDispatch {
     CompletableFuture<Map<String, Object>> replan(
             String workflowInstanceId, Map<String, Object> args) {
         try {
-            String tenancyId = requireString(args, "tenancyId");
-            String situationId = requireString(args, "situationId");
+            String tenancyId      = requireString(args, "tenancyId");
+            String situationId    = requireString(args, "situationId");
             String correlationKey = requireString(args, "correlationKey");
-            double confidence = requireDouble(args, "confidence");
-            Object evidenceObj = args.getOrDefault("evidence", Map.of());
+            double confidence     = requireDouble(args, "confidence");
+            Object evidenceObj    = args.getOrDefault("evidence", Map.of());
             @SuppressWarnings("unchecked")
             Map<String, Object> evidence = (evidenceObj instanceof Map)
-                ? (Map<String, Object>) evidenceObj
-                : Map.of();
-            Instant since = Instant.parse(requireString(args, "since"));
-            Instant lastSignal = Instant.parse(requireString(args, "lastSignal"));
-            int triggerCount = requireInt(args, "triggerCount");
+                                           ? (Map<String, Object>) evidenceObj
+                                           : Map.of();
+            Instant since        = Instant.parse(requireString(args, "since"));
+            Instant lastSignal   = Instant.parse(requireString(args, "lastSignal"));
+            int     triggerCount = requireInt(args, "triggerCount");
 
             ActiveSituation situation = new ActiveSituation(
-                situationId, correlationKey, tenancyId, confidence,
-                evidence, since, lastSignal, triggerCount);
+                    situationId, correlationKey, tenancyId, confidence,
+                    evidence, since, lastSignal, triggerCount);
 
             DesiredStateGraph current = reconciliationLoop.getDesired(tenancyId);
-            ActualState actual = actualStateRouter.readActual(current, tenancyId);
+            ActualState       actual  = actualStateRouter.readActual(current, tenancyId);
 
-            Optional<CompilationResult> newResult = recompilerEngine.recompile(
-                tenancyId, current, actual, situation, graphFactory);
+            Optional<CompilationResult> newResult;
+            if (compositionEngine != null && compositionEngine.isResolvable() && compositionEngine.get().isActive()) {
+                newResult = compositionEngine.get().handleReplan(
+                        tenancyId, actual, situation, graphFactory);
+            } else {
+                newResult = recompilerEngine.recompile(
+                        tenancyId, current, actual, situation, graphFactory);
+                newResult.ifPresent(r -> lifecycleManager.updateDesired(tenancyId, r));
+            }
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("situationId", situationId);
 
             if (newResult.isPresent()) {
-                lifecycleManager.updateDesired(tenancyId, newResult.get());
                 result.put("status", "REPLANNED");
             } else {
                 result.put("status", "NO_CHANGE");
@@ -107,8 +121,7 @@ public class DesiredStateReplanDispatch {
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
-        }
-    }
+        }}
 
     private static String requireString(Map<String, Object> args, String key) {
         Object value = args.get(key);

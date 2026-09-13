@@ -3,7 +3,6 @@ package io.casehub.desiredstate.runtime.composition;
 import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.CompletionCondition;
-import io.casehub.desiredstate.api.Phase;
 import io.casehub.desiredstate.api.Dependency;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
@@ -12,6 +11,7 @@ import io.casehub.desiredstate.api.DomainId;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.Phase;
 import io.casehub.desiredstate.api.SituationRecompiler;
 
 import java.util.ArrayDeque;
@@ -244,6 +244,34 @@ public class CrossDomainCompositionEngine implements GlobalReconciliationListene
 
     public TenantCompositionState getTenantState(String tenancyId) {
         return tenantStates.get(tenancyId);
+    }
+
+
+    public java.util.Optional<CompilationResult> handleReplan(
+            String tenancyId, io.casehub.desiredstate.api.ActualState actual,
+            io.casehub.ras.api.ActiveSituation situation, DesiredStateGraphFactory factory) {
+        TenantCompositionState tenantState = tenantStates.get(tenancyId);
+        if (tenantState == null) {return java.util.Optional.empty();}
+
+        for (var entry : sortedRecompilers) {
+            io.casehub.desiredstate.api.SituationRecompiler recompiler  = entry.getKey();
+            DomainId                                        domainId    = entry.getValue();
+            DomainPhaseState                                phaseState  = tenantState.phases().get(domainId);
+            DesiredStateGraph                               domainGraph = phaseState.currentGraph();
+
+            java.util.Optional<CompilationResult> result = recompiler.recompile(
+                    tenancyId, domainGraph, actual, situation, factory);
+            if (result.isPresent()) {
+                synchronized (recomposeLock) {
+                    TenantCompositionState current = tenantStates.get(tenancyId);
+                    current = current.withPhase(domainId,
+                                                current.phases().get(domainId).withResult(result.get()));
+                    tenantStates.put(tenancyId, current);
+                }
+                return result;
+            }
+        }
+        return java.util.Optional.empty();
     }
 
     @Override
