@@ -63,6 +63,21 @@ public class CrossDomainCompositionEngine implements GlobalReconciliationListene
     DesiredStateGraphFactory graphFactory() { return graphFactory; }
     void markComposed() { this.composed = true; }
 
+    public void compose() {
+        validate();
+        composed = true;
+    }
+
+    public TenantCompositionState initTenantState() {
+        Map<DomainId, DomainPhaseState> phases = new LinkedHashMap<>();
+        for (DomainId id : topologicalOrder) {
+            var reg = domainConfigs.get(id);
+            phases.put(id, new DomainPhaseState(reg.compilationResult(), 0));
+        }
+        return new TenantCompositionState(Map.copyOf(phases));
+    }
+
+
     public void validate() {
         validateDuplicateProvides();
         validateUnsatisfiedRequires();
