@@ -11,7 +11,7 @@
 | Module | artifactId | Root package | Contents |
 |--------|-----------|-------------|----------|
 | `api/` | `casehub-desiredstate-api` | `io.casehub.desiredstate.api` | Core SPIs and domain types. Pure Java + Mutiny `provided`. No CDI, no framework. Contains: `DesiredStateGraph`, `DesiredNode`, `GoalCompiler`, `NodeProvisioner`, `ActualStateAdapter`, `FaultPolicy`, `EventSource`, `TransitionExecutor`, `HumanNodeHandler`, `PendingApprovalHandler`, `SituationRecompiler`, `GlobalReconciliationListener`, `ReconciliationListener`, `FaultCountStore`, `ConfigurationRetriever`, `ConfigurationAdapter`, `CompletionCondition`, `ThresholdFaultPolicy`, `InMemoryFaultCountStore`, `ReconciliationStateStore`, `InMemoryReconciliationStateStore`, sealed types (`GraphMutation`, `CompilationResult`, `StepOutcome`, `ProvisionResult`, `DeprovisionResult`, `ApprovalCheckResult`), `GraphMutations` utility, value types (`NodeId`, `NodeType`, `Dependency`, `HumanGating`, `StepAction`, `FaultType`, `NodeStatus`), CloudEvent data records. |
-| `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | CDI runtime: `ImmutableDesiredStateGraph`, `DefaultDesiredStateGraphFactory`, `TransitionPlanner`, `ReconciliationLoop` (with `Builder`), `SimpleTransitionExecutor`, `FaultPolicyEngine`, `LifecycleManager`, `DefaultNodeProvisionerRouter`, `CdiNodeProvisionerRouter`, `DefaultActualStateAdapterRouter`, `CdiActualStateAdapterRouter`, `DefaultMergedEventSource`, `CdiMergedEventSource`, `DefaultFaultCountStore`, `DefaultReconciliationStateStore`, `FaultCountEvictionListener`, `ReconciliationEventEmitter`, `SituationRecompilerEngine`, `CbrFaultPolicy`, `CbrSituationRecompiler`, `CbrProposalTracker`, `GraphDiff`, `DesiredStatePreferenceKeys`. NoOp defaults: `NoOpHumanNodeHandler`, `NoOpPendingApprovalHandler`, `NoOpConfigurationRetriever`, `NoOpConfigurationAdapter`. `@ApplicationScoped` beans. OpenTelemetry instrumented. |
+| `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | CDI runtime: `ImmutableDesiredStateGraph`, `DefaultDesiredStateGraphFactory`, `TransitionPlanner`, `ReconciliationLoop` (with `Builder`), `SimpleTransitionExecutor`, `FaultPolicyEngine`, `LifecycleManager`, `DefaultNodeProvisionerRouter`, `CdiNodeProvisionerRouter`, `DefaultActualStateAdapterRouter`, `CdiActualStateAdapterRouter`, `DefaultMergedEventSource`, `CdiMergedEventSource`, `DefaultFaultCountStore`, `DefaultReconciliationStateStore`, `FaultCountEvictionListener`, `ReconciliationEventEmitter`, `SituationRecompilerEngine`, `CbrFaultPolicy`, `CbrSituationRecompiler`, `CbrProposalTracker`, `GraphDiff`, `DesiredStatePreferenceKeys`. Composition subpackage (`runtime.composition`): `CrossDomainCompositionEngine`, `DomainRegistration`, `DomainPhaseState`, `TenantCompositionState`, `DomainNodeSpec`, `DomainNodeProvisioner`, `DomainActualStateAdapter`. NoOp defaults: `NoOpHumanNodeHandler`, `NoOpPendingApprovalHandler`, `NoOpConfigurationRetriever`, `NoOpConfigurationAdapter`. `@ApplicationScoped` beans. OpenTelemetry instrumented. |
 | `testing/` | `casehub-desiredstate-testing` | `io.casehub.desiredstate.testing` | `MockNodeProvisioner`, `MockActualStateAdapter`, `MockPendingApprovalHandler`, `MockTransitionExecutor`, `MockConfigurationRetriever`, `MockConfigurationAdapter`, `CannedEventSource`, `TestTimeouts`. Test scope only. |
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | `CaseTransitionExecutor` displaces `SimpleTransitionExecutor`. `TransitionWorkflowGenerator` generates Serverless Workflow 1.0 definitions. `DesiredStateDispatch` registers `desiredstate:dispatch` via `CallableDispatchRegistry` and handles full PendingApproval lifecycle within workflow steps. `DesiredStateReplanDispatch` registers `desiredstate:replan` for RAS-triggered situation response via `SituationRecompilerEngine`. `DesiredStateExecutionRegistry` tracks per-execution graph/tenancy context and active case IDs. `DesiredStateExecutionContext` record. CTE pre-filters approval-gated nodes before case creation. |
 | `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | `WorkItemPendingApprovalHandler` -- WorkItem-backed approval lifecycle via `WorkItemCreator` SPI. Classpath-activated, displaces `NoOpPendingApprovalHandler`. |
@@ -122,6 +122,24 @@ Types are grouped by their effective resync interval (provisioner default or Pre
 ### FaultCountEvictionListener
 
 `@ApplicationScoped` `GlobalReconciliationListener` -- after each reconciliation cycle, calls `FaultCountStore.evictAcrossNamespaces(tenancyId, retainedNodes)` where `retainedNodes` are the current graph's node IDs. This removes stale fault counts for nodes that have been removed from the graph. Also calls eviction on `onTenantStopped`. No namespace registry needed -- `evictAcrossNamespaces` works across all namespaces.
+
+### CrossDomainCompositionEngine
+
+`io.casehub.desiredstate.runtime.composition` -- push-model multi-domain composition. Sits above `LifecycleManager` in the call stack.
+
+**Registration:** Domains register `DomainRegistration` (CompilationResult + provides/requires/readinessCondition/situationRecompilers) via `registerDomain()` during CDI startup. Registration order enforced via `@Priority` -- domain observers fire at default priority, the engine's observer fires at `PLATFORM_AFTER + 1000`.
+
+**Validation (compose()):** Duplicate provides detection, unsatisfied requires detection, circular dependency detection (Kahn's algorithm), node ID uniqueness across domains (differing specs fail-fast, identical specs allowed).
+
+**Flattened mode:** Overlays all domain graphs in topological order. Cross-domain edges connect requiring domain's root nodes to providing domain's typed nodes. The composed graph is a single `DesiredStateGraph` passed to `LifecycleManager` as `CompilationResult.single()`.
+
+**Per-domain lifecycle:** Each domain's `CompilationResult` may be `Lifecycle`. The engine tracks per-tenant per-domain phase state via `TenantCompositionState` (immutable record). `GlobalReconciliationListener.onReconciliationCycleCompleted()` evaluates per-domain `CompletionCondition` and advances phases. Recomposition serialized via `synchronized(recomposeLock)`.
+
+**SituationRecompiler integration:** Domain-specific recompilers receive their domain graph (not the composed graph). The engine maintains a priority-sorted recompiler list with domain reverse index. `handleReplan()` replaces the affected domain's graph and recomposes. `DesiredStateReplanDispatch` delegates to the engine when composition is active.
+
+**Hierarchical mode:** `buildMetaGraph()` creates a DesiredStateGraph with one node per domain (NodeType "domain", `DomainNodeSpec` spec). `DomainNodeProvisioner` handles domain-level nodes -- checks readiness via `CompletionCondition`. `DomainActualStateAdapter` reports domain-level node status.
+
+**Thread safety:** `recomposeLock` serializes all paths that read-all-domains-then-recompose (phase advancement + replan). `TenantCompositionState` and `DomainPhaseState` are immutable records.
 
 ### ReconciliationEventEmitter
 
@@ -236,7 +254,8 @@ Four examples validate the SPI surface:
 - Comprehensive OTel tracing on all reconciliation phases.
 - JPA-backed `FaultCountStore` in persistence-jpa module with Flyway migration.
 - `FaultCountEvictionListener` for automatic stale fault count cleanup.
-- `ReconciliationLoop.Builder` for test construction without CDI.
+- `ReconciliationLoop.Builder` for test construction without CDI. `shutdown()` is public for inner loop cleanup.
+- Cross-domain composition engine (#140): push-model registration, flattened/hierarchical modes, per-domain lifecycle tracking, SituationRecompiler integration with domain graph scoping.
 - `TransitionExecutor` returns `TransitionResult` directly (blocking; Mutiny `Uni` wrapper removed in #91).
 - `ReactiveNodeProvisioner` deleted (#53) -- zero implementations, dead SPI.
 - `WorkItemHumanNodeHandler` removed (#72) -- creating orphaned WorkItems without case lifecycle is not valid.

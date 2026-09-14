@@ -277,6 +277,67 @@ For multi-phase desired-state transitions without re-invoking `GoalCompiler`:
 
 ---
 
+## Cross-Domain Composition
+
+When multiple domains share one classpath (e.g. infra, deployment, compliance, IoT), the `CrossDomainCompositionEngine` merges their graphs with correct ordering. Each domain compiles its own goals (preserving `GoalCompiler<G>` type safety) and registers the result with the engine.
+
+### Push-Model Registration
+
+```java
+@ApplicationScoped
+public class InfraDomainRegistrar {
+    @Inject InfraGoalCompiler compiler;
+    @Inject CrossDomainCompositionEngine engine;
+
+    void onStartup(@Observes StartupEvent event) {
+        CompilationResult result = compiler.compile(goals, graphFactory);
+        engine.registerDomain(DomainRegistration.builder(
+                DomainId.of("infra"), result)
+            .provides(Set.of(NodeTypes.K8S_NAMESPACE, NodeTypes.DATABASE_CLUSTER))
+            .build());
+    }
+}
+
+@ApplicationScoped
+public class DeploymentDomainRegistrar {
+    @Inject DeploymentGoalCompiler compiler;
+    @Inject CrossDomainCompositionEngine engine;
+
+    void onStartup(@Observes StartupEvent event) {
+        CompilationResult result = compiler.compile(goals, graphFactory);
+        engine.registerDomain(DomainRegistration.builder(
+                DomainId.of("deployment"), result)
+            .provides(Set.of(NodeTypes.AGENT, NodeTypes.CHANNEL))
+            .requires(Set.of(NodeTypes.K8S_NAMESPACE))
+            .build());
+    }
+}
+```
+
+**`provides`** declares which `NodeType`s a domain contributes. **`requires`** declares which `NodeType`s from other domains must exist before this domain's nodes can be provisioned. The engine creates cross-domain edges from the requiring domain's root nodes to the providing domain's typed nodes -- `TransitionPlanner` handles ordering from there.
+
+### Composition Modes
+
+| Mode | When | Behaviour |
+|------|------|-----------|
+| **Flattened** (default) | 2+ registrations | All domain graphs merged via `overlay()` into one `DesiredStateGraph` with cross-domain edges. Single `ReconciliationLoop`. |
+| **Hierarchical** | Explicit config | Meta-loop with one domain-level node per domain. Inner `ReconciliationLoop` per domain. `CompletionCondition` gates downstream domains. |
+| **Single-domain** | 0 or 1 registration | Passthrough -- zero composition overhead. |
+
+### Startup Validation
+
+The engine validates at startup: duplicate `provides` (fail-fast), unsatisfied `requires` (fail-fast), circular domain dependencies (Kahn's algorithm), and node ID collisions across domains (identical specs allowed, differing specs fail-fast).
+
+### Per-Domain Lifecycle
+
+Each domain can return `CompilationResult.Lifecycle` with multiple phases. The engine tracks per-domain phase state and recomposes on phase transitions. Domain-specific `SituationRecompiler`s receive only their domain graph (not the composed graph), preserving domain isolation.
+
+### Backward Compatibility
+
+Existing single-domain apps are unchanged. The engine is inert with zero or one registrations. Apps calling `ReconciliationLoop.start()` or `LifecycleManager.start()` directly continue to work.
+
+---
+
 ## Testing Module
 
 `casehub-desiredstate-testing` (test scope) provides mock SPIs and test utilities:
