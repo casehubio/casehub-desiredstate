@@ -47,9 +47,7 @@ public class DesiredStateReplanDispatch {
     private final DesiredStateGraphFactory graphFactory;
     private final CallableDispatchRegistry callRegistry;
     private final ActualStateAdapterRouter actualStateRouter;
-    @Inject
-    jakarta.enterprise.inject.Instance<io.casehub.desiredstate.runtime.composition.CrossDomainCompositionEngine> compositionEngine;
-
+    private final jakarta.enterprise.inject.Instance<io.casehub.desiredstate.runtime.composition.CrossDomainCompositionEngine> compositionEngine;
 
     @Inject
     public DesiredStateReplanDispatch(
@@ -58,13 +56,26 @@ public class DesiredStateReplanDispatch {
             SituationRecompilerEngine recompilerEngine,
             DesiredStateGraphFactory graphFactory,
             CallableDispatchRegistry callRegistry,
-            ActualStateAdapterRouter actualStateRouter) {
+            ActualStateAdapterRouter actualStateRouter,
+            jakarta.enterprise.inject.Instance<io.casehub.desiredstate.runtime.composition.CrossDomainCompositionEngine> compositionEngine) {
         this.lifecycleManager = lifecycleManager;
         this.reconciliationLoop = reconciliationLoop;
         this.recompilerEngine = recompilerEngine;
         this.graphFactory = graphFactory;
         this.callRegistry = callRegistry;
         this.actualStateRouter = actualStateRouter;
+        this.compositionEngine = compositionEngine;
+    }
+
+    DesiredStateReplanDispatch(
+            LifecycleManager lifecycleManager,
+            ReconciliationLoop reconciliationLoop,
+            SituationRecompilerEngine recompilerEngine,
+            DesiredStateGraphFactory graphFactory,
+            CallableDispatchRegistry callRegistry,
+            ActualStateAdapterRouter actualStateRouter) {
+        this(lifecycleManager, reconciliationLoop, recompilerEngine, graphFactory,
+                callRegistry, actualStateRouter, null);
     }
 
     void register() {
@@ -121,7 +132,8 @@ public class DesiredStateReplanDispatch {
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
-        }}
+        }
+    }
 
     private static String requireString(Map<String, Object> args, String key) {
         Object value = args.get(key);

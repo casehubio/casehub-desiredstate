@@ -13,8 +13,8 @@ import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.runtime.ReconciliationLoop;
 
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
 
 public class DomainNodeProvisioner implements NodeProvisioner {
@@ -22,7 +22,7 @@ public class DomainNodeProvisioner implements NodeProvisioner {
     static final NodeType DOMAIN_TYPE = DomainNodeSpec.DOMAIN_NODE_TYPE;
 
     private final DesiredStateGraphFactory graphFactory;
-    private final Map<io.casehub.desiredstate.api.DomainId, ReconciliationLoop> activeInnerLoops = new LinkedHashMap<>();
+    private final Map<io.casehub.desiredstate.api.DomainId, ReconciliationLoop> activeInnerLoops = new ConcurrentHashMap<>();
 
     public DomainNodeProvisioner(DesiredStateGraphFactory graphFactory) {
         this.graphFactory = graphFactory;

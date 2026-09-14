@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -272,31 +273,33 @@ public class CrossDomainCompositionEngine implements GlobalReconciliationListene
     }
 
 
-    public java.util.Optional<CompilationResult> handleReplan(
-            String tenancyId, io.casehub.desiredstate.api.ActualState actual,
+    public Optional<CompilationResult> handleReplan(
+            String tenancyId, ActualState actual,
             io.casehub.ras.api.ActiveSituation situation, DesiredStateGraphFactory factory) {
         TenantCompositionState tenantState = tenantStates.get(tenancyId);
-        if (tenantState == null) {return java.util.Optional.empty();}
+        if (tenantState == null) { return Optional.empty(); }
 
-        for (var entry : sortedRecompilers) {
-            io.casehub.desiredstate.api.SituationRecompiler recompiler  = entry.getKey();
-            DomainId                                        domainId    = entry.getValue();
-            DomainPhaseState                                phaseState  = tenantState.phases().get(domainId);
-            DesiredStateGraph                               domainGraph = phaseState.currentGraph();
+        synchronized (recomposeLock) {
+            TenantCompositionState current = tenantStates.get(tenancyId);
+            if (current == null) { return Optional.empty(); }
 
-            java.util.Optional<CompilationResult> result = recompiler.recompile(
-                    tenancyId, domainGraph, actual, situation, factory);
-            if (result.isPresent()) {
-                synchronized (recomposeLock) {
-                    TenantCompositionState current = tenantStates.get(tenancyId);
+            for (var entry : sortedRecompilers) {
+                SituationRecompiler recompiler = entry.getKey();
+                DomainId domainId = entry.getValue();
+                DomainPhaseState phaseState = current.phases().get(domainId);
+                DesiredStateGraph domainGraph = phaseState.currentGraph();
+
+                Optional<CompilationResult> result = recompiler.recompile(
+                        tenancyId, domainGraph, actual, situation, factory);
+                if (result.isPresent()) {
                     current = current.withPhase(domainId,
-                                                current.phases().get(domainId).withResult(result.get()));
+                            current.phases().get(domainId).withResult(result.get()));
                     tenantStates.put(tenancyId, current);
+                    return result;
                 }
-                return result;
             }
         }
-        return java.util.Optional.empty();
+        return Optional.empty();
     }
 
     @Override
@@ -331,7 +334,8 @@ public class CrossDomainCompositionEngine implements GlobalReconciliationListene
             if (recomposeNeeded) {
                 tenantStates.put(tenancyId, current);
             }
-        }}
+        }
+    }
 
     @Override
     public void onTenantStopped(String tenancyId) {
