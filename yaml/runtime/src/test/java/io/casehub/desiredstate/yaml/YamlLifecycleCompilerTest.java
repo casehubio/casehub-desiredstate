@@ -47,7 +47,7 @@ class YamlLifecycleCompilerTest {
                                 Map.of("api-server", new YamlNode("app",
                                         Map.of("name", "api", "typeValue", "app"),
                                         List.of("database"), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -85,7 +85,7 @@ class YamlLifecycleCompilerTest {
                                 Map.of("api-server", new YamlNode("app",
                                         Map.of("name", "api", "typeValue", "app"),
                                         List.of("database"), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -113,7 +113,7 @@ class YamlLifecycleCompilerTest {
                                 Map.of("database", new YamlNode("db",
                                         Map.of("name", "pg-v2", "typeValue", "db"),
                                         List.of(), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(
@@ -149,7 +149,7 @@ class YamlLifecycleCompilerTest {
                                 Map.of("monitor", new YamlNode("monitor",
                                         Map.of("name", "mon", "typeValue", "monitor"),
                                         List.of("api-server"), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
 
         var recorder = new YamlGraphRecorder();
         var compiler = recorder.createYamlLifecycleGoalCompiler(

@@ -70,7 +70,7 @@ class YamlModuleDeserializationTest {
                             alert_email: "pipeline-ops@example.com"
                         - module: monitoring
                           as: schema-monitor
-                          when: "${var.monitoring_enabled}"
+                          if: "${var.monitoring_enabled}"
                           parameters:
                             watched_node_id: customer-schema
                       """;
@@ -80,7 +80,7 @@ class YamlModuleDeserializationTest {
         assertThat(graph.imports().get(0).as()).isEqualTo("pipe-monitor");
         assertThat(graph.imports().get(0).parameters())
                 .containsEntry("watched_node_id", "warehouse-sink");
-        assertThat(graph.imports().get(1).when()).isEqualTo("${var.monitoring_enabled}");
+        assertThat(graph.imports().get(1).condition()).isEqualTo("${var.monitoring_enabled}");
     }
 
     @Test

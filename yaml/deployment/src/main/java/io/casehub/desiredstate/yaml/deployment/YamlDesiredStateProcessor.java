@@ -74,7 +74,7 @@ public class YamlDesiredStateProcessor {
         }
 
         for (NamedYamlGraph named : yamlGraphs) {
-            YamlGraph yamlGraph = named.graph();
+            YamlGraph yamlGraph = normalizeVariableReferences(named.graph());
             String fileName = named.fileName();
 
             String ns = yamlGraph.desiredState().namespace();
@@ -841,6 +841,67 @@ public class YamlDesiredStateProcessor {
                 yamlGraph.desiredState().name(),
                 null, null, nodes, deps,
                 List.of(), null, List.of(), List.of());
+    }
+
+    static YamlGraph normalizeVariableReferences(YamlGraph graph) {
+        if (graph.nodes().isEmpty()) return graph;
+
+        Set<String> knownPrefixes = Set.of("var", "each", "match", "fault", "module", "params");
+        Set<String> forEachVars = new HashSet<>();
+        for (Map.Entry<String, YamlNode> entry : graph.nodes().entrySet()) {
+            Object forEach = entry.getValue().forEach();
+            if (forEach instanceof Map<?, ?> inlineForEach) {
+                Object as = inlineForEach.get("as");
+                if (as instanceof String asStr) { forEachVars.add(asStr); }
+            } else if (forEach instanceof String groupRef) {
+                io.casehub.yaml.core.foreach.IterationGroup group =
+                        graph.iterations() != null ? graph.iterations().get(groupRef) : null;
+                if (group != null && group.as() != null) { forEachVars.add(group.as()); }
+            }
+        }
+
+        boolean changed = false;
+        Map<String, YamlNode> rewrittenNodes = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, YamlNode> entry : graph.nodes().entrySet()) {
+            YamlNode node = entry.getValue();
+            Map<String, Object> rewrittenSpec = rewriteMap(node.spec(), knownPrefixes, forEachVars);
+            if (rewrittenSpec != node.spec()) {
+                node = new YamlNode(node.type(), rewrittenSpec, node.dependsOn(),
+                        node.humanGating(), node.when(), node.forEach(),
+                        node.provision(), node.deprovision());
+                changed = true;
+            }
+            rewrittenNodes.put(entry.getKey(), node);
+        }
+
+        if (!changed) return graph;
+        return new YamlGraph(graph.desiredState(), graph.variables(), rewrittenNodes,
+                graph.faultPolicy(), graph.invariants(), graph.rules(),
+                graph.lifecycle(), graph.iterations(), graph.imports(), graph.data());
+    }
+
+    private static Map<String, Object> rewriteMap(Map<String, Object> map,
+            Set<String> knownPrefixes, Set<String> forEachVars) {
+        boolean changed = false;
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            Object val = e.getValue();
+            if (val instanceof String s && s.contains("${")) {
+                String rewritten = io.casehub.yaml.core.resolver.VariablePrefixRewriter.rewrite(
+                        s, "var", knownPrefixes, forEachVars);
+                if (!rewritten.equals(s)) { changed = true; }
+                result.put(e.getKey(), rewritten);
+            } else if (val instanceof Map<?, ?> nested) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nestedMap = (Map<String, Object>) nested;
+                Map<String, Object> rewrittenNested = rewriteMap(nestedMap, knownPrefixes, forEachVars);
+                if (rewrittenNested != nestedMap) { changed = true; }
+                result.put(e.getKey(), rewrittenNested);
+            } else {
+                result.put(e.getKey(), val);
+            }
+        }
+        return changed ? result : map;
     }
 
     private record NamedYamlGraph(String fileName, YamlGraph graph) {}

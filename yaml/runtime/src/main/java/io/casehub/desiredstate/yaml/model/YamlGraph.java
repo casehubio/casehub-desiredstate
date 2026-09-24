@@ -15,7 +15,8 @@ public record YamlGraph(
         Map<String, YamlRule> rules,
         YamlLifecycle lifecycle,
         Map<String, IterationGroup> iterations,
-        List<YamlImport> imports) {
+        List<YamlImport> imports,
+        Map<String, Object> data) {
 
     public YamlGraph {
         if (variables == null) {variables = Map.of();}
@@ -25,5 +26,6 @@ public record YamlGraph(
         if (rules == null) {rules = Map.of();}
         if (iterations == null) {iterations = Map.of();}
         if (imports == null) {imports = List.of();}
+        if (data == null) {data = Map.of();}
     }
 }

@@ -29,7 +29,7 @@ class YamlLifecycleValidationTest {
                                 Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))),
                         new YamlPhase("app", "never",
                                 Map.of("api", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
         assertThatCode(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .doesNotThrowAnyException();
@@ -45,7 +45,7 @@ class YamlLifecycleValidationTest {
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", "allPresent",
                                 Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("nodes")
@@ -58,7 +58,7 @@ class YamlLifecycleValidationTest {
                 new YamlDesiredState("test", "empty"),
                 Map.of(), Map.of(), List.of(), Map.of(), Map.of(),
                 new YamlLifecycle(List.of()),
-                null, null);
+                null, null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("phase");
@@ -72,7 +72,7 @@ class YamlLifecycleValidationTest {
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", "whenReady",
                                 Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("whenReady")
@@ -89,7 +89,7 @@ class YamlLifecycleValidationTest {
                                 Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))),
                         new YamlPhase("infra", "never",
                                 Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("infra")
@@ -102,7 +102,7 @@ class YamlLifecycleValidationTest {
                 new YamlDesiredState("test", "no-lifecycle"),
                 Map.of(),
                 Map.of("app", new YamlNode("app", Map.of(), List.of(), null, null, null, null, null)),
-                List.of(), Map.of(), Map.of(), null, null, null);
+                List.of(), Map.of(), Map.of(), null, null, null, null);
         assertThatCode(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .doesNotThrowAnyException();
@@ -116,7 +116,7 @@ class YamlLifecycleValidationTest {
                 new YamlLifecycle(List.of(
                         new YamlPhase("infra", null,
                                 Map.of("db", new YamlNode("db", Map.of(), List.of(), null, null, null, null, null))))),
-                null, null);
+                null, null, null);
         assertThatThrownBy(() -> YamlDesiredStateProcessor.validateLifecycle(
                 graph, TYPE_REGISTRY, "test.yaml"))
                 .hasMessageContaining("completionCondition");
