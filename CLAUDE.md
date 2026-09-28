@@ -96,9 +96,15 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeProvisioner` | `resyncInterval() → Duration` | Declare resync interval for handled types (default: 5 minutes) |
 | `NodeProvisioner` | `provision(DesiredNode, ProvisionContext) → ProvisionResult` | Create/update a single node |
 | `NodeProvisioner` | `deprovision(DesiredNode, DeprovisionContext) → DeprovisionResult` | Remove a single node |
+| `NodeProvisioner` | `default suspend(DesiredNode, SuspendContext) → SuspendResult` | Suspend a node (opt-in — default returns Failed) |
+| `NodeProvisioner` | `default resume(DesiredNode, ResumeContext) → ResumeResult` | Resume a suspended node (opt-in — default returns Failed) |
+| `NodeProvisioner` | `default supportsStatefulLifecycle() → boolean` | Declare stateful lifecycle support (default false). Runtime uses stateless path (deprovision/provision) when false |
 | `NodeProvisionerRouter` | `provision(DesiredNode, ProvisionContext) → ProvisionResult` | Route provision calls to the correct provisioner by NodeType |
 | `NodeProvisionerRouter` | `deprovision(DesiredNode, DeprovisionContext) → DeprovisionResult` | Route deprovision calls to the correct provisioner by NodeType |
 | `NodeProvisionerRouter` | `resyncIntervalFor(NodeType) → Duration` | Get effective resync interval for a type (provisioner default or Preferences override) |
+| `NodeProvisionerRouter` | `suspend(DesiredNode, SuspendContext) → SuspendResult` | Route suspend to correct provisioner by NodeType |
+| `NodeProvisionerRouter` | `resume(DesiredNode, ResumeContext) → ResumeResult` | Route resume to correct provisioner by NodeType |
+| `NodeProvisionerRouter` | `supportsStatefulLifecycle(NodeType) → boolean` | Check if provisioner for type supports stateful lifecycle |
 | `FaultPolicy` | `onFault(String tenancyId, FaultEvent, DesiredStateGraph, ActualState) → List<GraphMutation>` | Mutate graph in response to fault (with actual state visibility). `addReviewNode(ReviewSpecFactory) → TypedFaultPolicy` static factory — creates review node with dependency edge to faulted node, ID derived from `NodeType.value()`. Runtime consistency assertion guards probe-vs-actual NodeType mismatch |
 | `FaultCountStore` | `incrementAndGet(namespace, tenancyId, nodeId) → int`, `getCount(...)`, `reset(...)`, `remove(...)`, `evict(namespace, tenancyId, retainedNodes)`, `evictAcrossNamespaces(tenancyId, retainedNodes)` | Pluggable fault count storage — namespace-scoped, tenant-isolated. `evictAcrossNamespaces` for cross-namespace bulk eviction of removed nodes |
 | `ReconciliationStateStore` | `store(tenancyId, DesiredStateGraph)`, `load(tenancyId) → Optional<DesiredStateGraph>`, `remove(tenancyId)` | Pluggable storage for last-reconciled desired graph per tenant. Used by TransitionPlanner to resolve orphan node specs during deprovision. Default: `InMemoryReconciliationStateStore` |
@@ -106,6 +112,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `TransitionExecutor` | `execute(TransitionPlan, String tenancyId) → TransitionResult` | Execute a transition plan (SPI'd — simple or case-backed) |
 | `HumanNodeHandler` | `onProvision(DesiredNode, ProvisionContext) → StepOutcome` | Handle human-gated nodes during provision (called when `requiresHuman(PROVISION)`) |
 | `HumanNodeHandler` | `default onDeprovision(DesiredNode, DeprovisionContext) → StepOutcome` | Handle human-gated nodes during deprovision (default: Skipped; called when `requiresHuman(DEPROVISION)`) |
+| `HumanNodeHandler` | `default onSuspend(DesiredNode, SuspendContext) → StepOutcome` | Handle human-gated nodes during suspend (default: Skipped) |
+| `HumanNodeHandler` | `default onResume(DesiredNode, ResumeContext) → StepOutcome` | Handle human-gated nodes during resume (default: Skipped) |
 | `PendingApprovalHandler` | `check(DesiredNode, StepAction, String tenancyId) → ApprovalCheckResult` | Track approval lifecycle for provisioner-initiated PendingApproval requests |
 | `SituationRecompiler` | `recompile(String tenancyId, DesiredStateGraph, ActualState, ActiveSituation, DesiredStateGraphFactory) → Optional<CompilationResult>` | Situation-driven graph recompilation — independent of GoalCompiler. `priority()` default method for chain ordering |
 | `NodeSpecFactory` | `create(Map<String, Object> specMap) → NodeSpec` | Pluggable NodeSpec creation from raw spec map — `@FunctionalInterface`. DirectCast (Jackson) is the default; domains override for wrapping (e.g. InfraWrappingFactory) |
@@ -115,6 +123,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `ReconciliationListener` | `onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph, ActualState)` | Per-tenant post-cycle callback for lifecycle phase completion checks |
 | `GlobalReconciliationListener` | `onReconciliationCycleCompleted(String tenancyId, DesiredStateGraph, ActualState)`, `default onTenantStopped(String tenancyId)` | Application-scoped post-cycle callback — CDI-discovered, fires for all tenants. `onTenantStopped` fires during stop for cleanup. Fires only from full `reconcile()`, not from type-filtered `reconcileTypes()` |
 | `CompletionCondition` | `isComplete(DesiredStateGraph, ActualState) → boolean` | Predicate for lifecycle phase completion |
+| `CompletionCondition` | `allSatisfied() → CompletionCondition` | Static — target-status-aware: ACTIVE→PRESENT, SUSPENDED→SUSPENDED. Use instead of `allPresent()` when graph contains suspended nodes |
 | `DesiredStateGraph` | query + mutation + `filterByTypes(Set<NodeType>)` methods | SPI interface — graph backing store is pluggable. `filterByTypes` is a default method using subtractive approach via `withoutNode()` |
 | `DesiredStateGraphFactory` | `empty()`, `of(nodes, deps)` | Creates graph instances |
 
@@ -125,13 +134,14 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `CompilationResult` | Sealed — `SingleGraph(DesiredStateGraph)` \| `Lifecycle(List<Phase>)`. Returned by GoalCompiler.compile() |
 | `Phase` | `id`, `graph`, `completionCondition`. Successor sequence is list ordering |
 | `LifecycleManager` | `@ApplicationScoped` — orchestrates phase transitions via CAS. `start()`, `stop()`, `updateDesired()`, `compareAndSetDesired()` |
-| `DesiredNode` | `id`, `type`, `spec` (opaque domain payload), `humanGating` (per-action enum). `requiresHuman(StepAction)` and `requiresHuman()` merge node + spec gating |
-| `HumanGating` | Enum — `NONE`, `PROVISION_ONLY`, `DEPROVISION_ONLY`, `ALL`. `requiresHuman(StepAction)`, `any()`, `merge(HumanGating)` |
+| `TargetStatus` | Enum — `ACTIVE` (default), `SUSPENDED`. GoalCompiler declares lifecycle intent per node |
+| `DesiredNode` | `id`, `type`, `spec` (opaque domain payload), `humanGating` (per-action enum), `targetStatus` (lifecycle intent, default ACTIVE). `requiresHuman(StepAction)` and `requiresHuman()` merge node + spec gating |
+| `HumanGating` | Enum — `NONE`, `PROVISION_ONLY`, `DEPROVISION_ONLY`, `SUSPEND_ONLY`, `RESUME_ONLY`, `ALL`. `requiresHuman(StepAction)`, `any()`, `merge(HumanGating)` |
 | `NodeSpec` | Marker interface — domains implement with typed records. `humanGating()` default returns `NONE` |
 | `NodeId`, `NodeType`, `Dependency` | Value types for graph identity and edges |
-| `TransitionPlan` | Pruning-first ordered steps — `removals`, `additions`, `before`/`after` graphs |
+| `TransitionPlan` | Four-phase ordered steps — `removals`, `suspensions`, `resumptions`, `additions`, `before`/`after` graphs. Execution order: removals → suspensions → resumptions → additions. 4-arg compat constructor defaults suspensions/resumptions to empty |
 | `TransitionResult` | Per-node `StepOutcome` map (Succeeded/Failed/Skipped) |
-| `ActualState` | Map of `NodeId → NodeStatus` (PRESENT/ABSENT/DEGRADED/UNKNOWN) |
+| `ActualState` | Map of `NodeId → NodeStatus` (PRESENT/ABSENT/DEGRADED/UNKNOWN/SUSPENDED) |
 | `ReconciliationResult` | `resolved`, `drifted`, `faulted` node sets + `mutations` |
 | `FaultEvent` | Node + `FaultType` + detail |
 | `ThresholdFaultPolicy` | Reusable `FaultPolicy` (api module) — counts faults per node via pluggable `FaultCountStore` SPI. Multi-tier escalation with graph-presence guards via `dependentsOf()`. Builder: faultTypes, nodeTypes, ignoreTypes, tier(threshold, TypedFaultPolicy), faultCountStore, namespace. Auto-ignore tier nodeTypes via `action.outputNodeType()`. First-match-wins evaluation (highest tier first). `resetCount(tenancyId, nodeId)` for external recovery-reset. Lazy eviction on fault for removed nodes. Default `InMemoryFaultCountStore` |
@@ -145,6 +155,10 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `PlanApproval` | `planReference`, `approvedBy`, `approvedAt` — carried in context on re-entry |
 | `ApprovalCheckResult` | Sealed — None / Pending(planReference) / Approved(PlanApproval) / Rejected(planReference, reason) |
 | `ProvisionResult`, `DeprovisionResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
+| `SuspendResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
+| `ResumeResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
+| `SuspendContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
+| `ResumeContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
 | `StepOutcome` | Sealed — Succeeded / Failed(reason) / Skipped(reason) / Rejected(reason) |
 | `DefaultNodeProvisionerRouter` | Runtime implementation of NodeProvisionerRouter — builds routing table from all provisioners, validates resync intervals, integrates Preferences overrides |
 | `CdiNodeProvisionerRouter` | CDI-wired subclass injecting `Instance<NodeProvisioner>` and `PreferenceProvider` |
@@ -174,10 +188,12 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `CbrOutcomeData` | CloudEvent data — CBR outcome with per-node results, success rate, timestamps |
 | `CbrEventTypes` | CloudEvent type URI constants for `io.casehub.cbr.*` namespace |
 | `CbrProposalTracker` | `@ApplicationScoped` — mediates CBR proposals and reconciliation outcomes. Records proposals, matches against TransitionResult |
-| `ReconciliationCompletedData` | CloudEvent data — cycle summary |
+| `ReconciliationCompletedData` | CloudEvent data — cycle summary with `suspensionsCount`, `resumptionsCount` |
 | `NodeFaultedData` | CloudEvent data — per-node fault |
 | `NodeDriftedData` | CloudEvent data — per-node drift |
 | `NodeRecoveredData` | CloudEvent data — per-node recovery |
+| `NodeSuspendedData` | CloudEvent data — per-node suspend |
+| `NodeResumedData` | CloudEvent data — per-node resume |
 | `DesiredStateEventTypes` | CloudEvent type URI constants for `io.casehub.desiredstate.*` namespace |
 
 ## Ordering Rule — Pruning Before Growing

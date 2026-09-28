@@ -1,6 +1,16 @@
 package io.casehub.desiredstate.testing;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.DeprovisionResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.NodeProvisioner;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.ProvisionContext;
+import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.ResumeContext;
+import io.casehub.desiredstate.api.ResumeResult;
+import io.casehub.desiredstate.api.SuspendContext;
+import io.casehub.desiredstate.api.SuspendResult;
 
 import java.time.Duration;
 import java.util.Set;
@@ -22,9 +32,16 @@ public class MockNodeProvisioner implements NodeProvisioner {
      * All nodes deprovisioned, in order. Public for test assertions.
      */
     public final CopyOnWriteArrayList<DesiredNode> deprovisioned = new CopyOnWriteArrayList<>();
+    public final CopyOnWriteArrayList<DesiredNode> suspended     = new CopyOnWriteArrayList<>();
+    public final CopyOnWriteArrayList<DesiredNode> resumed       = new CopyOnWriteArrayList<>();
+
 
     private Function<DesiredNode, ProvisionResult> provisionBehavior = node -> new ProvisionResult.Success();
     private Function<DesiredNode, DeprovisionResult> deprovisionBehavior = node -> new DeprovisionResult.Success();
+    private Function<DesiredNode, SuspendResult>     suspendBehavior     = node -> new SuspendResult.Success();
+    private Function<DesiredNode, ResumeResult>      resumeBehavior      = node -> new ResumeResult.Success();
+    private boolean                                  statefulLifecycle   = false;
+
     private Set<NodeType> handledTypes = Set.of();
     private Duration resyncInterval = Duration.ofMinutes(5);
 
@@ -50,6 +67,32 @@ public class MockNodeProvisioner implements NodeProvisioner {
         return deprovisionBehavior.apply(node);
     }
 
+    @Override
+    public SuspendResult suspend(DesiredNode node, SuspendContext context) {
+        suspended.add(node);
+        return suspendBehavior.apply(node);
+    }
+
+    @Override
+    public ResumeResult resume(DesiredNode node, ResumeContext context) {
+        resumed.add(node);
+        return resumeBehavior.apply(node);
+    }
+
+    @Override
+    public boolean supportsStatefulLifecycle() {return statefulLifecycle;}
+
+    public void setSuspendBehavior(Function<DesiredNode, SuspendResult> behavior) {
+        this.suspendBehavior = behavior;
+    }
+
+    public void setResumeBehavior(Function<DesiredNode, ResumeResult> behavior) {
+        this.resumeBehavior = behavior;
+    }
+
+    public void setStatefulLifecycle(boolean stateful) {this.statefulLifecycle = stateful;}
+
+
     public void setProvisionBehavior(Function<DesiredNode, ProvisionResult> behavior) {
         this.provisionBehavior = behavior;
     }
@@ -65,9 +108,14 @@ public class MockNodeProvisioner implements NodeProvisioner {
     public void clear() {
         provisioned.clear();
         deprovisioned.clear();
-        provisionBehavior = node -> new ProvisionResult.Success();
+        suspended.clear();
+        resumed.clear();
+        provisionBehavior   = node -> new ProvisionResult.Success();
         deprovisionBehavior = node -> new DeprovisionResult.Success();
-        handledTypes = Set.of();
-        resyncInterval = Duration.ofMinutes(5);
+        suspendBehavior     = node -> new SuspendResult.Success();
+        resumeBehavior      = node -> new ResumeResult.Success();
+        handledTypes        = Set.of();
+        resyncInterval      = Duration.ofMinutes(5);
+        statefulLifecycle   = false;
     }
 }

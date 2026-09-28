@@ -770,11 +770,11 @@ engine.registerDomain(DomainRegistration.builder(DomainId.of("deployment"), depl
 - `api/src/main/java/io/casehub/desiredstate/api/CompletionCondition.java` — `allPresent()` factory, `isComplete()` contract
 - `api/src/main/java/io/casehub/desiredstate/api/CompilationResult.java` — `SingleGraph`, `Lifecycle` sealed types
 - `api/src/main/java/io/casehub/desiredstate/api/GlobalReconciliationListener.java` — CDI-discovered multi-instance listener
-- `../../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java` — per-tenant loop, CAS, interval groups
+- `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java` — per-tenant loop, CAS, interval groups
 - `runtime/src/main/java/io/casehub/desiredstate/runtime/LifecycleManager.java` — CAS phase transitions
-- `../../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraph.java` — `overlay()` implementation with conflict detection
-- `../../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SituationRecompilerEngine.java` — chain-of-responsibility recompiler
-- `../../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java` — `List<FaultPolicy>` multi-domain ready
+- `runtime/src/main/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraph.java` — `overlay()` implementation with conflict detection
+- `runtime/src/main/java/io/casehub/desiredstate/runtime/SituationRecompilerEngine.java` — chain-of-responsibility recompiler
+- `runtime/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java` — `List<FaultPolicy>` multi-domain ready
 
 ### Issues
 

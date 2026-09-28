@@ -70,6 +70,12 @@ public class CaseTransitionExecutor implements TransitionExecutor {
             return new TransitionResult(Map.of());
         }
 
+        if (!plan.suspensions().isEmpty() || !plan.resumptions().isEmpty()) {
+            throw new UnsupportedOperationException(
+                "CaseTransitionExecutor does not yet support suspend/resume. " +
+                "Use SimpleTransitionExecutor or wait for engine-adapter support.");
+        }
+
         Map<NodeId, StepOutcome> preFilteredOutcomes = new LinkedHashMap<>();
         List<OrderedStep>        runnableRemovals    = new ArrayList<>();
         List<OrderedStep>        runnableAdditions   = new ArrayList<>();

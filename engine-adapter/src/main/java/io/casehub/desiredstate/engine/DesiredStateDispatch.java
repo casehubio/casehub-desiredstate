@@ -56,6 +56,8 @@ public class DesiredStateDispatch {
             Map<String, Object> result = switch (action) {
                 case PROVISION -> executeProvision(node, ctx);
                 case DEPROVISION -> executeDeprovision(node, ctx);
+                case SUSPEND -> throw new UnsupportedOperationException("suspend dispatch not yet supported");
+                case RESUME -> throw new UnsupportedOperationException("resume dispatch not yet supported");
             };
 
             return CompletableFuture.completedFuture(result);

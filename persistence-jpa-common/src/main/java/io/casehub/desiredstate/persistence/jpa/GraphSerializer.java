@@ -28,6 +28,7 @@ class GraphSerializer {
             nodeObj.put("specClass", node.spec().getClass().getName());
             nodeObj.set("spec", mapper.valueToTree(node.spec()));
             nodeObj.put("humanGating", node.humanGating().name());
+            nodeObj.put("targetStatus", node.targetStatus().name());
             if (node.hooks() != null && !node.hooks().isEmpty()) {
                 nodeObj.set("hooks", serializeHooks(node.hooks()));
             } else {
@@ -60,8 +61,11 @@ class GraphSerializer {
                 Class<?> specClass = Class.forName(specClassName);
                 NodeSpec spec = (NodeSpec) mapper.treeToValue(nodeJson.get("spec"), specClass);
                 HumanGating gating = HumanGating.valueOf(nodeJson.get("humanGating").asText());
+                TargetStatus targetStatus = nodeJson.has("targetStatus")
+                    ? TargetStatus.valueOf(nodeJson.get("targetStatus").asText())
+                    : TargetStatus.ACTIVE;
                 HookDescriptor hooks = deserializeHooks(nodeJson.get("hooks"));
-                nodes.add(new DesiredNode(NodeId.of(id), spec, gating, hooks));
+                nodes.add(new DesiredNode(NodeId.of(id), spec, gating, hooks, targetStatus));
             }
 
             List<Dependency> deps = new ArrayList<>();
