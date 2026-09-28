@@ -39,7 +39,7 @@ public class YamlNodeForEachAdapter implements ForEachAdapter<YamlNode> {
     public ForEachDirective getForEach(YamlNode element) {return ForEachDirective.parse(element.forEach());}
 
     @Override
-    public String getWhen(YamlNode element) {
+    public String getCondition(YamlNode element) {
         return element.when();
     }
 
