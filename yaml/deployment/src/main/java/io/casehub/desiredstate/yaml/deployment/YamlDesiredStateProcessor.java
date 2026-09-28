@@ -63,7 +63,9 @@ public class YamlDesiredStateProcessor {
             return;
         }
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = new ObjectMapper(YAMLFactory.builder()
+                .enable(com.fasterxml.jackson.dataformat.yaml.YAMLParser.Feature.PARSE_BOOLEAN_LIKE_WORDS_AS_STRINGS)
+                .build());
         List<NamedYamlGraph> yamlGraphs = discoverYamlFiles(yamlMapper);
         Map<String, io.casehub.yaml.core.module.YamlModule> availableModules =
                 discoverModules(yamlMapper);

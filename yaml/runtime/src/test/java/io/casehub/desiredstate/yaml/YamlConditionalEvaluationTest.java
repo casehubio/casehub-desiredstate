@@ -119,10 +119,11 @@ class YamlConditionalEvaluationTest {
         assertThat(graph.nodes()).isEmpty();
     }
 
-    private YamlGraph buildGraph(Map<String, String> variables, Map<String, YamlNode> nodes) {
+    private YamlGraph buildGraph(Map<String, Object> variables, Map<String, YamlNode> nodes) {
         return new YamlGraph(
                 new io.casehub.desiredstate.yaml.model.YamlDesiredState("test", "cond"),
-                variables, nodes, List.of(), Map.of(), Map.of(), null, null, null, null);}
+                variables, nodes, List.of(), Map.of(), Map.of(), null, null, null, null);
+    }
 
     @SuppressWarnings("unchecked")
     private DesiredStateGraph compile(YamlGraph yamlGraph) {

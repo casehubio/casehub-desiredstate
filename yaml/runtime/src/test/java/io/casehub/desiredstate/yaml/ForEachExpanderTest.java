@@ -247,4 +247,27 @@ class ForEachExpanderTest {
 
         assertThat(result.nodes()).hasSize(4);
     }
+
+    @Test
+    void csvDataSource_expandsWithRowFields() {
+        Map<String, Object> inlineForEach = Map.of("as", "region", "in", "regions");
+        var                 nodes         = new LinkedHashMap<String, YamlNode>();
+        nodes.put("ingest", new YamlNode("data-source",
+                                         Map.of("name", "${each.region.name}", "uri", "s3://${each.region.name}/data"),
+                                         List.of(), null, null, inlineForEach, null, null));
+
+        Map<String, Object> data = Map.of("regions", Map.of("inline",
+                                                            "name:STRING,tier:INTEGER\nus-east,1\neu-west,2"));
+        Map<String, io.casehub.yaml.core.data.CsvDataSource> dataSources =
+                io.casehub.yaml.core.data.CsvDataSource.fromDataBlock(data);
+
+        var adapter = new YamlNodeForEachAdapter();
+        ExpansionResult<YamlNode> expanded = io.casehub.yaml.core.foreach.ForEachExpander.expand(
+                nodes, Map.of(), dataSources, resolver, adapter, 1000);
+
+        assertThat(expanded.elements()).hasSize(2);
+        assertThat(expanded.elements()).containsKey("ingest.us-east");
+        assertThat(expanded.elements()).containsKey("ingest.eu-west");
+    }
+
 }

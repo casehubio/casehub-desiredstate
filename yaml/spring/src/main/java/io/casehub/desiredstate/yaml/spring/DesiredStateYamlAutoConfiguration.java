@@ -68,7 +68,9 @@ public class DesiredStateYamlAutoConfiguration implements SmartInitializingSingl
                 return;
             }
 
-            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+            ObjectMapper yamlMapper = new ObjectMapper(com.fasterxml.jackson.dataformat.yaml.YAMLFactory.builder()
+                .enable(com.fasterxml.jackson.dataformat.yaml.YAMLParser.Feature.PARSE_BOOLEAN_LIKE_WORDS_AS_STRINGS)
+                .build());
             List<YamlGraph> graphs = discoverYamlGraphs(yamlMapper);
             Map<String, YamlModule> modules = discoverModules(yamlMapper);
 

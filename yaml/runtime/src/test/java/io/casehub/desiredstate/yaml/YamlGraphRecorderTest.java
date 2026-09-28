@@ -29,6 +29,13 @@ class YamlGraphRecorderTest {
         public NodeType nodeType() { return NodeType.of("test-source"); }
     }
 
+    @NodeTypeId("typed-source")
+    public record TypedSourceSpec(String name, int batchSize) implements NodeSpec {
+        @Override
+        public NodeType nodeType() {return NodeType.of("typed-source");}
+    }
+
+
     @NodeTypeId("bad-type")
     public record DivergentSpec() implements NodeSpec {
         @Override
@@ -81,7 +88,7 @@ class YamlGraphRecorderTest {
                 List.of(), List.of(), null, List.of(), List.of());
 
         Map<String, String> typeRegistry = Map.of("test-source", TestSourceSpec.class.getName());
-        Map<String, String> variables = Map.of("data_uri", "s3://resolved");
+        Map<String, Object> variables = Map.of("data_uri", "s3://resolved");
 
         var recorder = new YamlGraphRecorder();
         @SuppressWarnings("unchecked")
@@ -166,4 +173,56 @@ class YamlGraphRecorderTest {
                 .hasMessageContaining("bad-type")
                 .hasMessageContaining("actual-type");
     }
+
+    @Test
+    void typedVariables_soleReference_preservesIntegerType() {
+        var descriptor = new GraphDescriptor(
+                "test", "typed", null, null,
+                List.of(
+                        new NodeDescriptor.InlineNode("src", TypedSourceSpec.class.getName(),
+                                                      Map.of("name", "source", "batchSize", "${var.batch_size}"),
+                                                      HumanGating.NONE)
+                       ),
+                List.of(), List.of(), null, List.of(), List.of());
+
+        Map<String, String> typeRegistry = Map.of("typed-source", TypedSourceSpec.class.getName());
+        Map<String, Object> variables    = Map.of("batch_size", 500, "bucket", "prod");
+
+        var recorder = new YamlGraphRecorder();
+        @SuppressWarnings("unchecked")
+        GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
+                descriptor, typeRegistry, variables, List.of()).getValue();
+
+        CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
+        DesiredStateGraph graph  = ((CompilationResult.SingleGraph) result).graph();
+        TypedSourceSpec   spec   = (TypedSourceSpec) graph.nodes().values().iterator().next().spec();
+        assertThat(spec.batchSize()).isEqualTo(500);
+    }
+
+    @Test
+    void typedVariables_embeddedReference_resolvesToString() {
+        var descriptor = new GraphDescriptor(
+                "test", "embed", null, null,
+                List.of(
+                        new NodeDescriptor.InlineNode("src", TestSourceSpec.class.getName(),
+                                                      Map.of("name", "source", "uri", "s3://${var.bucket}/data"),
+                                                      HumanGating.NONE)
+                       ),
+                List.of(), List.of(), null, List.of(), List.of());
+
+        Map<String, String> typeRegistry = Map.of("test-source", TestSourceSpec.class.getName());
+        Map<String, Object> variables    = Map.of("bucket", "prod");
+
+        var recorder = new YamlGraphRecorder();
+        @SuppressWarnings("unchecked")
+        GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
+                descriptor, typeRegistry, variables, List.of()).getValue();
+
+        CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
+        DesiredStateGraph graph  = ((CompilationResult.SingleGraph) result).graph();
+        TestSourceSpec    spec   = (TestSourceSpec) graph.nodes().values().iterator().next().spec();
+        assertThat(spec.uri()).isEqualTo("s3://prod/data");
+    }
+
+
 }

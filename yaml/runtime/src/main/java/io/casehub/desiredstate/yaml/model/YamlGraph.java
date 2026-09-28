@@ -8,7 +8,7 @@ import java.util.Map;
 
 public record YamlGraph(
         YamlDesiredState desiredState,
-        Map<String, String> variables,
+        Map<String, Object> variables,
         Map<String, YamlNode> nodes,
         List<YamlFaultPolicy> faultPolicy,
         Map<String, YamlInvariant> invariants,

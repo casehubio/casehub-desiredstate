@@ -6,6 +6,7 @@ import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.DesiredStateGraphAdapter;
 import io.casehub.desiredstate.annotations.runtime.DesiredStateGraphView;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
+import io.casehub.desiredstate.annotations.runtime.GraphDescriptorResolver;
 import io.casehub.desiredstate.annotations.runtime.GraphInvariantDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphInvariantEngine;
 import io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor;
@@ -13,7 +14,6 @@ import io.casehub.desiredstate.annotations.runtime.GraphRuleEngine;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
 import io.casehub.desiredstate.annotations.runtime.ResolvedInvariant;
 import io.casehub.desiredstate.annotations.runtime.ResolvedRule;
-import io.casehub.desiredstate.annotations.runtime.GraphDescriptorResolver;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.CompletionCondition;
 import io.casehub.desiredstate.api.Dependency;
@@ -24,7 +24,6 @@ import io.casehub.desiredstate.api.HookDescriptor;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.Phase;
-import io.casehub.desiredstate.yaml.model.YamlFaultPolicy;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
 import io.casehub.desiredstate.yaml.model.YamlInvariant;
 import io.casehub.desiredstate.yaml.model.YamlNode;
@@ -39,7 +38,6 @@ import io.casehub.yaml.core.module.ModuleExpander;
 import io.casehub.yaml.core.module.TypedExpandedModule;
 import io.casehub.yaml.core.module.YamlModule;
 import io.casehub.yaml.core.resolver.VariableResolver;
-import io.casehub.yaml.core.resolver.VariableSource;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -62,7 +60,7 @@ public final class YamlGoalCompilerFactory {
     public static GoalCompiler<?> create(
             GraphDescriptor descriptor,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants,
             YamlGraph yamlGraph,
             Map<String, YamlModule> availableModules,
@@ -73,9 +71,8 @@ public final class YamlGoalCompilerFactory {
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
 
         return (GoalCompiler) (goals, factory) -> {
-            VariableResolver resolver = new VariableResolver(
-                    Map.of("var", (VariableSource) inlineVariables::get),
-                    Set.of("match", "fault"));
+            VariableResolver resolver = new VariableResolver(Map.of(), Set.of("match", "fault"))
+                    .withObjectScope("var", inlineVariables::get);
 
             Map<String, YamlNode> effectiveNodes =
                     yamlGraph != null ? new LinkedHashMap<>(yamlGraph.nodes()) : Map.of();
@@ -98,12 +95,17 @@ public final class YamlGoalCompilerFactory {
                 }
             }
 
+            Map<String, io.casehub.yaml.core.data.CsvDataSource> dataSources = Map.of();
+            if (yamlGraph != null && !yamlGraph.data().isEmpty()) {
+                dataSources = io.casehub.yaml.core.data.CsvDataSource.fromDataBlock(yamlGraph.data());
+            }
+
             boolean hasForEach = effectiveNodes.values().stream().anyMatch(n -> n.forEach() != null);
             boolean hasModules = !moduleScopes.isEmpty();
 
             DesiredStateGraph graph;
             if (hasForEach || hasModules) {
-                graph = buildForEachGraph(effectiveNodes, yamlGraph, registry, mapper, resolver, moduleScopes, factory);
+                graph = buildForEachGraph(effectiveNodes, yamlGraph, registry, mapper, resolver, moduleScopes, dataSources, factory);
             } else {
                 graph = buildSimpleGraph(descriptor, yamlGraph, registry, mapper, resolver, typeRegistryMap, factory);
             }
@@ -119,16 +121,15 @@ public final class YamlGoalCompilerFactory {
     public static GoalCompiler<?> createLifecycle(
             YamlGraph yamlGraph,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants) {
 
         ObjectMapper mapper = new ObjectMapper();
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
 
         return (GoalCompiler) (goals, factory) -> {
-            VariableResolver resolver = new VariableResolver(
-                    Map.of("var", (VariableSource) inlineVariables::get),
-                    Set.of("match", "fault"));
+            VariableResolver resolver = new VariableResolver(Map.of(), Set.of("match", "fault"))
+                    .withObjectScope("var", inlineVariables::get);
             List<Phase> phases = new ArrayList<>();
             List<DesiredNode> carryForwardNodes = new ArrayList<>();
             List<Dependency> carryForwardDeps = new ArrayList<>();
@@ -261,22 +262,29 @@ public final class YamlGoalCompilerFactory {
             Map<String, YamlNode> effectiveNodes, YamlGraph yamlGraph,
             NodeSpecRegistry registry, ObjectMapper mapper,
             VariableResolver resolver, Map<String, Map<String, String>> moduleScopes,
+            Map<String, io.casehub.yaml.core.data.CsvDataSource> dataSources,
             io.casehub.desiredstate.api.DesiredStateGraphFactory factory) {
         var adapter = new YamlNodeForEachAdapter(moduleScopes);
-        ExpansionResult<YamlNode> expanded = ForEachExpander.expand(
-                effectiveNodes,
-                yamlGraph != null && yamlGraph.iterations() != null ? yamlGraph.iterations() : Map.of(),
-                resolver, adapter, 1000, jsonArrayExpander(mapper));
+        Map<String, io.casehub.yaml.core.foreach.IterationGroup> iterations =
+                yamlGraph != null && yamlGraph.iterations() != null ? yamlGraph.iterations() : Map.of();
+        ExpansionResult<YamlNode> expanded;
+        if (!dataSources.isEmpty()) {
+            expanded = ForEachExpander.expand(
+                    effectiveNodes, iterations, dataSources, resolver, adapter, 1000);
+        } else {
+            expanded = ForEachExpander.expand(
+                    effectiveNodes, iterations, resolver, adapter, 1000, jsonArrayExpander(mapper));
+        }
         List<DesiredNode> expNodes = new ArrayList<>();
-        List<Dependency> expDeps = new ArrayList<>();
+        List<Dependency>  expDeps  = new ArrayList<>();
         for (Map.Entry<String, YamlNode> expEntry : expanded.elements().entrySet()) {
-            String expNodeId = expEntry.getKey();
-            YamlNode expYamlNode = expEntry.getValue();
-            Class<? extends NodeSpec> specClass = registry.resolve(expYamlNode.type());
-            NodeSpec spec = mapper.convertValue(expYamlNode.spec(), specClass);
-            VariableResolver nodeResolver = adapter.resolverFor(expNodeId);
+            String                    expNodeId    = expEntry.getKey();
+            YamlNode                  expYamlNode  = expEntry.getValue();
+            Class<? extends NodeSpec> specClass    = registry.resolve(expYamlNode.type());
+            NodeSpec                  spec         = mapper.convertValue(expYamlNode.spec(), specClass);
+            VariableResolver          nodeResolver = adapter.resolverFor(expNodeId);
             expNodes.add(new DesiredNode(NodeId.of(expNodeId), spec, expYamlNode.humanGating(),
-                    HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId)));
+                                         HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId)));
             for (Object dep : expYamlNode.dependsOn()) {
                 String depId = YamlNode.dependencyNodeId(dep);
                 if (!expanded.excludedIds().contains(depId)) {

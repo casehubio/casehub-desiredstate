@@ -16,7 +16,7 @@ import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.yaml.registry.NodeSpecRegistry;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
 import io.casehub.yaml.core.resolver.VariableResolver;
-import io.casehub.yaml.core.resolver.VariableSource;
+
 
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.runtime.annotations.Recorder;
@@ -38,7 +38,7 @@ public class YamlGraphRecorder {
     public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
             GraphDescriptor descriptor,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants) {
         return createYamlGoalCompiler(descriptor, typeRegistryMap, inlineVariables, invariants, null, null);
     }
@@ -47,7 +47,7 @@ public class YamlGraphRecorder {
     public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
             GraphDescriptor descriptor,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants,
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph) {
         return createYamlGoalCompiler(descriptor, typeRegistryMap, inlineVariables, invariants, yamlGraph, null);
@@ -57,7 +57,7 @@ public class YamlGraphRecorder {
     public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
             GraphDescriptor descriptor,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants,
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
             Map<String, io.casehub.yaml.core.module.YamlModule> availableModules) {
@@ -69,7 +69,7 @@ public class YamlGraphRecorder {
     public RuntimeValue<GoalCompiler> createYamlGoalCompiler(
             GraphDescriptor descriptor,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants,
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
             Map<String, io.casehub.yaml.core.module.YamlModule> availableModules,
@@ -80,9 +80,8 @@ public class YamlGraphRecorder {
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
 
         return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
-            VariableResolver resolver = new VariableResolver(
-                    Map.of("var", (VariableSource) inlineVariables::get),
-                    Set.of("match", "fault"));
+            VariableResolver resolver = new VariableResolver(Map.of(), Set.of("match", "fault"))
+                    .withObjectScope("var", inlineVariables::get);
 
             Map<String, io.casehub.desiredstate.yaml.model.YamlNode> effectiveNodes =
                     yamlGraph != null ? new java.util.LinkedHashMap<>(yamlGraph.nodes()) : Map.of();
@@ -279,16 +278,15 @@ public class YamlGraphRecorder {
     public RuntimeValue<GoalCompiler> createYamlLifecycleGoalCompiler(
             io.casehub.desiredstate.yaml.model.YamlGraph yamlGraph,
             Map<String, String> typeRegistryMap,
-            Map<String, String> inlineVariables,
+            Map<String, Object> inlineVariables,
             List<ResolvedInvariant> invariants) {
 
         ObjectMapper     mapper   = new ObjectMapper();
         NodeSpecRegistry registry = NodeSpecRegistry.of(typeRegistryMap);
 
         return new RuntimeValue<>((GoalCompiler) (goals, factory) -> {
-            VariableResolver resolver = new VariableResolver(
-                    Map.of("var", (VariableSource) inlineVariables::get),
-                    Set.of("match", "fault"));
+            VariableResolver resolver = new VariableResolver(Map.of(), Set.of("match", "fault"))
+                    .withObjectScope("var", inlineVariables::get);
             List<io.casehub.desiredstate.api.Phase>      phases            = new ArrayList<>();
             List<DesiredNode>                            carryForwardNodes = new ArrayList<>();
             List<io.casehub.desiredstate.api.Dependency> carryForwardDeps  = new ArrayList<>();

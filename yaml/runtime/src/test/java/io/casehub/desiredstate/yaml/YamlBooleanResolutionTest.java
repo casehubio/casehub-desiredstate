@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.yaml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +16,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class YamlBooleanResolutionTest {
 
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper yamlMapper = new ObjectMapper(
+            com.fasterxml.jackson.dataformat.yaml.YAMLFactory.builder()
+                                                             .enable(com.fasterxml.jackson.dataformat.yaml.YAMLParser.Feature.PARSE_BOOLEAN_LIKE_WORDS_AS_STRINGS)
+                                                             .build());
 
     @Test
     void yesValue_remainsString_notCoercedToBoolean() throws Exception {
@@ -69,20 +71,36 @@ class YamlBooleanResolutionTest {
     }
 
     @Test
-    void trueFalse_areValidBooleanStrings() throws Exception {
-        // true/false are YAML 1.2 booleans — but Map<String,String> stores them as strings
+    void trueFalse_arePreservedAsBoolean() throws Exception {
         String yaml = """
-                desiredState:
-                  namespace: test
-                  name: bool-test
-                variables:
-                  enabled: true
-                  disabled: false
-                nodes: {}
-                """;
+                      desiredState:
+                        namespace: test
+                        name: bool-test
+                      variables:
+                        enabled: true
+                        disabled: false
+                      nodes: {}
+                      """;
         YamlGraph graph = yamlMapper.readValue(yaml, YamlGraph.class);
-        // Jackson deserializes YAML booleans to String when target type is String
-        assertThat(graph.variables().get("enabled")).isEqualTo("true");
-        assertThat(graph.variables().get("disabled")).isEqualTo("false");
+        assertThat(graph.variables().get("enabled")).isEqualTo(true);
+        assertThat(graph.variables().get("disabled")).isEqualTo(false);
     }
+
+    @Test
+    void integerValues_preservedAsInteger() throws Exception {
+        String yaml = """
+                      desiredState:
+                        namespace: test
+                        name: type-test
+                      variables:
+                        batch_size: 500
+                        ratio: 0.75
+                      nodes: {}
+                      """;
+        YamlGraph graph = yamlMapper.readValue(yaml, YamlGraph.class);
+        assertThat(graph.variables().get("batch_size")).isEqualTo(500);
+        assertThat(graph.variables().get("batch_size")).isInstanceOf(Integer.class);
+        assertThat(graph.variables().get("ratio")).isEqualTo(0.75);
+    }
+
 }
