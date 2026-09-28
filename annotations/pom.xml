@@ -16,6 +16,7 @@
 
     <modules>
         <module>runtime</module>
+        <module>core</module>
         <module>deployment</module>
     </modules>
 </project>
