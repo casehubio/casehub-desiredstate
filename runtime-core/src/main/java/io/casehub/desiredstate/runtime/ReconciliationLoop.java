@@ -87,8 +87,8 @@ import java.util.stream.Collectors;
  */
 public class ReconciliationLoop {
 
-    static final Duration DEFAULT_DEBOUNCE = Duration.ofSeconds(1);
-    static final Duration DEFAULT_RESYNC = Duration.ofMinutes(5);
+    public static final Duration DEFAULT_DEBOUNCE = Duration.ofSeconds(1);
+    public static final Duration DEFAULT_RESYNC = Duration.ofMinutes(5);
     private static final Logger LOG = Logger.getLogger(ReconciliationLoop.class.getName());
     private final TransitionPlanner planner;
     private final TransitionExecutor executor;

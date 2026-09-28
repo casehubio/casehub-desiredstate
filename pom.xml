@@ -24,12 +24,14 @@
         <module>api</module>
         <module>runtime-core</module>
         <module>runtime</module>
+        <module>runtime-spring</module>
         <module>testing</module>
         <module>engine-adapter</module>
         <module>work-adapter</module>
         <module>ras-adapter</module>
         <module>persistence-jpa-common</module>
         <module>persistence-jpa</module>
+        <module>persistence-spring-jpa</module>
         <module>examples/dungeon</module>
         <module>examples/pipeline</module>
         <module>examples/spatial</module>
@@ -54,6 +56,15 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Spring Boot BOM -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <!-- platform step pipeline -->
             <dependency>
                 <groupId>io.casehub</groupId>
@@ -93,6 +104,11 @@
             </dependency>
             <dependency>
                 <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-runtime-spring</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-testing</artifactId>
                 <version>${project.version}</version>
                 <scope>test</scope>
@@ -115,6 +131,11 @@
             <dependency>
                 <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-persistence-jpa-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-persistence-spring-jpa</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
