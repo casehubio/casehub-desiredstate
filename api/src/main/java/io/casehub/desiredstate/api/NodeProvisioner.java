@@ -43,5 +43,15 @@ public interface NodeProvisioner {
 
     ProvisionResult provision(DesiredNode node, ProvisionContext context);
     DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context);
+
+    default SuspendResult suspend(DesiredNode node, SuspendContext context) {
+        return new SuspendResult.Failed("suspend not supported");
+    }
+
+    default ResumeResult resume(DesiredNode node, ResumeContext context) {
+        return new ResumeResult.Failed("resume not supported");
+    }
+
+    default boolean supportsStatefulLifecycle() {return false;}
 }
 

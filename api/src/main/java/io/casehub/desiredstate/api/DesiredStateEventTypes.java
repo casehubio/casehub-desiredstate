@@ -11,4 +11,9 @@ public final class DesiredStateEventTypes {
         "io.casehub.desiredstate.node.drifted";
     public static final String NODE_RECOVERED =
         "io.casehub.desiredstate.node.recovered";
+
+    public static final String NODE_SUSPENDED =
+            "io.casehub.desiredstate.node.suspended";
+    public static final String NODE_RESUMED   =
+            "io.casehub.desiredstate.node.resumed";
 }

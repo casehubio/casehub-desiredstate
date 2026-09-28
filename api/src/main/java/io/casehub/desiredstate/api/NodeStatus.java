@@ -11,5 +11,7 @@ public enum NodeStatus {
     /** Node exists but has diverged from its spec. */
     DRIFTED,
     /** Node status could not be determined. */
-    UNKNOWN
+    UNKNOWN,
+    /** Node is dormant — process stopped but state persists on disk/storage. */
+    SUSPENDED
 }

@@ -1,3 +1,3 @@
 package io.casehub.desiredstate.api;
 
-public enum StepAction { PROVISION, DEPROVISION }
+public enum StepAction { PROVISION, DEPROVISION, SUSPEND, RESUME }

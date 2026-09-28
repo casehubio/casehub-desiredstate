@@ -45,4 +45,10 @@ public interface NodeProvisionerRouter {
      * @return set of handled node types
      */
     Set<NodeType> allHandledTypes();
+
+    SuspendResult suspend(DesiredNode node, SuspendContext context);
+
+    ResumeResult resume(DesiredNode node, ResumeContext context);
+
+    boolean supportsStatefulLifecycle(NodeType type);
 }

@@ -84,4 +84,32 @@ class HumanGatingTest {
             assertThat(other.merge(HumanGating.ALL)).isEqualTo(HumanGating.ALL);
         }
     }
+
+    @Test
+    void suspendOnly_requiresHuman_suspendTrue_othersFalse() {
+        assertThat(HumanGating.SUSPEND_ONLY.requiresHuman(StepAction.SUSPEND)).isTrue();
+        assertThat(HumanGating.SUSPEND_ONLY.requiresHuman(StepAction.PROVISION)).isFalse();
+        assertThat(HumanGating.SUSPEND_ONLY.requiresHuman(StepAction.DEPROVISION)).isFalse();
+        assertThat(HumanGating.SUSPEND_ONLY.requiresHuman(StepAction.RESUME)).isFalse();
+    }
+
+    @Test
+    void resumeOnly_requiresHuman_resumeTrue_othersFalse() {
+        assertThat(HumanGating.RESUME_ONLY.requiresHuman(StepAction.RESUME)).isTrue();
+        assertThat(HumanGating.RESUME_ONLY.requiresHuman(StepAction.PROVISION)).isFalse();
+        assertThat(HumanGating.RESUME_ONLY.requiresHuman(StepAction.DEPROVISION)).isFalse();
+        assertThat(HumanGating.RESUME_ONLY.requiresHuman(StepAction.SUSPEND)).isFalse();
+    }
+
+    @Test
+    void all_requiresHuman_allFourTrue() {
+        assertThat(HumanGating.ALL.requiresHuman(StepAction.SUSPEND)).isTrue();
+        assertThat(HumanGating.ALL.requiresHuman(StepAction.RESUME)).isTrue();
+    }
+
+    @Test
+    void none_requiresHuman_suspendResumeFalse() {
+        assertThat(HumanGating.NONE.requiresHuman(StepAction.SUSPEND)).isFalse();
+        assertThat(HumanGating.NONE.requiresHuman(StepAction.RESUME)).isFalse();
+    }
 }
