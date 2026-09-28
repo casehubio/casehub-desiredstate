@@ -1,0 +1,109 @@
+package io.casehub.desiredstate.persistence.jpa;
+
+import io.casehub.desiredstate.api.FaultCountStore;
+import io.casehub.desiredstate.api.NodeId;
+import jakarta.persistence.EntityManager;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+public class SpringJpaFaultCountStore implements FaultCountStore {
+
+    private final EntityManager em;
+
+    public SpringJpaFaultCountStore(EntityManager em) {
+        this.em = em;
+    }
+
+    @Override
+    @Transactional
+    public int incrementAndGet(String namespace, String tenancyId, NodeId nodeId) {
+        FaultCountEntity.Key key = new FaultCountEntity.Key(namespace, tenancyId, nodeId.value());
+        FaultCountEntity entity = em.find(FaultCountEntity.class, key);
+        if (entity == null) {
+            entity = new FaultCountEntity();
+            entity.namespace = namespace;
+            entity.tenancyId = tenancyId;
+            entity.nodeId = nodeId.value();
+            entity.count = 1;
+            em.persist(entity);
+        } else {
+            entity.count++;
+        }
+        em.flush();
+        return entity.count;
+    }
+
+    @Override
+    public int getCount(String namespace, String tenancyId, NodeId nodeId) {
+        FaultCountEntity entity = em.find(FaultCountEntity.class,
+                new FaultCountEntity.Key(namespace, tenancyId, nodeId.value()));
+        return entity != null ? entity.count : 0;
+    }
+
+    @Override
+    @Transactional
+    public void reset(String namespace, String tenancyId, NodeId nodeId) {
+        FaultCountEntity.Key key = new FaultCountEntity.Key(namespace, tenancyId, nodeId.value());
+        FaultCountEntity entity = em.find(FaultCountEntity.class, key);
+        if (entity == null) {
+            entity = new FaultCountEntity();
+            entity.namespace = namespace;
+            entity.tenancyId = tenancyId;
+            entity.nodeId = nodeId.value();
+            entity.count = 0;
+            em.persist(entity);
+        } else {
+            entity.count = 0;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void remove(String namespace, String tenancyId, NodeId nodeId) {
+        FaultCountEntity entity = em.find(FaultCountEntity.class,
+                new FaultCountEntity.Key(namespace, tenancyId, nodeId.value()));
+        if (entity != null) {
+            em.remove(entity);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void evict(String namespace, String tenancyId, Set<NodeId> retainedNodes) {
+        if (retainedNodes.isEmpty()) {
+            em.createQuery("DELETE FROM FaultCountEntity e WHERE e.namespace = :ns AND e.tenancyId = :tid")
+              .setParameter("ns", namespace)
+              .setParameter("tid", tenancyId)
+              .executeUpdate();
+        } else {
+            Set<String> retained = retainedNodes.stream()
+                    .map(NodeId::value)
+                    .collect(Collectors.toSet());
+            em.createQuery("DELETE FROM FaultCountEntity e WHERE e.namespace = :ns AND e.tenancyId = :tid AND e.nodeId NOT IN :retained")
+              .setParameter("ns", namespace)
+              .setParameter("tid", tenancyId)
+              .setParameter("retained", retained)
+              .executeUpdate();
+        }
+    }
+
+    @Override
+    @Transactional
+    public void evictAcrossNamespaces(String tenancyId, Set<NodeId> retainedNodes) {
+        if (retainedNodes.isEmpty()) {
+            em.createQuery("DELETE FROM FaultCountEntity e WHERE e.tenancyId = :tid")
+              .setParameter("tid", tenancyId)
+              .executeUpdate();
+        } else {
+            Set<String> retained = retainedNodes.stream()
+                    .map(NodeId::value)
+                    .collect(Collectors.toSet());
+            em.createQuery("DELETE FROM FaultCountEntity e WHERE e.tenancyId = :tid AND e.nodeId NOT IN :retained")
+              .setParameter("tid", tenancyId)
+              .setParameter("retained", retained)
+              .executeUpdate();
+        }
+    }
+}
