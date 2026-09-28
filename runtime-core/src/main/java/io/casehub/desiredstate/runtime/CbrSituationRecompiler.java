@@ -17,7 +17,6 @@ import io.casehub.platform.api.preferences.PreferenceProvider;
 import io.casehub.platform.api.preferences.Preferences;
 import io.casehub.platform.api.preferences.SettingsScope;
 import io.casehub.ras.api.ActiveSituation;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -29,7 +28,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-@ApplicationScoped
 public class CbrSituationRecompiler implements SituationRecompiler {
 
     private static final Logger LOG = Logger.getLogger(CbrSituationRecompiler.class.getName());

@@ -6,7 +6,6 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionResult;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,7 +15,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-@ApplicationScoped
 public class CbrProposalTracker {
 
     private final ConcurrentHashMap<String, List<CbrProposal>> pending =

@@ -1,8 +1,6 @@
 package io.casehub.desiredstate.runtime;
 
 import io.casehub.desiredstate.api.*;
-import io.quarkus.arc.DefaultBean;
-import jakarta.inject.Singleton;
 
 import java.util.Collection;
 
@@ -10,8 +8,6 @@ import java.util.Collection;
  * Default CDI-managed factory for creating {@link DesiredStateGraph} instances.
  * Returns {@link ImmutableDesiredStateGraph} backed by dual adjacency maps.
  */
-@DefaultBean
-@Singleton
 public class DefaultDesiredStateGraphFactory implements DesiredStateGraphFactory {
 
     @Override

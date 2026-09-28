@@ -19,14 +19,12 @@ import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
-import org.jboss.logging.Logger;
+import java.util.logging.Logger;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Scope;
-import io.quarkus.arc.DefaultBean;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -37,11 +35,9 @@ import java.util.Map;
  * Delegates requiresHuman nodes to the HumanNodeHandler.
  * Wraps provisioner calls with PendingApprovalHandler for approval lifecycle management.
  */
-@DefaultBean
-@ApplicationScoped
 public class SimpleTransitionExecutor implements TransitionExecutor {
 
-    private static final Logger LOG = Logger.getLogger(SimpleTransitionExecutor.class);
+    private static final Logger LOG = Logger.getLogger(SimpleTransitionExecutor.class.getName());
     private static final String INSTRUMENTATION_NAME = "io.casehub.desiredstate";
 
     private final NodeProvisionerRouter router;
@@ -123,7 +119,7 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                         for (LifecycleStep step : node.hooks().provisionPost()) {
                             StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
                             if (hookResult instanceof StepOutcome.Failed f) {
-                                LOG.warnf("post-provision hook failed for %s: %s", node.id().value(), f.reason());
+                                LOG.warning(String.format("post-provision hook failed for %s: %s", node.id().value(), f.reason()));
                             }
                         }
                     }
@@ -187,7 +183,7 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
                         for (LifecycleStep step : node.hooks().deprovisionPost()) {
                             StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
                             if (hookResult instanceof StepOutcome.Failed f) {
-                                LOG.warnf("post-deprovision hook failed for %s: %s", node.id().value(), f.reason());
+                                LOG.warning(String.format("post-deprovision hook failed for %s: %s", node.id().value(), f.reason()));
                             }
                         }
                     }

@@ -17,7 +17,6 @@ import io.casehub.desiredstate.api.RetrievedConfiguration;
 import io.casehub.platform.api.preferences.PreferenceProvider;
 import io.casehub.platform.api.preferences.Preferences;
 import io.casehub.platform.api.preferences.SettingsScope;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -29,7 +28,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-@ApplicationScoped
 public class CbrFaultPolicy implements FaultPolicy {
 
     private static final Logger LOG = Logger.getLogger(CbrFaultPolicy.class.getName());

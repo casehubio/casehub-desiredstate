@@ -34,11 +34,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import io.smallrye.mutiny.subscription.Cancellable;
-import jakarta.annotation.PreDestroy;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Event;
-import jakarta.enterprise.inject.Instance;
-import jakarta.inject.Inject;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -90,7 +85,6 @@ import java.util.stream.Collectors;
  *
  * <p>The reconciliation loop never dies on exception. A dead loop is worse than a failed cycle.
  */
-@ApplicationScoped
 public class ReconciliationLoop {
 
     static final Duration DEFAULT_DEBOUNCE = Duration.ofSeconds(1);
@@ -114,23 +108,6 @@ public class ReconciliationLoop {
     private final ConcurrentHashMap<String, TenantLoop> loops = new ConcurrentHashMap<>();
     private final ScheduledExecutorService scheduler;
 
-    @Inject
-    public ReconciliationLoop(
-            TransitionPlanner planner,
-            TransitionExecutor executor,
-            ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
-            MergedEventSource mergedEventSource,
-            NodeProvisionerRouter router,
-            Event<CloudEvent> cloudEventSink,
-            Instance<GlobalReconciliationListener> globalListeners,
-            CbrProposalTracker cbrTracker,
-            ReconciliationStateStore reconciliationStateStore) {
-        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             router, DEFAULT_DEBOUNCE, null, cloudEventSink::fire, cbrTracker,
-             globalListeners.stream().toList(), reconciliationStateStore);
-    }
-
     protected ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
@@ -141,7 +118,7 @@ public class ReconciliationLoop {
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null);
     }
 
-    private ReconciliationLoop(
+    public ReconciliationLoop(
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapterRouter actualStateAdapterRouter,
@@ -335,7 +312,6 @@ public class ReconciliationLoop {
     }
 
 
-    @PreDestroy
     public void shutdown() {
         for (String tenancyId : loops.keySet()) {
             stop(tenancyId);

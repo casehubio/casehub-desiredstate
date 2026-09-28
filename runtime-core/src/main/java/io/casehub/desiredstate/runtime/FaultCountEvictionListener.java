@@ -4,17 +4,13 @@ import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultCountStore;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 
 import java.util.Set;
 
-@ApplicationScoped
 public class FaultCountEvictionListener implements GlobalReconciliationListener {
 
     private final FaultCountStore store;
 
-    @Inject
     public FaultCountEvictionListener(FaultCountStore store) {
         this.store = store;
     }

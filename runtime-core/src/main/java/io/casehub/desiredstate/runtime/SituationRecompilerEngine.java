@@ -6,13 +6,11 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
 import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.ras.api.ActiveSituation;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-@ApplicationScoped
 public class SituationRecompilerEngine {
 
     private final List<SituationRecompiler> recompilers;

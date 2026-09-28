@@ -7,7 +7,6 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.GraphMutation;
-import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,7 +20,6 @@ import java.util.Set;
  * Evaluates all registered fault policies against a fault event and merges their mutations.
  * Detects conflicts when multiple policies propose incompatible mutations for the same node.
  */
-@ApplicationScoped
 public class FaultPolicyEngine {
 
     private final List<FaultPolicy> policies;
