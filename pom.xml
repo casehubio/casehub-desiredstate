@@ -28,6 +28,7 @@
         <module>engine-adapter</module>
         <module>work-adapter</module>
         <module>ras-adapter</module>
+        <module>persistence-jpa-common</module>
         <module>persistence-jpa</module>
         <module>examples/dungeon</module>
         <module>examples/pipeline</module>
@@ -109,6 +110,11 @@
             <dependency>
                 <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-ras</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-persistence-jpa-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

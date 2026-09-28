@@ -19,6 +19,10 @@
     <dependencies>
         <dependency>
             <groupId>io.casehub</groupId>
+            <artifactId>casehub-desiredstate-persistence-jpa-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.casehub</groupId>
             <artifactId>casehub-desiredstate-api</artifactId>
         </dependency>
         <dependency>
