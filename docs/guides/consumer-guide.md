@@ -393,6 +393,56 @@ The runtime emits CloudEvents during reconciliation:
 
 ---
 
+## Spring Boot Integration
+
+The desiredstate runtime can be embedded in Spring Boot applications via auto-configuration modules. Each module uses `@AutoConfiguration` + `@ConditionalOnMissingBean` — add the dependency and the beans are registered automatically.
+
+### Maven Dependencies
+
+```xml
+<!-- Core runtime (required) -->
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-desiredstate-runtime-spring</artifactId>
+</dependency>
+
+<!-- Annotation-driven graphs (@DesiredState, @Node, @GraphRule) -->
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-desiredstate-annotations-spring</artifactId>
+</dependency>
+
+<!-- YAML-driven graphs (META-INF/desiredstate/*.yaml) -->
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-desiredstate-yaml-spring</artifactId>
+</dependency>
+
+<!-- TypeScript DSL graphs (META-INF/desiredstate/*.ds.json) -->
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-desiredstate-ts-spring</artifactId>
+</dependency>
+
+<!-- Durable fault counts + reconciliation state via JPA -->
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-desiredstate-persistence-spring-jpa</artifactId>
+</dependency>
+```
+
+### How It Works
+
+**Annotation scanning:** `annotations-spring` reads `META-INF/jandex.idx` from all classpath JARs at startup. Classes annotated with `@DesiredState`, `@DeclareNode`, `@GraphRule`, `@GraphInvariant`, and `@FaultPolicyDef` are discovered and registered as `GoalCompiler` and `ThresholdFaultPolicy` beans — same behaviour as the Quarkus build extension, but at startup rather than build time.
+
+**YAML graphs:** `yaml-spring` discovers `META-INF/desiredstate/*.yaml` and `META-INF/desiredstate/modules/*.yaml` on the classpath using Spring's `PathMatchingResourcePatternResolver`. `@NodeTypeId` classes are scanned from Jandex indexes. Each YAML graph file becomes a `GoalCompiler` bean.
+
+**Persistence:** `persistence-spring-jpa` provides `FaultCountStore` and `ReconciliationStateStore` implementations backed by JPA. Uses Spring `@Transactional` with constructor-injected `EntityManager`. Requires a `DataSource` bean and Flyway migrations at `classpath:db/desiredstate/migration/`.
+
+**SPI fallbacks:** `runtime-spring` registers `@ConditionalOnMissingBean` defaults for `FaultCountStore` (in-memory), `ReconciliationStateStore` (in-memory), `HumanNodeHandler` (no-op), and `PendingApprovalHandler` (no-op). Application-provided beans take precedence.
+
+---
+
 ## What This Repo Does NOT Do
 
 - Persist desired-state graphs -- graphs are in-memory per tenant

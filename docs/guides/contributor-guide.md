@@ -261,3 +261,51 @@ Four examples validate the SPI surface:
 - `WorkItemHumanNodeHandler` removed (#72) -- creating orphaned WorkItems without case lifecycle is not valid.
 - No graph persistence module -- graphs are in-memory only.
 - `CaseTransitionExecutor` reports outcomes optimistically (V1); proper case completion observation is a follow-up.
+
+---
+
+## Core Extraction Pattern
+
+Framework-neutral logic is extracted into `-core` modules so the runtime can be embedded in both Quarkus and Spring Boot applications. This follows the platform-wide pattern from `casehubio/parent#469`.
+
+### Module Layering
+
+| Layer | Module | Contains |
+|-------|--------|----------|
+| Core POJOs | `runtime-core/` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, SimpleTransitionExecutor, CBR chain, composition engine. Constructor injection, `List<T>` for multi-bean, `Consumer<T>` for events. Zero CDI, zero Spring. |
+| Quarkus wiring | `runtime/` | CDI bridges (`CdiNodeProvisionerRouter`, `CdiActualStateAdapterRouter`, `CdiMergedEventSource`) + `RuntimeBeans` (`@Produces` methods instantiating core POJOs) + lifecycle classes. |
+| Spring wiring | `runtime-spring/` | `@AutoConfiguration` with `@Bean` methods instantiating core POJOs. `Instance<T>` → `List<T>`, `Event<CloudEvent>` → `ApplicationEventPublisher`. |
+| Shared entities | `persistence-jpa-common/` | `FaultCountEntity`, `ReconciliationStateEntity`, `GraphSerializer`. Used by both Quarkus and Spring JPA modules. |
+
+### Factory Pattern for Graph Declaration Surfaces
+
+Each graph declaration surface (annotations, YAML, TypeScript DSL) has factory classes that create `GoalCompiler` instances from descriptors:
+
+| Factory | Location | Creates from |
+|---------|----------|-------------|
+| `GoalCompilerFactory` | `annotations/runtime` | `GraphDescriptor` → `GoalCompiler<?>` |
+| `FaultPolicyFactory` | `annotations/runtime` | `FaultPolicyDescriptor` → `ThresholdFaultPolicy` |
+| `YamlGoalCompilerFactory` | `yaml/runtime` | `YamlGraph` + `NodeSpecRegistry` → `GoalCompiler<?>` |
+| `TsGoalCompilerFactory` | `ts-dsl/runtime` | `TsEnvelope` + `NodeSpecRegistry` → `GoalCompiler<?>` |
+
+Factories live alongside their descriptor types in the runtime module (not in a separate `-core` module) to avoid cyclic dependencies. Both the Quarkus `@Recorder` and the Spring `@AutoConfiguration` call the same factory.
+
+`DescriptorScanner` in `annotations/core` provides shared Jandex-based scanning logic — builds `GraphDescriptor` and `FaultPolicyDescriptor` from a Jandex `IndexView`. Used by both the Quarkus deployment module and `annotations-spring`.
+
+### Dependency Direction
+
+```
+api (zero-dep)
+ └── runtime-core (api only)
+      ├── runtime (runtime-core + quarkus-arc)
+      └── runtime-spring (runtime-core + spring-boot-autoconfigure)
+```
+
+The `-core` module never depends on Quarkus or Spring. The framework-specific modules depend on `-core` and add their wiring.
+
+### Adding a New Bean to runtime-core
+
+1. Write the POJO in `runtime-core/` with a public constructor accepting plain types (`List<T>` not `Instance<T>`, `Consumer<T>` not `Event<T>`).
+2. Add a `@Produces` method in `RuntimeBeans.java` (runtime module) that bridges CDI types to the core constructor.
+3. Add a `@Bean` method in `DesiredStateRuntimeAutoConfiguration` (runtime-spring module) that bridges Spring types.
+4. No CDI or Spring imports in the POJO itself.
