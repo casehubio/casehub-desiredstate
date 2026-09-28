@@ -444,4 +444,150 @@ class TransitionPlannerTest {
 
     // Helper test spec
     record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
+
+// --- Suspend/Resume decision matrix tests ---
+
+    @Test
+    void presentWithSuspendedTarget_producesSuspension() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertEquals(1, plan.suspensions().size());
+        assertEquals(StepAction.SUSPEND, plan.suspensions().get(0).action());
+        assertTrue(plan.additions().isEmpty());
+        assertTrue(plan.removals().isEmpty());
+    }
+
+    @Test
+    void suspendedWithActiveTarget_producesResumption() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.SUSPENDED));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertEquals(1, plan.resumptions().size());
+        assertEquals(StepAction.RESUME, plan.resumptions().get(0).action());
+        assertTrue(plan.additions().isEmpty());
+        assertTrue(plan.suspensions().isEmpty());
+    }
+
+    @Test
+    void absentWithSuspendedTarget_producesResumptionAttempt() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertEquals(1, plan.resumptions().size());
+        assertEquals(StepAction.RESUME, plan.resumptions().get(0).action());
+    }
+
+    @Test
+    void suspendedWithSuspendedTarget_producesNoOp() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.SUSPENDED));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertTrue(plan.isEmpty());
+    }
+
+    @Test
+    void driftedWithSuspendedTarget_producesSuspension() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.DRIFTED));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertEquals(1, plan.suspensions().size());
+    }
+
+    @Test
+    void suspendedNotInGraph_producesDeprovision() {
+        DesiredStateGraph desired = factory.empty();
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("orphan"), NodeStatus.SUSPENDED));
+
+        TransitionPlan plan = planner.plan(desired, actual);
+
+        assertEquals(1, plan.removals().size());
+        assertEquals(StepAction.DEPROVISION, plan.removals().get(0).action());
+    }
+
+    @Test
+    void suspendFallsBackToDeprovisionWhenNotSupported() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> false);
+
+        assertTrue(plan.suspensions().isEmpty());
+        assertEquals(1, plan.removals().size());
+        assertEquals(StepAction.DEPROVISION, plan.removals().get(0).action());
+    }
+
+    @Test
+    void resumeFallsBackToProvisionWhenNotSupported() {
+        DesiredNode       node    = new DesiredNode(NodeId.of("n1"), new TestSpec("v"), HumanGating.NONE);
+        DesiredStateGraph desired = factory.of(List.of(node), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("n1"), NodeStatus.SUSPENDED));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> false);
+
+        assertTrue(plan.resumptions().isEmpty());
+        assertEquals(1, plan.additions().size());
+        assertEquals(StepAction.PROVISION, plan.additions().get(0).action());
+    }
+
+    @Test
+    void suspensionsOrderedLeavesFirst() {
+        DesiredNode       root    = new DesiredNode(NodeId.of("root"), new TestSpec("R"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredNode       leaf    = new DesiredNode(NodeId.of("leaf"), new TestSpec("L"), HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph desired = factory.of(List.of(root, leaf), List.of(new Dependency(NodeId.of("leaf"), NodeId.of("root"))));
+        ActualState actual = new ActualState(Map.of(
+                NodeId.of("root"), NodeStatus.PRESENT,
+                NodeId.of("leaf"), NodeStatus.PRESENT));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertEquals(2, plan.suspensions().size());
+        assertEquals(NodeId.of("leaf"), plan.suspensions().get(0).node().id());
+        assertEquals(NodeId.of("root"), plan.suspensions().get(1).node().id());
+    }
+
+    @Test
+    void resumptionsOrderedRootsFirst() {
+        DesiredNode       root    = new DesiredNode(NodeId.of("root"), new TestSpec("R"), HumanGating.NONE);
+        DesiredNode       leaf    = new DesiredNode(NodeId.of("leaf"), new TestSpec("L"), HumanGating.NONE);
+        DesiredStateGraph desired = factory.of(List.of(root, leaf), List.of(new Dependency(NodeId.of("leaf"), NodeId.of("root"))));
+        ActualState actual = new ActualState(Map.of(
+                NodeId.of("root"), NodeStatus.SUSPENDED,
+                NodeId.of("leaf"), NodeStatus.SUSPENDED));
+
+        TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
+
+        assertEquals(2, plan.resumptions().size());
+        assertEquals(NodeId.of("root"), plan.resumptions().get(0).node().id());
+        assertEquals(NodeId.of("leaf"), plan.resumptions().get(1).node().id());
+    }
+
+    @Test
+    void existingBehaviorUnchangedWithDefaultPredicate() {
+        DesiredNode       nodeA   = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredStateGraph desired = factory.of(List.of(nodeA), List.of());
+        ActualState       actual  = new ActualState(Map.of(NodeId.of("a"), NodeStatus.ABSENT));
+
+        TransitionPlan plan = planner.plan(desired, actual);
+
+        assertEquals(1, plan.additions().size());
+        assertTrue(plan.suspensions().isEmpty());
+        assertTrue(plan.resumptions().isEmpty());
+    }
 }

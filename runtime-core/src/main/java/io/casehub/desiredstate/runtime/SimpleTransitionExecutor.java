@@ -14,12 +14,15 @@ import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.PendingApprovalHandler;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.ResumeContext;
+import io.casehub.desiredstate.api.ResumeResult;
+import io.casehub.desiredstate.api.SuspendContext;
+import io.casehub.desiredstate.api.SuspendResult;
 import io.casehub.desiredstate.api.StepAction;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.api.TransitionResult;
-import java.util.logging.Logger;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
@@ -28,6 +31,7 @@ import io.opentelemetry.context.Scope;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * Simple sequential transition executor.
@@ -61,6 +65,16 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
 
         for (OrderedStep step : plan.removals()) {
             StepOutcome outcome = executeDeprovision(step.node(), plan.before(), tenancyId);
+            outcomes.put(step.node().id(), outcome);
+        }
+
+        for (OrderedStep step : plan.suspensions()) {
+            StepOutcome outcome = executeSuspend(step.node(), plan.before(), tenancyId);
+            outcomes.put(step.node().id(), outcome);
+        }
+
+        for (OrderedStep step : plan.resumptions()) {
+            StepOutcome outcome = executeResume(step.node(), plan.after(), tenancyId);
             outcomes.put(step.node().id(), outcome);
         }
 
@@ -199,5 +213,92 @@ public class SimpleTransitionExecutor implements TransitionExecutor {
             span.end();
         }
     }
+
+    private StepOutcome executeSuspend(DesiredNode node, DesiredStateGraph graph, String tenancyId) {
+        Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("suspend")
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.node.id"), node.id().value())
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.node.type"), node.type().value())
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.human.gating"), node.humanGating().name())
+                                       .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman(StepAction.SUSPEND))
+                                       .startSpan();
+        try (Scope scope = span.makeCurrent()) {
+            SuspendContext context = new SuspendContext(tenancyId, graph);
+
+            if (node.requiresHuman(StepAction.SUSPEND)) {
+                return humanNodeHandler.onSuspend(node, context);
+            }
+
+            ApprovalCheckResult approvalCheck = pendingApprovalHandler.check(node, StepAction.SUSPEND, tenancyId);
+            switch (approvalCheck) {
+                case ApprovalCheckResult.Pending p -> {
+                    return new StepOutcome.Skipped("pending approval: " + p.planReference());
+                }
+                case ApprovalCheckResult.Rejected r -> {
+                    pendingApprovalHandler.acknowledgeRejection(node, StepAction.SUSPEND, tenancyId);
+                    span.setStatus(StatusCode.ERROR, "approval rejected: " + r.reason());
+                    return new StepOutcome.Rejected("approval rejected: " + r.reason());
+                }
+                case ApprovalCheckResult.Approved a -> context = context.withApproval(a.approval());
+                case ApprovalCheckResult.None ignored -> {}
+            }
+
+            SuspendResult result = router.suspend(node, context);
+
+            return switch (result) {
+                case SuspendResult.Success ignored -> new StepOutcome.Succeeded();
+                case SuspendResult.Failed f -> {
+                    span.setStatus(StatusCode.ERROR, f.reason());
+                    yield new StepOutcome.Failed(f.reason());
+                }
+                case SuspendResult.PendingApproval pa -> pendingApprovalHandler.recordPending(node, StepAction.SUSPEND, tenancyId, pa.planReference());
+            };
+        } finally {
+            span.end();
+        }
+    }
+
+    private StepOutcome executeResume(DesiredNode node, DesiredStateGraph graph, String tenancyId) {
+        Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("resume")
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.node.id"), node.id().value())
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.node.type"), node.type().value())
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.human.gating"), node.humanGating().name())
+                                       .setAttribute(AttributeKey.booleanKey("desiredstate.requires.human"), node.requiresHuman(StepAction.RESUME))
+                                       .startSpan();
+        try (Scope scope = span.makeCurrent()) {
+            ResumeContext context = new ResumeContext(tenancyId, graph);
+
+            if (node.requiresHuman(StepAction.RESUME)) {
+                return humanNodeHandler.onResume(node, context);
+            }
+
+            ApprovalCheckResult approvalCheck = pendingApprovalHandler.check(node, StepAction.RESUME, tenancyId);
+            switch (approvalCheck) {
+                case ApprovalCheckResult.Pending p -> {
+                    return new StepOutcome.Skipped("pending approval: " + p.planReference());
+                }
+                case ApprovalCheckResult.Rejected r -> {
+                    pendingApprovalHandler.acknowledgeRejection(node, StepAction.RESUME, tenancyId);
+                    span.setStatus(StatusCode.ERROR, "approval rejected: " + r.reason());
+                    return new StepOutcome.Rejected("approval rejected: " + r.reason());
+                }
+                case ApprovalCheckResult.Approved a -> context = context.withApproval(a.approval());
+                case ApprovalCheckResult.None ignored -> {}
+            }
+
+            ResumeResult result = router.resume(node, context);
+
+            return switch (result) {
+                case ResumeResult.Success ignored -> new StepOutcome.Succeeded();
+                case ResumeResult.Failed f -> {
+                    span.setStatus(StatusCode.ERROR, f.reason());
+                    yield new StepOutcome.Failed(f.reason());
+                }
+                case ResumeResult.PendingApproval pa -> pendingApprovalHandler.recordPending(node, StepAction.RESUME, tenancyId, pa.planReference());
+            };
+        } finally {
+            span.end();
+        }
+    }
+
 
 }

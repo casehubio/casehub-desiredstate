@@ -8,10 +8,14 @@ import io.casehub.desiredstate.api.NodeProvisionerRouter;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.ResumeContext;
+import io.casehub.desiredstate.api.ResumeResult;
+import io.casehub.desiredstate.api.SuspendContext;
+import io.casehub.desiredstate.api.SuspendResult;
+import io.casehub.platform.api.identity.TenancyConstants;
 import io.casehub.platform.api.preferences.DurationPreference;
 import io.casehub.platform.api.preferences.PreferenceProvider;
 import io.casehub.platform.api.preferences.Preferences;
-import io.casehub.platform.api.identity.TenancyConstants;
 import io.casehub.platform.api.preferences.SettingsScope;
 
 import java.time.Duration;
@@ -127,5 +131,29 @@ public class DefaultNodeProvisionerRouter implements NodeProvisionerRouter {
         public Map<String, Object> asMap() {
             return Map.of();
         }
+    }
+
+    @Override
+    public SuspendResult suspend(DesiredNode node, SuspendContext context) {
+        NodeProvisioner provisioner = routing.get(node.type());
+        if (provisioner == null) {
+            return new SuspendResult.Failed("No provisioner for node type: " + node.type());
+        }
+        return provisioner.suspend(node, context);
+    }
+
+    @Override
+    public ResumeResult resume(DesiredNode node, ResumeContext context) {
+        NodeProvisioner provisioner = routing.get(node.type());
+        if (provisioner == null) {
+            return new ResumeResult.Failed("No provisioner for node type: " + node.type());
+        }
+        return provisioner.resume(node, context);
+    }
+
+    @Override
+    public boolean supportsStatefulLifecycle(NodeType type) {
+        NodeProvisioner provisioner = routing.get(type);
+        return provisioner != null && provisioner.supportsStatefulLifecycle();
     }
 }

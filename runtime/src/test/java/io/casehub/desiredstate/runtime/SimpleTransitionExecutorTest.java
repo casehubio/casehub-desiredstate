@@ -227,26 +227,43 @@ class SimpleTransitionExecutorTest {
         TestSpec(String value) {this(NodeType.of("test"), value);}
     }
 
-    // Mock provisioner for testing
     static class MockNodeProvisioner implements NodeProvisioner {
-        List<String> callOrder = new java.util.ArrayList<>();
-        boolean shouldFail = false;
-        boolean shouldReturnPendingApproval = false;
+        List<String> callOrder                   = new java.util.ArrayList<>();
+        boolean      shouldFail                  = false;
+        boolean      shouldReturnPendingApproval = false;
+        boolean      stateful                    = false;
 
         @Override
         public ProvisionResult provision(DesiredNode node, ProvisionContext context) {
             callOrder.add("provision:" + node.id().value());
-            if (shouldFail) return new ProvisionResult.Failed("mock failure");
-            if (shouldReturnPendingApproval) return new ProvisionResult.PendingApproval(node.id(), "mock-plan");
+            if (shouldFail) {return new ProvisionResult.Failed("mock failure");}
+            if (shouldReturnPendingApproval) {return new ProvisionResult.PendingApproval(node.id(), "mock-plan");}
             return new ProvisionResult.Success();
         }
 
         @Override
         public DeprovisionResult deprovision(DesiredNode node, DeprovisionContext context) {
             callOrder.add("deprovision:" + node.id().value());
-            if (shouldFail) return new DeprovisionResult.Failed("mock failure");
+            if (shouldFail) {return new DeprovisionResult.Failed("mock failure");}
             return new DeprovisionResult.Success();
         }
+
+        @Override
+        public io.casehub.desiredstate.api.SuspendResult suspend(DesiredNode node, io.casehub.desiredstate.api.SuspendContext context) {
+            callOrder.add("suspend:" + node.id().value());
+            if (shouldFail) {return new io.casehub.desiredstate.api.SuspendResult.Failed("mock failure");}
+            return new io.casehub.desiredstate.api.SuspendResult.Success();
+        }
+
+        @Override
+        public io.casehub.desiredstate.api.ResumeResult resume(DesiredNode node, io.casehub.desiredstate.api.ResumeContext context) {
+            callOrder.add("resume:" + node.id().value());
+            if (shouldFail) {return new io.casehub.desiredstate.api.ResumeResult.Failed("mock failure");}
+            return new io.casehub.desiredstate.api.ResumeResult.Success();
+        }
+
+        @Override
+        public boolean supportsStatefulLifecycle() {return stateful;}
 
         @Override
         public Set<NodeType> handledTypes() {
@@ -935,5 +952,92 @@ class SimpleTransitionExecutorTest {
 
         assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("plain")));
         assertEquals(1, mockProvisioner.callOrder.size());
+    }
+
+// --- Suspend/Resume execution tests ---
+
+    @Test
+    void executeSuspendCallsRouterSuspend() {
+        DesiredNode       node  = new DesiredNode(NodeId.of("s1"), new TestSpec("val"), HumanGating.NONE);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.SUSPEND)),
+                List.of(), List.of(), graph, graph
+        );
+
+        TransitionResult result = executor.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("s1")));
+        assertTrue(mockProvisioner.callOrder.contains("suspend:s1"));
+    }
+
+    @Test
+    void executeResumeCallsRouterResume() {
+        DesiredNode       node  = new DesiredNode(NodeId.of("r1"), new TestSpec("val"), HumanGating.NONE);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(), List.of(new OrderedStep(node, StepAction.RESUME)),
+                List.of(), graph, graph
+        );
+
+        TransitionResult result = executor.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Succeeded.class, result.outcomes().get(NodeId.of("r1")));
+        assertTrue(mockProvisioner.callOrder.contains("resume:r1"));
+    }
+
+    @Test
+    void executionOrderIsRemovalsSuspensionsResumptionsAdditions() {
+        DesiredNode       removal  = new DesiredNode(NodeId.of("rm"), new TestSpec("x"), HumanGating.NONE);
+        DesiredNode       suspend  = new DesiredNode(NodeId.of("su"), new TestSpec("x"), HumanGating.NONE);
+        DesiredNode       resume   = new DesiredNode(NodeId.of("re"), new TestSpec("x"), HumanGating.NONE);
+        DesiredNode       addition = new DesiredNode(NodeId.of("ad"), new TestSpec("x"), HumanGating.NONE);
+        DesiredStateGraph graph    = factory.of(List.of(suspend, resume, addition), List.of());
+
+        TransitionPlan plan = new TransitionPlan(
+                List.of(new OrderedStep(removal, StepAction.DEPROVISION)),
+                List.of(new OrderedStep(suspend, StepAction.SUSPEND)),
+                List.of(new OrderedStep(resume, StepAction.RESUME)),
+                List.of(new OrderedStep(addition, StepAction.PROVISION)),
+                graph, graph
+        );
+
+        executor.execute(plan, "tenant1");
+
+        assertEquals(4, mockProvisioner.callOrder.size());
+        assertEquals("deprovision:rm", mockProvisioner.callOrder.get(0));
+        assertEquals("suspend:su", mockProvisioner.callOrder.get(1));
+        assertEquals("resume:re", mockProvisioner.callOrder.get(2));
+        assertEquals("provision:ad", mockProvisioner.callOrder.get(3));
+    }
+
+    @Test
+    void suspendFailedReturnsFailedOutcome() {
+        mockProvisioner.shouldFail = true;
+        DesiredNode       node  = new DesiredNode(NodeId.of("s1"), new TestSpec("val"), HumanGating.NONE);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(node, StepAction.SUSPEND)),
+                List.of(), List.of(), graph, graph
+        );
+
+        TransitionResult result = executor.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Failed.class, result.outcomes().get(NodeId.of("s1")));
+    }
+
+    @Test
+    void suspendWithHumanGatingDelegatesToHandler() {
+        DesiredNode       humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec("human"), HumanGating.SUSPEND_ONLY);
+        DesiredStateGraph graph     = factory.of(List.of(humanNode), List.of());
+        TransitionPlan plan = new TransitionPlan(
+                List.of(), List.of(new OrderedStep(humanNode, StepAction.SUSPEND)),
+                List.of(), List.of(), graph, graph
+        );
+
+        TransitionResult result = executor.execute(plan, "tenant1");
+
+        assertInstanceOf(StepOutcome.Skipped.class, result.outcomes().get(NodeId.of("h1")));
+        assertTrue(mockProvisioner.callOrder.isEmpty());
     }
 }

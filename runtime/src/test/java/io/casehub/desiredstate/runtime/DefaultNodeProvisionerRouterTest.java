@@ -116,6 +116,62 @@ class DefaultNodeProvisionerRouterTest {
         assertThat(provA.deprovisioned).isEmpty();
     }
 
+    @Test
+    void suspendDelegatesToCorrectProvisioner() {
+        var provA = mockProvisioner(Set.of(TYPE_A));
+        provA.setStatefulLifecycle(true);
+        var provB  = mockProvisioner(Set.of(TYPE_B));
+        var router = new DefaultNodeProvisionerRouter(List.of(provA, provB));
+
+        var nodeA  = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "a"), HumanGating.NONE);
+        var result = router.suspend(nodeA, new io.casehub.desiredstate.api.SuspendContext("t1", dummyGraph));
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.api.SuspendResult.Success.class);
+        assertThat(provA.suspended).hasSize(1);
+        assertThat(provB.suspended).isEmpty();
+    }
+
+    @Test
+    void resumeDelegatesToCorrectProvisioner() {
+        var provA = mockProvisioner(Set.of(TYPE_A));
+        provA.setStatefulLifecycle(true);
+        var provB  = mockProvisioner(Set.of(TYPE_B));
+        var router = new DefaultNodeProvisionerRouter(List.of(provA, provB));
+
+        var nodeA  = new DesiredNode(NodeId.of("a"), new TestSpec(TYPE_A, "a"), HumanGating.NONE);
+        var result = router.resume(nodeA, new io.casehub.desiredstate.api.ResumeContext("t1", dummyGraph));
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.api.ResumeResult.Success.class);
+        assertThat(provA.resumed).hasSize(1);
+        assertThat(provB.resumed).isEmpty();
+    }
+
+    @Test
+    void supportsStatefulLifecycleReturnsTrueForStatefulProvisioner() {
+        var prov = mockProvisioner(Set.of(TYPE_A));
+        prov.setStatefulLifecycle(true);
+        var router = new DefaultNodeProvisionerRouter(List.of(prov));
+
+        assertThat(router.supportsStatefulLifecycle(TYPE_A)).isTrue();
+    }
+
+    @Test
+    void supportsStatefulLifecycleReturnsFalseForStatelessProvisioner() {
+        var prov   = mockProvisioner(Set.of(TYPE_A));
+        var router = new DefaultNodeProvisionerRouter(List.of(prov));
+
+        assertThat(router.supportsStatefulLifecycle(TYPE_A)).isFalse();
+    }
+
+    @Test
+    void supportsStatefulLifecycleReturnsFalseForUnknownType() {
+        var prov   = mockProvisioner(Set.of(TYPE_A));
+        var router = new DefaultNodeProvisionerRouter(List.of(prov));
+
+        assertThat(router.supportsStatefulLifecycle(NodeType.of("unknown"))).isFalse();
+    }
+
+
     private MockNodeProvisioner mockProvisioner(Set<NodeType> types) {
         var mock = new MockNodeProvisioner();
         mock.setHandledTypes(types);
