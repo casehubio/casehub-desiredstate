@@ -150,6 +150,11 @@
             </dependency>
             <dependency>
                 <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-annotations-spring</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-yaml</artifactId>
                 <version>${project.version}</version>
             </dependency>
