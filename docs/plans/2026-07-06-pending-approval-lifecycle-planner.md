@@ -414,7 +414,7 @@ feat(#58): evolve GoalCompiler and SituationRecompiler to return CompilationResu
 
 **Files:**
 - Create: `api/src/main/java/io/casehub/desiredstate/api/ReconciliationListener.java`
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopLifecycleTest.java`
 
 **Interfaces:**
@@ -614,7 +614,7 @@ public interface ReconciliationListener {
 
 - [ ] **Step 4: Add start() overload, setListener(), compareAndSetDesired() to ReconciliationLoop**
 
-Modify `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`:
+Modify `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`:
 
 Add to `ReconciliationLoop`:
 

@@ -1,14 +1,10 @@
 package io.casehub.desiredstate.example.spatial.world;
 
 import io.casehub.desiredstate.api.*;
-import io.casehub.desiredstate.example.spatial.specs.*;
 import io.casehub.desiredstate.example.spatial.terrain.*;
-import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
-import io.casehub.desiredstate.runtime.TransitionPlanner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.List;
-import java.util.Map;
+
 import static org.assertj.core.api.Assertions.*;
 
 class BattlefieldWorldTest {

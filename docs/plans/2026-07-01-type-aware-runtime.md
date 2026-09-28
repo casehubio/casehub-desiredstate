@@ -237,7 +237,7 @@ feat(#18): MockNodeProvisioner — add handledTypes + resyncInterval support
 ### Task 4: DefaultNodeProvisionerRouter
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/DefaultNodeProvisionerRouter.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DefaultNodeProvisionerRouter.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/DefaultNodeProvisionerRouterTest.java`
 
 **Interfaces:**
@@ -455,7 +455,7 @@ feat(#18): DefaultNodeProvisionerRouter — type-based provisioner routing with 
 ### Task 5: SimpleTransitionExecutor migration
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java`
 
 **Interfaces:**
@@ -603,7 +603,7 @@ feat(#18): DesiredStateDispatch — inject NodeProvisionerRouter instead of Node
 ### Task 7: ReconciliationLoop scheduling + CAS fix
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopSchedulingTest.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopTest.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopRequestReconciliationTest.java`
@@ -880,8 +880,8 @@ feat(#18): example provisioners — implement handledTypes()
 
 **Files:**
 - Create: `casehub-platform-api: io/casehub/platform/api/preferences/DurationPreference.java` (cross-repo)
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/DesiredStatePreferenceKeys.java`
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/DefaultNodeProvisionerRouter.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DesiredStatePreferenceKeys.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DefaultNodeProvisionerRouter.java`
 - Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/CdiNodeProvisionerRouter.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/DefaultNodeProvisionerRouterPreferencesTest.java`
 

@@ -620,7 +620,7 @@ Chain-of-responsibility aggregator for multiple SituationRecompiler beans.
 Replaces `NoOpSituationRecompiler` — the engine handles empty lists.
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/SituationRecompilerEngine.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SituationRecompilerEngine.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/SituationRecompilerEngineTest.java`
 - Delete: `runtime/src/main/java/io/casehub/desiredstate/runtime/NoOpSituationRecompiler.java` (use `ide_refactor_safe_delete`)
 - Delete: `runtime/src/test/java/io/casehub/desiredstate/runtime/NoOpSituationRecompilerTest.java`
@@ -848,7 +848,7 @@ git commit -m "feat(#23): SituationRecompilerEngine — chain-of-responsibility 
 Converts an adapted graph fragment into `List<GraphMutation>` by diffing against the current graph.
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/GraphDiff.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/GraphDiff.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/GraphDiffTest.java`
 
 **Interfaces:**
@@ -1138,9 +1138,9 @@ The two runtime implementations that execute the retrieve → adapt → apply ch
 **Files:**
 - Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/NoOpConfigurationRetriever.java`
 - Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/NoOpConfigurationAdapter.java`
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/CbrFaultPolicy.java`
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/CbrSituationRecompiler.java`
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/DesiredStatePreferenceKeys.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/CbrFaultPolicy.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/CbrSituationRecompiler.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DesiredStatePreferenceKeys.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/CbrFaultPolicyTest.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/CbrSituationRecompilerTest.java`
 

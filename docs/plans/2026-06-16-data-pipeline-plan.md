@@ -15,7 +15,7 @@
 ### Task 1: Runtime fix — DRIFTED → NODE_DEGRADED detection (#32)
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopTest.java`
 
 - [ ] **Step 1: Write the failing test — DRIFTED nodes produce NODE_DEGRADED fault events**
@@ -204,7 +204,7 @@ ReconciliationLoop.reconcile() now:
 ### Task 2: Runtime fix — DEPROVISION_FAILED fault typing (#34)
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopTest.java`
 
 - [ ] **Step 1: Write the failing test**

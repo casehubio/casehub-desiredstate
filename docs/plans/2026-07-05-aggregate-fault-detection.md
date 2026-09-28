@@ -145,7 +145,7 @@ public interface FaultPolicy {
 
 - [ ] **Step 3: Update FaultPolicyEngine.evaluate() to accept and pass ActualState**
 
-In `runtime/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java`:
+In `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java`:
 
 Change method signature from:
 ```java
@@ -466,8 +466,8 @@ Add CloudEvent emission to the reconciliation loop and the `getDesired()` read a
 
 **Files:**
 - Modify: `runtime/pom.xml` (add cloudevents-api + cloudevents-core dependencies)
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationEventEmitter.java`
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationEventEmitter.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationEventEmitterTest.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopCloudEventTest.java`
 

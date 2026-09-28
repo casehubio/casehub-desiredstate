@@ -2,7 +2,6 @@ package io.casehub.desiredstate.runtime;
 
 import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.ConflictingMutationException;
-import io.casehub.desiredstate.api.Dependency;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.DesiredStateGraph;
@@ -11,7 +10,6 @@ import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GraphMutation;
-import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeStatus;

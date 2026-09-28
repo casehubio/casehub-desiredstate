@@ -3,7 +3,6 @@ package io.casehub.desiredstate.ts;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
-import io.casehub.desiredstate.annotations.runtime.ResolvedInvariant;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;

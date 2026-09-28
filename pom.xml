@@ -22,6 +22,7 @@
 
     <modules>
         <module>api</module>
+        <module>runtime-core</module>
         <module>runtime</module>
         <module>testing</module>
         <module>engine-adapter</module>
@@ -77,6 +78,11 @@
             <dependency>
                 <groupId>io.casehub</groupId>
                 <artifactId>casehub-desiredstate-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-desiredstate-runtime-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

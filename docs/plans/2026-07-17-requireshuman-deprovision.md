@@ -199,7 +199,7 @@ git commit -m "feat(#54): NoOpHumanNodeHandler overrides onDeprovision"
 ### Task 3: SimpleTransitionExecutor — requiresHuman gate for deprovision
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java` (lines 106-143)
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java` (lines 106-143)
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java`
 
 **Interfaces:**

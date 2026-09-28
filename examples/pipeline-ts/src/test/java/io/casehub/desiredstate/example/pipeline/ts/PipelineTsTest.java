@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.example.pipeline.ts;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
 import io.casehub.desiredstate.api.CompilationResult;

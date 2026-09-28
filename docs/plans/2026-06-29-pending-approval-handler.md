@@ -347,7 +347,7 @@ feat(#14): api types — PlanApproval, ApprovalCheckResult, PendingApprovalHandl
 
 **Files:**
 - Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/NoOpPendingApprovalHandler.java`
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java`
 
 **Interfaces:**
@@ -709,7 +709,7 @@ feat(#14): NoOpPendingApprovalHandler + SimpleTransitionExecutor approval flow
 ### Task 3: ReconciliationLoop — faultFeedback guard + Rejected pattern match
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopTest.java`
 
 **Interfaces:**
@@ -979,7 +979,7 @@ If any compilation errors from exhaustive switches on StepOutcome (adding Reject
 
 Known switch sites from the codebase search:
 - `api/src/test/java/io/casehub/desiredstate/api/TypesTest.java:55-58` — already updated in Task 1
-- `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java` — no exhaustive switch on StepOutcome (it switches on ProvisionResult/DeprovisionResult)
+- `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java` — no exhaustive switch on StepOutcome (it switches on ProvisionResult/DeprovisionResult)
 - No other exhaustive switches on StepOutcome found in production code
 
 Fix any remaining issues. The `instanceof` checks (e.g., `o instanceof StepOutcome.Failed`) are not exhaustive and won't break.

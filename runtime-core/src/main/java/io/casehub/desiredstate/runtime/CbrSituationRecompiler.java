@@ -10,7 +10,6 @@ import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
-import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.RetrievalContext;
 import io.casehub.desiredstate.api.RetrievedConfiguration;
 import io.casehub.desiredstate.api.SituationRecompiler;

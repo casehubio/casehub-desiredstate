@@ -12,7 +12,6 @@ import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
-import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
 import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
 import io.casehub.yaml.step.PrimitiveRegistry;
 import io.casehub.yaml.step.StepDef;
@@ -24,12 +23,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 class PluginIntegrationTest {
 

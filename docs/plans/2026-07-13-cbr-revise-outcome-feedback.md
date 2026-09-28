@@ -519,8 +519,8 @@ git commit -m "feat(#76): add tenancyId to FaultPolicy.onFault() and SituationRe
 ### Task 3: GraphDiff.targetNodeId() Consolidation
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/GraphDiff.java` — add `targetNodeId()` static method
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java` — delegate `getTargetNodeId()` to `GraphDiff.targetNodeId()`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/GraphDiff.java` — add `targetNodeId()` static method
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java` — delegate `getTargetNodeId()` to `GraphDiff.targetNodeId()`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/GraphDiffTest.java` — add targetNodeId tests
 
 **Interfaces:**
@@ -607,7 +607,7 @@ git commit -m "refactor(#76): consolidate targetNodeId into GraphDiff, FaultPoli
 ### Task 4: CbrProposalTracker
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/CbrProposalTracker.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/CbrProposalTracker.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/CbrProposalTrackerTest.java`
 
 **Interfaces:**
@@ -924,8 +924,8 @@ git commit -m "feat(#76): add CbrProposalTracker — mediates CBR proposals and 
 ### Task 5: CbrFaultPolicy + CbrSituationRecompiler Proposal Recording
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/CbrFaultPolicy.java` — inject tracker, record proposals
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/CbrSituationRecompiler.java` — inject tracker, record proposals
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/CbrFaultPolicy.java` — inject tracker, record proposals
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/CbrSituationRecompiler.java` — inject tracker, record proposals
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/CbrFaultPolicyTest.java` — add proposal recording tests
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/CbrSituationRecompilerTest.java` — add proposal recording tests
 
@@ -1042,8 +1042,8 @@ git commit -m "feat(#76): CbrFaultPolicy and CbrSituationRecompiler record propo
 ### Task 6: ReconciliationEventEmitter.cbrOutcome() + ReconciliationLoop Integration
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationEventEmitter.java` — add `cbrOutcome()` method
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java` — inject tracker, call matchOutcomes, emit events
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationEventEmitter.java` — add `cbrOutcome()` method
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java` — inject tracker, call matchOutcomes, emit events
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopCbrOutcomeTest.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopCloudEventTest.java` — update constructors if needed
 

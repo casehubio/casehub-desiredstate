@@ -2,7 +2,6 @@ package io.casehub.desiredstate.annotations.deployment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.casehub.desiredstate.annotations.DependsOn;
 import io.casehub.desiredstate.annotations.DesiredState;
 import io.casehub.desiredstate.annotations.GoalMethod;
 import io.casehub.desiredstate.annotations.Node;

@@ -10,18 +10,14 @@
         <version>0.2-SNAPSHOT</version>
     </parent>
 
-    <artifactId>casehub-desiredstate</artifactId>
+    <artifactId>casehub-desiredstate-runtime-core</artifactId>
 
-    <name>CaseHub Desired State :: Runtime</name>
-    <description>Runtime implementation — TransitionPlanner (topological sort, pruning-first ordering),
-        ReconciliationLoop (event-driven diff against actual state), FaultPolicyEngine (rule evaluation,
-        graph mutation), SimpleTransitionExecutor. Execution delegation via TransitionExecutor SPI.</description>
+    <name>CaseHub Desired State :: Runtime Core</name>
+    <description>Framework-neutral runtime POJOs — TransitionPlanner, ReconciliationLoop,
+        FaultPolicyEngine, GraphDiff, SimpleTransitionExecutor, CBR chain, composition engine.
+        Constructor injection, no CDI, no Spring.</description>
 
     <dependencies>
-        <dependency>
-            <groupId>io.casehub</groupId>
-            <artifactId>casehub-desiredstate-runtime-core</artifactId>
-        </dependency>
         <dependency>
             <groupId>io.casehub</groupId>
             <artifactId>casehub-desiredstate-api</artifactId>
@@ -32,19 +28,7 @@
         </dependency>
         <dependency>
             <groupId>io.casehub</groupId>
-            <artifactId>casehub-platform</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.casehub</groupId>
             <artifactId>casehub-ras-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-arc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-vertx</artifactId>
         </dependency>
         <dependency>
             <groupId>io.opentelemetry</groupId>
@@ -66,36 +50,10 @@
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
-
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-sdk-testing</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.casehub</groupId>
-            <artifactId>casehub-platform-testing</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.casehub</groupId>
-            <artifactId>casehub-desiredstate-testing</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.awaitility</groupId>
-            <artifactId>awaitility</artifactId>
-            <scope>test</scope>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 

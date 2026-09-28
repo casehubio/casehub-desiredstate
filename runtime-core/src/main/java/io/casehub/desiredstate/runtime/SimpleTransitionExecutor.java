@@ -5,7 +5,6 @@ import io.casehub.desiredstate.api.DeprovisionContext;
 import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
-import io.casehub.desiredstate.api.HookDescriptor;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.LifecycleStep;
 import io.casehub.desiredstate.api.LifecycleStepExecutor;

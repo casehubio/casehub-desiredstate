@@ -1209,8 +1209,8 @@ git commit -m "feat(#1): add DesiredStateGraph SPI, factory, error types, and al
 ## Task 5: Runtime — ImmutableDesiredStateGraph + factory
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraph.java`
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/DefaultDesiredStateGraphFactory.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraph.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DefaultDesiredStateGraphFactory.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraphTest.java`
 
 This is the largest task — the core data structure. Tests exercise all graph operations, immutability, cycle detection, dangling dependency detection, overlay/connect composition, and versioning.
@@ -1958,7 +1958,7 @@ git commit -m "feat(#1): add TransitionPlanner — topological sort, pruning-fir
 ## Task 7: Runtime — FaultPolicyEngine
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/FaultPolicyEngine.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/FaultPolicyEngineTest.java`
 
 - [ ] **Step 1: Write failing tests**
@@ -2127,7 +2127,7 @@ git commit -m "feat(#1): add FaultPolicyEngine — multi-policy composition, con
 ## Task 8: Runtime — SimpleTransitionExecutor
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java`
 
 - [ ] **Step 1: Write failing tests**
@@ -2324,7 +2324,7 @@ git commit -m "feat(#1): add SimpleTransitionExecutor — sequential provisioner
 ## Task 9: Runtime — ReconciliationLoop
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 - Test: `runtime/src/test/java/io/casehub/desiredstate/runtime/ReconciliationLoopTest.java`
 
 This is the most complex runtime component — per-tenant instances, event-driven + periodic triggers, debounce, fault feedback loop. Tests use `@QuarkusTest` for CDI integration.

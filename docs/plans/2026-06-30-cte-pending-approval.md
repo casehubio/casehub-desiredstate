@@ -39,20 +39,18 @@ import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DesiredStateExecutionRegistryTest {
 
     private DesiredStateExecutionRegistry registry;
-    private DesiredStateGraph graph;
+    private DesiredStateGraph             graph;
 
     @BeforeEach
     void setUp() {
         registry = new DesiredStateExecutionRegistry();
-        graph = new DefaultDesiredStateGraphFactory().empty();
+        graph    = new DefaultDesiredStateGraphFactory().empty();
     }
 
     @Test
@@ -67,8 +65,8 @@ class DesiredStateExecutionRegistryTest {
     @Test
     void getMissingKeyThrows() {
         assertThatThrownBy(() -> registry.get("nonexistent"))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("nonexistent");
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("nonexistent");
     }
 
     @Test
@@ -77,7 +75,7 @@ class DesiredStateExecutionRegistryTest {
         registry.remove("exec-2");
 
         assertThatThrownBy(() -> registry.get("exec-2"))
-            .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

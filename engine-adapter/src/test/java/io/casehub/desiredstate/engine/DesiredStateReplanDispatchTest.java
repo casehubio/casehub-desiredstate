@@ -5,7 +5,6 @@ import io.casehub.desiredstate.runtime.LifecycleManager;
 import io.casehub.desiredstate.runtime.ReconciliationLoop;
 import io.casehub.desiredstate.runtime.SituationRecompilerEngine;
 import io.casehub.engine.flow.CallableDispatchRegistry;
-import io.casehub.ras.api.ActiveSituation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

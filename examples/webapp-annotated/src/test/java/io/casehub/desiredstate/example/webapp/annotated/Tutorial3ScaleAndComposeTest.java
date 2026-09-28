@@ -5,7 +5,6 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.example.webapp.NotificationSpec;
 import io.casehub.desiredstate.example.webapp.ShippingSpec;
-import io.casehub.desiredstate.example.webapp.StoreNodeTypes;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;

@@ -283,8 +283,8 @@ git -C /Users/mdproctor/claude/casehub/desiredstate commit -m "feat(#79): HumanG
 
 **Files:**
 - Modify: `api/src/main/java/io/casehub/desiredstate/api/GraphMutation.java` (line 8)
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/GraphDiff.java` (line 38)
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraph.java` (line 202-217)
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/GraphDiff.java` (line 38)
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ImmutableDesiredStateGraph.java` (line 202-217)
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/GraphDiffTest.java`
 
 **Interfaces:**
@@ -391,7 +391,7 @@ git -C /Users/mdproctor/claude/casehub/desiredstate commit -m "fix(#79): GraphDi
 ### Task 3: STE Per-Action Routing + Span Attributes
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java`
 
 **Interfaces:**

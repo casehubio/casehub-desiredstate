@@ -2,7 +2,6 @@ package io.casehub.desiredstate.example.spatial.defense;
 
 import io.casehub.desiredstate.api.*;
 import io.casehub.desiredstate.example.spatial.render.GridRenderer;
-import io.casehub.desiredstate.example.spatial.specs.*;
 import io.casehub.desiredstate.example.spatial.terrain.*;
 import io.casehub.desiredstate.example.spatial.world.*;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;

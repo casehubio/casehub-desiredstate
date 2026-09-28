@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.example.spatial.distribution;
 
 import io.casehub.desiredstate.api.*;
-import io.casehub.desiredstate.example.spatial.specs.*;
 import io.casehub.desiredstate.example.spatial.terrain.*;
 import io.casehub.desiredstate.example.spatial.world.*;
 import io.casehub.desiredstate.ras.NodeFaultGanglion;

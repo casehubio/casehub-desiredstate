@@ -242,7 +242,7 @@ Implement the router that dispatches `readActual()` to the correct adapter by No
 and its CDI wiring subclass.
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/DefaultActualStateAdapterRouter.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DefaultActualStateAdapterRouter.java`
 - Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/CdiActualStateAdapterRouter.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/DefaultActualStateAdapterRouterTest.java`
 
@@ -516,7 +516,7 @@ Implement the event source compositor that merges multiple domain EventSource st
 with per-stream error isolation.
 
 **Files:**
-- Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/DefaultMergedEventSource.java`
+- Create: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/DefaultMergedEventSource.java`
 - Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/CdiMergedEventSource.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/DefaultMergedEventSourceTest.java`
 
@@ -681,7 +681,7 @@ Replace `ActualStateAdapter` and `EventSource` fields/injection in Reconciliatio
 `desired.filterByTypes()`. Add provisioner-adapter cross-validation at startup.
 
 **Files:**
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/ReconciliationLoop.java`
 
 **Interfaces:**
 - Consumes: `ActualStateAdapterRouter` (from Task 1/3)

@@ -29,7 +29,7 @@
 | File | Action | Responsibility |
 |------|--------|---------------|
 | `runtime/src/main/java/io/casehub/desiredstate/runtime/NoOpHumanNodeHandler.java` | Create | `@DefaultBean` fallback — returns `Skipped` |
-| `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java` | Modify | New constructor param, delegate `requiresHuman` to handler |
+| `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java` | Modify | New constructor param, delegate `requiresHuman` to handler |
 | `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java` | Modify | Update constructor calls, add delegation tests |
 | `runtime/src/test/java/io/casehub/desiredstate/runtime/NoOpHumanNodeHandlerTest.java` | Create | Verify Skipped outcome with expected message |
 
@@ -63,7 +63,7 @@
 - Create: `api/src/main/java/io/casehub/desiredstate/api/HumanNodeHandler.java`
 - Create: `runtime/src/main/java/io/casehub/desiredstate/runtime/NoOpHumanNodeHandler.java`
 - Create: `runtime/src/test/java/io/casehub/desiredstate/runtime/NoOpHumanNodeHandlerTest.java`
-- Modify: `runtime/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
+- Modify: `../../runtime-core/src/main/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutor.java`
 - Modify: `runtime/src/test/java/io/casehub/desiredstate/runtime/SimpleTransitionExecutorTest.java`
 
 **Interfaces:**
