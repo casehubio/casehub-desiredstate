@@ -12,6 +12,8 @@ import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.runtime.PluginDescriptor;
 import io.casehub.desiredstate.plugin.runtime.YamlPluginActualStateAdapter;
+import io.casehub.yaml.step.testing.FaultInjectingStepRunner;
+import io.casehub.yaml.step.testing.TestCredentialResolver;
 import io.casehub.desiredstate.plugin.runtime.YamlPluginProvisioner;
 import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;

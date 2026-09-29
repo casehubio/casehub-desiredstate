@@ -18,6 +18,11 @@
     <dependencies>
         <dependency>
             <groupId>io.casehub</groupId>
+            <artifactId>casehub-platform-yaml-step-testing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.casehub</groupId>
             <artifactId>casehub-desiredstate-plugin</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -47,11 +52,7 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.wiremock</groupId>
-            <artifactId>wiremock-standalone</artifactId>
-            <version>3.13.1</version>
-        </dependency>
+
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
