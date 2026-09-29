@@ -88,13 +88,13 @@ class ReconciliationLoopTest {
         loop.requestReconciliation("test-tenant");
 
         await().atMost(AWAIT).until(() -> testExecutor.executedPlans.stream()
-                                                                    .anyMatch(p -> !p.removals().isEmpty()));
+                                                                    .anyMatch(p -> !p.flatRemovals().isEmpty()));
 
         TransitionPlan deprovisionPlan = testExecutor.executedPlans.stream()
-                                                                   .filter(p -> !p.removals().isEmpty())
+                                                                   .filter(p -> !p.flatRemovals().isEmpty())
                                                                    .findFirst().orElseThrow();
 
-        OrderedStep removal = deprovisionPlan.removals().get(0);
+        OrderedStep removal = deprovisionPlan.flatRemovals().get(0);
         assertEquals(NodeId.of("a"), removal.node().id());
         // Key assertion: spec should be the REAL TestSpec, not UnknownSpec
         assertThat(removal.node().spec()).isInstanceOf(TestSpec.class);
@@ -118,13 +118,13 @@ class ReconciliationLoopTest {
         loop.requestReconciliation("test-tenant");
 
         await().atMost(AWAIT).until(() -> testExecutor.executedPlans.stream()
-                                                                    .anyMatch(p -> !p.removals().isEmpty()));
+                                                                    .anyMatch(p -> !p.flatRemovals().isEmpty()));
 
         TransitionPlan deprovisionPlan = testExecutor.executedPlans.stream()
-                                                                   .filter(p -> !p.removals().isEmpty())
+                                                                   .filter(p -> !p.flatRemovals().isEmpty())
                                                                    .findFirst().orElseThrow();
 
-        OrderedStep removal = deprovisionPlan.removals().get(0);
+        OrderedStep removal = deprovisionPlan.flatRemovals().get(0);
         assertEquals(HumanGating.DEPROVISION_ONLY, removal.node().humanGating());
     }
 
@@ -146,8 +146,8 @@ class ReconciliationLoopTest {
 
         TransitionPlan plan = testExecutor.executedPlans.get(0);
         assertFalse(plan.isEmpty(), "Plan should have additions for unknown nodes");
-        assertEquals(2, plan.additions().size(), "Both nodes should be planned for addition");
-        assertTrue(plan.removals().isEmpty(), "No removals expected");
+        assertEquals(2, plan.flatAdditions().size(), "Both nodes should be planned for addition");
+        assertTrue(plan.flatRemovals().isEmpty(), "No removals expected");
     }
 
     @Test
@@ -178,8 +178,8 @@ class ReconciliationLoopTest {
 
         TransitionPlan plan = testExecutor.executedPlans.get(0);
         assertFalse(plan.isEmpty());
-        assertEquals(1, plan.additions().size());
-        assertEquals(NodeId.of("a"), plan.additions().get(0).node().id());
+        assertEquals(1, plan.flatAdditions().size());
+        assertEquals(NodeId.of("a"), plan.flatAdditions().get(0).node().id());
     }
 
     @Test
@@ -214,8 +214,8 @@ class ReconciliationLoopTest {
         TransitionPlan plan = testExecutor.executedPlans.get(0);
         assertFalse(plan.isEmpty());
         // Only node "b" should be added (node "a" is already PRESENT)
-        assertEquals(1, plan.additions().size());
-        assertEquals(NodeId.of("b"), plan.additions().get(0).node().id());
+        assertEquals(1, plan.flatAdditions().size());
+        assertEquals(NodeId.of("b"), plan.flatAdditions().get(0).node().id());
     }
 
     @Test
@@ -279,7 +279,7 @@ class ReconciliationLoopTest {
         TransitionPlan secondPlan = testExecutor.executedPlans.get(0);
         // The second plan should include the replacement node
         Set<String> plannedNodeIds = new HashSet<>();
-        for (OrderedStep step : secondPlan.additions()) {
+        for (OrderedStep step : secondPlan.flatAdditions()) {
             plannedNodeIds.add(step.node().id().value());
         }
         assertTrue(plannedNodeIds.contains("a-replacement"),
@@ -347,7 +347,7 @@ class ReconciliationLoopTest {
         // Both "a" (re-provisioned) and "a-fix" (fault-policy-injected) appear in additions
         await().atMost(AWAIT).until(() ->
             testExecutor.executedPlans.stream().anyMatch(plan -> {
-                var addedIds = plan.additions().stream()
+                var addedIds = plan.flatAdditions().stream()
                     .map(step -> step.node().id())
                     .toList();
                 return addedIds.contains(NodeId.of("a")) && addedIds.contains(NodeId.of("a-fix"));

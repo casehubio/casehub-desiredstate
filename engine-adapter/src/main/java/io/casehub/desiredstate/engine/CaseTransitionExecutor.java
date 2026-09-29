@@ -70,7 +70,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
             return new TransitionResult(Map.of());
         }
 
-        if (!plan.suspensions().isEmpty() || !plan.resumptions().isEmpty()) {
+        if (!plan.flatSuspensions().isEmpty() || !plan.flatResumptions().isEmpty()) {
             throw new UnsupportedOperationException(
                 "CaseTransitionExecutor does not yet support suspend/resume. " +
                 "Use SimpleTransitionExecutor or wait for engine-adapter support.");
@@ -80,7 +80,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         List<OrderedStep>        runnableRemovals    = new ArrayList<>();
         List<OrderedStep>        runnableAdditions   = new ArrayList<>();
 
-        for (OrderedStep step : plan.removals()) {
+        for (OrderedStep step : plan.flatRemovals()) {
             StepOutcome filtered = checkApproval(step, tenancyId);
             if (filtered != null) {
                 preFilteredOutcomes.put(step.node().id(), filtered);
@@ -89,7 +89,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
             }
         }
 
-        for (OrderedStep step : plan.additions()) {
+        for (OrderedStep step : plan.flatAdditions()) {
             StepOutcome filtered = checkApproval(step, tenancyId);
             if (filtered != null) {
                 preFilteredOutcomes.put(step.node().id(), filtered);
@@ -102,7 +102,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
             return new TransitionResult(preFilteredOutcomes);
         }
 
-        TransitionPlan runnablePlan = new TransitionPlan(
+        TransitionPlan runnablePlan = TransitionPlan.ofFlat(
                 runnableRemovals, runnableAdditions, plan.before(), plan.after());
 
         executionRegistry.getActiveCaseId(tenancyId).ifPresent(id -> {
@@ -119,8 +119,8 @@ public class CaseTransitionExecutor implements TransitionExecutor {
         CaseDefinition caseDefinition = buildCaseDefinition(runnablePlan, executionId);
 
         Map<String, Object> inputData = Map.of(
-                "removals", runnablePlan.removals().size(),
-                "additions", runnablePlan.additions().size(),
+                "removals", runnablePlan.flatRemovals().size(),
+                "additions", runnablePlan.flatAdditions().size(),
                 "graphVersion", runnablePlan.after().version()
                                               );
 
@@ -175,7 +175,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
 
         List<OrderedStep> automatedRemovals = new ArrayList<>();
         List<OrderedStep> humanRemovals     = new ArrayList<>();
-        for (OrderedStep step : plan.removals()) {
+        for (OrderedStep step : plan.flatRemovals()) {
             if (step.node().requiresHuman(step.action())) {
                 humanRemovals.add(step);
             } else {
@@ -201,7 +201,7 @@ public class CaseTransitionExecutor implements TransitionExecutor {
 
         List<OrderedStep> automatedAdditions = new ArrayList<>();
         List<OrderedStep> humanAdditions     = new ArrayList<>();
-        for (OrderedStep step : plan.additions()) {
+        for (OrderedStep step : plan.flatAdditions()) {
             if (step.node().requiresHuman(step.action())) {
                 humanAdditions.add(step);
             } else {
@@ -278,14 +278,14 @@ public class CaseTransitionExecutor implements TransitionExecutor {
     private TransitionResult buildOptimisticResult(TransitionPlan plan, UUID caseId) {
         Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
 
-        for (OrderedStep step : plan.removals()) {
+        for (OrderedStep step : plan.flatRemovals()) {
             if (step.node().requiresHuman(step.action())) {
                 outcomes.put(step.node().id(), new StepOutcome.Skipped("routed to human task binding"));
             } else {
                 outcomes.put(step.node().id(), new StepOutcome.Succeeded());
             }
         }
-        for (OrderedStep step : plan.additions()) {
+        for (OrderedStep step : plan.flatAdditions()) {
             if (step.node().requiresHuman(step.action())) {
                 outcomes.put(step.node().id(), new StepOutcome.Skipped("routed to human task binding"));
             } else {

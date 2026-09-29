@@ -10,16 +10,13 @@ import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.yaml.step.PrimitiveRegistry;
-import io.casehub.yaml.step.StepContext;
-import io.casehub.yaml.step.StepDef;
-import io.casehub.yaml.step.StepExecutionException;
-import io.casehub.yaml.step.StepParameters;
-import io.casehub.yaml.step.StepPipelineExecutor;
-import io.casehub.yaml.step.StepPrimitive;
-import io.casehub.yaml.step.StepResult;
-import io.casehub.yaml.step.primitives.AssertPrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
+import io.casehub.yaml.core.condition.ConditionEvaluator;
+import io.casehub.yaml.plugin.api.StepResult;
+import io.casehub.yaml.step.CatalogEntry;
+import io.casehub.yaml.step.catalog.ResolvedStep;
+import io.casehub.yaml.step.eval.StepRunner;
+import io.casehub.yaml.step.eval.StructuralStepEvaluator;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -35,16 +32,16 @@ class YamlPluginProvisionerTest {
     @Test
     void provisionDelegatesToStepPipeline() {
         var descriptor = createDescriptor(
-            List.of(assertStep("1 == 1")),
-            List.of(assertStep("1 == 1")));
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(pluginStep("assert", Map.of("condition", "true"))));
         var provisioner = createProvisioner(descriptor);
 
         assertThat(provisioner.handledTypes()).containsExactly(TEST_TYPE);
 
-        var node = createNode("n1", Map.of("name", "x"));
+        var node  = createNode("n1", Map.of("name", "x"));
         var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.provision(node,
-            new ProvisionContext("tenant1", graph));
+                                           new ProvisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
     }
@@ -52,14 +49,14 @@ class YamlPluginProvisionerTest {
     @Test
     void deprovisionDelegatesToStepPipeline() {
         var descriptor = createDescriptor(
-            List.of(assertStep("1 == 1")),
-            List.of(assertStep("1 == 1")));
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(pluginStep("assert", Map.of("condition", "true"))));
         var provisioner = createProvisioner(descriptor);
 
-        var node = createNode("n1", Map.of("name", "x"));
+        var node  = createNode("n1", Map.of("name", "x"));
         var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.deprovision(node,
-            new DeprovisionContext("tenant1", graph));
+                                             new DeprovisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(DeprovisionResult.Success.class);
     }
@@ -67,21 +64,21 @@ class YamlPluginProvisionerTest {
     @Test
     void failedStepReturnsFailedResult() {
         var descriptor = createDescriptor(
-            List.of(assertStep("1 == 2")),
-            List.of());
+                List.of(pluginStep("assert", Map.of("condition", "false"))),
+                List.of());
         var provisioner = createProvisioner(descriptor);
 
-        var node = createNode("n1", Map.of("name", "x"));
+        var node  = createNode("n1", Map.of("name", "x"));
         var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.provision(node,
-            new ProvisionContext("tenant1", graph));
+                                           new ProvisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Failed.class);
     }
 
     @Test
     void resyncIntervalFromDescriptor() {
-        var descriptor = createDescriptorWithInterval(Duration.ofSeconds(30));
+        var descriptor  = createDescriptorWithInterval(Duration.ofSeconds(30));
         var provisioner = createProvisioner(descriptor);
 
         assertThat(provisioner.resyncInterval()).isEqualTo(Duration.ofSeconds(30));
@@ -89,110 +86,109 @@ class YamlPluginProvisionerTest {
 
     @Test
     void specFieldsAvailableInSteps() {
-        StepPrimitive specChecker = new StepPrimitive() {
-            @Override
-            public String name() { return "spec-check"; }
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                new PluginSpecSchema(Map.of()), List.of(),
+                List.of(pluginStep("spec-check", Map.of("expected", "${spec.name}"))),
+                List.of(), List.of(), null, null);
 
-            @Override
-            public StepResult execute(StepParameters params, io.casehub.yaml.step.StepContext context) {
-                Object name = context.resolve("spec.name");
-                if (!"my-resource".equals(name)) {
-                    throw new StepExecutionException("Expected 'my-resource' but got: " + name);
+        StepRunner runner = (step, resolver) -> {
+            if (step instanceof ResolvedStep.PluginStep ps) {
+                Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
+                if ("my-resource".equals(resolved.get("expected"))) {
+                    return StepResult.of(Map.of("verified", true));
                 }
-                return StepResult.of(Map.of("verified", true));
+                throw new RuntimeException("Expected 'my-resource' but got: " + resolved.get("expected"));
             }
+            return StepResult.failed("unsupported");
         };
 
-        var registry = PrimitiveRegistry.of(Map.of("spec-check", specChecker));
-        var executor = new StepPipelineExecutor(registry);
-
-        var descriptor = new PluginDescriptor(
-            "test-resource", 1, Duration.ofMinutes(5), Map.of(),
-            new PluginSpecSchema(Map.of()), List.of(),
-            List.of(new StepDef("spec-check", Map.of(), null, null, null, 3, null)),
-            List.of(), List.of(), null, null);
-
+        var evaluator = new StructuralStepEvaluator(new ConditionEvaluator(null));
         var provisioner = new YamlPluginProvisioner(
-            Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
+                Map.of(TEST_TYPE, descriptor), evaluator, runner, ref -> Map.of());
 
-        var node = createNode("n1", Map.of("name", "my-resource"));
+        var node  = createNode("n1", Map.of("name", "my-resource"));
         var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.provision(node,
-            new ProvisionContext("tenant1", graph));
+                                           new ProvisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
     }
 
     @Test
     void authCredentialsResolvedAndAvailable() {
-        StepPrimitive authChecker = new StepPrimitive() {
-            @Override
-            public String name() { return "auth-check"; }
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5),
+                Map.of("api", "api-credentials"),
+                new PluginSpecSchema(Map.of()), List.of(),
+                List.of(pluginStep("auth-check", Map.of("token", "${auth.api.token}"))),
+                List.of(), List.of(), null, null);
 
-            @Override
-            public StepResult execute(StepParameters params, io.casehub.yaml.step.StepContext context) {
-                Object token = context.resolve("auth.api.token");
-                if (!"secret-token".equals(token)) {
-                    throw new StepExecutionException("Expected 'secret-token' but got: " + token);
+        StepRunner runner = (step, resolver) -> {
+            if (step instanceof ResolvedStep.PluginStep ps) {
+                Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
+                if ("secret-token".equals(resolved.get("token"))) {
+                    return StepResult.of(Map.of("verified", true));
                 }
-                return StepResult.of(Map.of("verified", true));
+                throw new RuntimeException("Expected 'secret-token' but got: " + resolved.get("token"));
             }
+            return StepResult.failed("unsupported");
         };
 
-        var registry = PrimitiveRegistry.of(Map.of("auth-check", authChecker));
-        var executor = new StepPipelineExecutor(registry);
-
-        var descriptor = new PluginDescriptor(
-            "test-resource", 1, Duration.ofMinutes(5),
-            Map.of("api", "api-credentials"),
-            new PluginSpecSchema(Map.of()), List.of(),
-            List.of(new StepDef("auth-check", Map.of(), null, null, null, 3, null)),
-            List.of(), List.of(), null, null);
-
+        var evaluator = new StructuralStepEvaluator(new ConditionEvaluator(null));
         var provisioner = new YamlPluginProvisioner(
-            Map.of(TEST_TYPE, descriptor), executor,
-            ref -> Map.of("token", "secret-token", "endpoint", "api.example.com"));
+                Map.of(TEST_TYPE, descriptor), evaluator, runner,
+                ref -> Map.of("token", "secret-token", "endpoint", "api.example.com"));
 
-        var node = createNode("n1", Map.of("name", "x"));
+        var node  = createNode("n1", Map.of("name", "x"));
         var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.provision(node,
-            new ProvisionContext("tenant1", graph));
+                                           new ProvisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
     }
 
     private YamlPluginProvisioner createProvisioner(PluginDescriptor descriptor) {
-        var registry = PrimitiveRegistry.of(Map.of(
-            "assert", new AssertPrimitive()));
-        var executor = new StepPipelineExecutor(registry);
+        StepRunner runner = (step, resolver) -> {
+            if (step instanceof ResolvedStep.PluginStep ps && "assert".equals(ps.name())) {
+                String condition = (String) ps.params().get("condition");
+                if ("true".equals(condition)) {
+                    return StepResult.of(Map.of());
+                }
+                throw new RuntimeException("Assertion failed: " + condition);
+            }
+            return StepResult.failed("unknown step");
+        };
+        var evaluator = new StructuralStepEvaluator(new ConditionEvaluator(null));
         return new YamlPluginProvisioner(
-            Map.of(TEST_TYPE, descriptor), executor, ref -> Map.of());
+                Map.of(TEST_TYPE, descriptor), evaluator, runner, ref -> Map.of());
     }
 
-    private static PluginDescriptor createDescriptor(List<StepDef> provisionSteps,
-                                                     List<StepDef> deprovisionSteps) {
+    private static PluginDescriptor createDescriptor(List<ResolvedStep> provisionSteps,
+                                                     List<ResolvedStep> deprovisionSteps) {
         return new PluginDescriptor(
-            "test-resource", 1, Duration.ofMinutes(5), Map.of(),
-            new PluginSpecSchema(Map.of()), List.of(),
-            provisionSteps, deprovisionSteps, List.of(), null, null);
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                new PluginSpecSchema(Map.of()), List.of(),
+                provisionSteps, deprovisionSteps, List.of(), null, null);
     }
 
     private static PluginDescriptor createDescriptorWithInterval(Duration interval) {
         return new PluginDescriptor(
-            "test-resource", 1, interval, Map.of(),
-            new PluginSpecSchema(Map.of()), List.of(),
-            List.of(assertStep("1 == 1")), List.of(), List.of(), null, null);
+                "test-resource", 1, interval, Map.of(),
+                new PluginSpecSchema(Map.of()), List.of(),
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(), List.of(), null, null);
     }
 
-    private static StepDef assertStep(String condition) {
-        return new StepDef("assert", Map.of("condition", condition),
-            null, null, null, 3, null);
+    private static ResolvedStep pluginStep(String name, Map<String, Object> params) {
+        return new ResolvedStep.PluginStep(name,
+                                           new CatalogEntry(name, null, null), params, Map.of());
     }
 
     private static DesiredNode createNode(String id, Map<String, Object> specFields) {
         return new DesiredNode(
-            NodeId.of(id),
-            new YamlNodeSpec(TEST_TYPE, HumanGating.NONE, specFields),
-            HumanGating.NONE);
+                NodeId.of(id),
+                new YamlNodeSpec(TEST_TYPE, HumanGating.NONE, specFields),
+                HumanGating.NONE);
     }
 }

@@ -40,13 +40,13 @@ class AttackWaypointsTest {
     }
 
     private void executeAdditions(TransitionPlan plan, DesiredStateGraph graph) {
-        for (var step : plan.additions()) {
+        for (var step : plan.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph));
         }
     }
 
     private void executeRemovals(TransitionPlan plan, DesiredStateGraph beforeGraph) {
-        for (var step : plan.removals()) {
+        for (var step : plan.flatRemovals()) {
             provisioner.deprovision(step.node(), new DeprovisionContext("test", beforeGraph));
         }
     }
@@ -78,7 +78,7 @@ class AttackWaypointsTest {
         var plan = planner.plan(graph, actual);
 
         // Topological order: cells first, then wp1, wp2, wp3
-        var additionIds = plan.additions().stream()
+        var additionIds = plan.flatAdditions().stream()
             .map(s -> s.node().id()).toList();
         assertThat(additionIds.indexOf(wp1)).isLessThan(additionIds.indexOf(wp2));
         assertThat(additionIds.indexOf(wp2)).isLessThan(additionIds.indexOf(wp3));
@@ -122,9 +122,9 @@ class AttackWaypointsTest {
         var plan2 = planner.plan(graph2, actual2);
 
         // Old waypoints orphaned
-        assertThat(plan2.removals()).isNotEmpty();
+        assertThat(plan2.flatRemovals()).isNotEmpty();
         // New waypoints added
-        assertThat(plan2.additions()).isNotEmpty();
+        assertThat(plan2.flatAdditions()).isNotEmpty();
 
         executeRemovals(plan2, graph1);
         executeAdditions(plan2, graph2);
@@ -189,8 +189,8 @@ class AttackWaypointsTest {
         var plan2 = planner.plan(graph2, actual2);
 
         // Only the mutated unit should need re-provisioning (DRIFTED)
-        assertThat(plan2.additions()).hasSize(1);
-        assertThat(plan2.additions().get(0).node().id()).isEqualTo(unitId);
+        assertThat(plan2.flatAdditions()).hasSize(1);
+        assertThat(plan2.flatAdditions().get(0).node().id()).isEqualTo(unitId);
 
         executeAdditions(plan2, graph2);
         assertThat(world.unitStrength(unitId)).isEqualTo(50);

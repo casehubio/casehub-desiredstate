@@ -7,7 +7,7 @@ import io.casehub.desiredstate.plugin.model.PluginFieldDef;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.catalog.ResolvedStep;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import org.jboss.jandex.AnnotationInstance;
@@ -147,31 +147,35 @@ public class YamlPluginProcessor {
         }
     }
 
-    static void validateSteps(String type, String section, List<StepDef> steps,
+    static void validateSteps(String type, String section, List<ResolvedStep> steps,
                               PluginSpecSchema spec, Set<String> knownPrimitives) {
         Set<String> resultBindings = new HashSet<>();
 
         for (int i = 0; i < steps.size(); i++) {
-            StepDef step = steps.get(i);
+            ResolvedStep step = steps.get(i);
 
-            if (!knownPrimitives.contains(step.primitiveName())) {
-                String suggestion = suggestSimilar(step.primitiveName(), knownPrimitives);
-                throw new PluginValidationException(type,
-                    section + " step " + i + ": unknown primitive '"
-                        + step.primitiveName() + "'"
-                        + (suggestion != null ? " — did you mean '" + suggestion + "'?" : ""));
-            }
+            if (step instanceof ResolvedStep.PluginStep ps) {
+                if (!knownPrimitives.contains(ps.name())) {
+                    String suggestion = suggestSimilar(ps.name(), knownPrimitives);
+                    throw new PluginValidationException(type,
+                                                        section + " step " + i + ": unknown primitive '"
+                                                        + ps.name() + "'"
+                                                        + (suggestion != null ? " — did you mean '" + suggestion + "'?" : ""));
+                }
 
-            if (step.resultName() != null) {
-                resultBindings.add(step.resultName());
-            }
+                Object resultName = step.decorators().get("result");
+                if (resultName instanceof String r) {
+                    resultBindings.add(r);
+                }
 
-            validateInterpolationRefs(type, section + " step " + i,
-                step.parameters(), spec, resultBindings);
+                validateInterpolationRefs(type, section + " step " + i,
+                                          ps.params(), spec, resultBindings);
 
-            if (step.when() != null) {
-                validateInterpolationRefsInString(type, section + " step " + i + " when",
-                    step.when(), spec, resultBindings);
+                Object when = step.decorators().get("when");
+                if (when instanceof String w) {
+                    validateInterpolationRefsInString(type, section + " step " + i + " when",
+                                                      w, spec, resultBindings);
+                }
             }
         }
     }
@@ -249,21 +253,23 @@ public class YamlPluginProcessor {
     }
 
     static void validateActualStateHasCompareState(String type,
-                                                   List<StepDef> steps) {
+                                                   List<ResolvedStep> steps) {
         long count = steps.stream()
-            .filter(s -> "compare-state".equals(s.primitiveName()))
-            .count();
+                          .filter(s -> s instanceof ResolvedStep.PluginStep ps
+                                       && "compare-state".equals(ps.name()))
+                          .count();
         if (count != 1) {
             throw new PluginValidationException(type,
-                "actual-state must contain exactly one 'compare-state' step, found " + count);
+                                                "actual-state must contain exactly one 'compare-state' step, found " + count);
         }
     }
 
     static void validateActualStateNoApprovalGate(String type,
-                                                  List<StepDef> steps) {
-        if (steps.stream().anyMatch(s -> "approval-gate".equals(s.primitiveName()))) {
+                                                  List<ResolvedStep> steps) {
+        if (steps.stream().anyMatch(s -> s instanceof ResolvedStep.PluginStep ps
+                                         && "approval-gate".equals(ps.name()))) {
             throw new PluginValidationException(type,
-                "actual-state must not contain 'approval-gate' steps");
+                                                "actual-state must not contain 'approval-gate' steps");
         }
     }
 

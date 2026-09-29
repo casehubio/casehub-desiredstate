@@ -1,17 +1,17 @@
 package io.casehub.desiredstate.runtime;
 
+import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
-import io.casehub.desiredstate.api.FaultCountStore;
-import io.casehub.desiredstate.api.NodeProvisionerRouter;
-import io.casehub.desiredstate.api.ReconciliationStateStore;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
+import io.casehub.desiredstate.api.FaultCountStore;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.LifecycleStepExecutor;
-import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.MergedEventSource;
+import io.casehub.desiredstate.api.NodeProvisionerRouter;
 import io.casehub.desiredstate.api.PendingApprovalHandler;
+import io.casehub.desiredstate.api.ReconciliationStateStore;
 import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.platform.api.preferences.PreferenceProvider;
@@ -79,16 +79,34 @@ public class RuntimeBeans {
         return new FaultCountEvictionListener(store);
     }
 
+
     @Produces
     @DefaultBean
     @ApplicationScoped
-    public SimpleTransitionExecutor simpleTransitionExecutor(
+    public NodeStepExecutor nodeStepExecutor(
             NodeProvisionerRouter router,
             HumanNodeHandler humanNodeHandler,
             PendingApprovalHandler pendingApprovalHandler,
             LifecycleStepExecutor lifecycleStepExecutor) {
-        return new SimpleTransitionExecutor(router, humanNodeHandler,
-                pendingApprovalHandler, lifecycleStepExecutor);
+        return new NodeStepExecutor(router, humanNodeHandler,
+                                    pendingApprovalHandler, lifecycleStepExecutor);
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public TransitionExecutor transitionExecutor(NodeStepExecutor nodeStepExecutor,
+                                                 NodeProvisionerRouter router,
+                                                 PreferenceProvider preferenceProvider) {
+        io.casehub.platform.api.preferences.Preferences prefs = preferenceProvider.resolve(
+                io.casehub.platform.api.preferences.SettingsScope.root(
+                        io.casehub.platform.api.identity.TenancyConstants.PLATFORM_TENANT_ID));
+        io.casehub.platform.api.preferences.BooleanPreference parallel =
+                prefs.get(DesiredStatePreferenceKeys.PARALLEL_EXECUTION);
+        if (parallel != null && parallel.value()) {
+            return new ParallelTransitionExecutor(nodeStepExecutor, router, java.time.Duration.ofMinutes(5));
+        }
+        return new SimpleTransitionExecutor(nodeStepExecutor);
     }
 
     @Produces
@@ -132,4 +150,12 @@ public class RuntimeBeans {
     public DefaultDesiredStateGraphFactory defaultDesiredStateGraphFactory() {
         return new DefaultDesiredStateGraphFactory();
     }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public ReconciliationEventEmitter reconciliationEventEmitter() {
+        return new ReconciliationEventEmitter();
+    }
+
 }

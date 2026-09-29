@@ -65,11 +65,11 @@ class DungeonTest {
 
         // Plan transitions
         TransitionPlan plan = planner.plan(graph, actual);
-        assertEquals(0, plan.removals().size(), "No removals needed for empty dungeon");
-        assertEquals(4, plan.additions().size(), "Should add all 4 nodes");
+        assertEquals(0, plan.flatRemovals().size(), "No removals needed for empty dungeon");
+        assertEquals(4, plan.flatAdditions().size(), "Should add all 4 nodes");
 
         // Verify ordering: roots before leaves
-        List<OrderedStep> additions = plan.additions();
+        List<OrderedStep> additions = plan.flatAdditions();
         // Rooms (roots) should come before dark-wizard (depends on library)
         int libraryIndex = -1;
         int wizardIndex = -1;
@@ -195,7 +195,7 @@ class DungeonTest {
         TransitionPlan plan = planner.plan(graph, actual);
 
         // Execute provisioning
-        for (OrderedStep step : plan.additions()) {
+        for (OrderedStep step : plan.flatAdditions()) {
             ProvisionContext context = new ProvisionContext("test-tenancy", graph);
             provisioner.provision(step.node(), context);
         }

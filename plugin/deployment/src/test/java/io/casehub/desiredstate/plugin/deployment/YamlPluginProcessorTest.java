@@ -7,7 +7,8 @@ import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginRasDef;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.CatalogEntry;
+import io.casehub.yaml.step.catalog.ResolvedStep;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -263,14 +264,14 @@ class YamlPluginProcessorTest {
     }
 
     private static PluginModel createPluginWithSteps(String type, PluginSpecSchema spec,
-                                                     List<StepDef> actualSteps) {
+                                                     List<ResolvedStep> actualSteps) {
         var provisionSteps = List.of(
-            step("assert", Map.of("condition", "true"), null));
+                step("assert", Map.of("condition", "true"), null));
         return new PluginModel(
-            new PluginHeader(type, 1, null, Map.of()),
-            spec, actualSteps,
-            new PluginProvisionerDef(provisionSteps, provisionSteps),
-            List.of(), emptyCbr(), emptyRas());
+                new PluginHeader(type, 1, null, Map.of()),
+                spec, actualSteps,
+                new PluginProvisionerDef(provisionSteps, provisionSteps),
+                List.of(), emptyCbr(), emptyRas());
     }
 
     private static PluginSpecSchema validSpec() {
@@ -279,9 +280,13 @@ class YamlPluginProcessorTest {
                 null, null, null, null, null, null, null)));
     }
 
-    private static StepDef step(String primitive, Map<String, Object> params,
-                                      String result) {
-        return new StepDef(primitive, params, result, null, null, 3, null);
+    private static ResolvedStep step(String primitive, Map<String, Object> params,
+                                     String result) {
+        Map<String, Object> decorators = result != null
+                                         ? Map.of("result", result) : Map.of();
+        return new ResolvedStep.PluginStep(primitive,
+                                           new CatalogEntry(primitive, null, null),
+                                           params, decorators);
     }
 
     private static PluginCbrDef emptyCbr() {

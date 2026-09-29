@@ -32,6 +32,7 @@ import io.casehub.desiredstate.api.TransitionResult;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter;
 import io.casehub.desiredstate.runtime.NoOpHumanNodeHandler;
+import io.casehub.desiredstate.runtime.NodeStepExecutor;
 import io.casehub.desiredstate.runtime.NoOpPendingApprovalHandler;
 import io.casehub.desiredstate.runtime.SimpleTransitionExecutor;
 import io.casehub.desiredstate.runtime.TransitionPlanner;
@@ -182,11 +183,11 @@ class PipelineTest {
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
 
-        assertThat(plan.removals()).isEmpty();
-        assertThat(plan.additions()).hasSize(8);
+        assertThat(plan.flatRemovals()).isEmpty();
+        assertThat(plan.flatAdditions()).hasSize(8);
 
         // Extract layer sequence from the planned additions
-        List<PipelineLayer> layerOrder = plan.additions().stream()
+        List<PipelineLayer> layerOrder = plan.flatAdditions().stream()
             .map(step -> PipelineNodeTypes.layerOf(step.node().type()).orElseThrow())
             .collect(Collectors.toList());
 
@@ -234,7 +235,7 @@ class PipelineTest {
 
         // Execute all additions via SimpleTransitionExecutor
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(new NodeStepExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor));
         TransitionResult transitionResult = executor.execute(plan, "default");
 
         // All 8 nodes should succeed
@@ -290,7 +291,7 @@ class PipelineTest {
         // Provision the full pipeline first
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(new NodeStepExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor));
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
         executor.execute(plan, "default");
@@ -478,8 +479,8 @@ class PipelineTest {
         // Phase 1: All ABSENT → provision all
         ActualState actual = adapter.readActual(graph, "default");
         TransitionPlan plan = planner.plan(graph, actual);
-        assertThat(plan.additions()).hasSize(8);
-        for (OrderedStep step : plan.additions()) {
+        assertThat(plan.flatAdditions()).hasSize(8);
+        for (OrderedStep step : plan.flatAdditions()) {
             ProvisionResult provisionResult = provisioner.provision(step.node(), new ProvisionContext("test", graph));
             assertThat(provisionResult).isInstanceOf(ProvisionResult.Success.class);
         }
@@ -495,11 +496,11 @@ class PipelineTest {
         assertThat(actual.statusOf(NodeId.of("click-ingest"))).hasValue(NodeStatus.ABSENT);
         plan = planner.plan(graph, actual);
         assertThat(plan.isEmpty()).isFalse();
-        assertThat(plan.additions().stream().anyMatch(s -> s.node().id().equals(NodeId.of("click-ingest"))))
+        assertThat(plan.flatAdditions().stream().anyMatch(s -> s.node().id().equals(NodeId.of("click-ingest"))))
             .isTrue();
 
         world.clearStageError(NodeId.of("click-ingest"));
-        for (OrderedStep step : plan.additions()) {
+        for (OrderedStep step : plan.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph));
         }
 
@@ -756,7 +757,7 @@ class PipelineTest {
 
         MockPendingApprovalHandler approvalHandler = new MockPendingApprovalHandler();
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), approvalHandler, noOpStepExecutor);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(new NodeStepExecutor(router, new NoOpHumanNodeHandler(), approvalHandler, noOpStepExecutor));
 
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
@@ -804,7 +805,7 @@ class PipelineTest {
             new ApprovalCheckResult.Rejected("gold-tier:session-agg", "Too expensive"));
 
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), approvalHandler, noOpStepExecutor);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(new NodeStepExecutor(router, new NoOpHumanNodeHandler(), approvalHandler, noOpStepExecutor));
 
         ActualState empty = new ActualState(Map.of());
         TransitionPlan plan = planner.plan(graph, empty);
@@ -823,7 +824,7 @@ class PipelineTest {
         world.registerLookupSource("geo-lookup", new PipelineWorld.LookupSourceEntry("geo-lookup"));
 
         NodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(new NodeStepExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor));
         TransitionResult result = executor.execute(planner.plan(graph, new ActualState(Map.of())),
             "default");
 

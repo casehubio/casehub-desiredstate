@@ -94,7 +94,7 @@ class PipelineCaseTransitionTest {
         TransitionResult transitionResult = executor.execute(plan, "pipeline-tenant");
 
         assertThat(runtime.lastDefinition).isNotNull();
-        assertThat(transitionResult.outcomes()).hasSize(plan.additions().size());
+        assertThat(transitionResult.outcomes()).hasSize(plan.flatAdditions().size());
         transitionResult.outcomes().forEach((id, outcome) ->
             assertThat(outcome)
                 .as("Node %s should succeed optimistically", id.value())
@@ -108,7 +108,7 @@ class PipelineCaseTransitionTest {
 
         DesiredStateGraph graph = factory.of(List.of(newNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
             List.of(new OrderedStep(oldNode, StepAction.DEPROVISION)),
             List.of(new OrderedStep(newNode, StepAction.PROVISION)),
             graph, graph
@@ -129,7 +129,7 @@ class PipelineCaseTransitionTest {
 
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
             List.of(),
             List.of(new OrderedStep(humanNode, StepAction.PROVISION)),
             graph, graph
@@ -146,7 +146,7 @@ class PipelineCaseTransitionTest {
     @Test
     void emptyPlan_noCase() {
         DesiredStateGraph graph = factory.empty();
-        TransitionPlan plan = new TransitionPlan(List.of(), List.of(), graph, graph);
+        TransitionPlan plan = TransitionPlan.ofFlat(List.of(), List.of(), graph, graph);
 
         TransitionResult result = executor.execute(plan, "pipeline-tenant");
 

@@ -39,10 +39,10 @@ class ForceDistributionTest {
 
     private void executeAll(TransitionPlan plan, DesiredStateGraph graph,
                            DesiredStateGraph beforeGraph) {
-        for (var step : plan.removals()) {
+        for (var step : plan.flatRemovals()) {
             provisioner.deprovision(step.node(), new DeprovisionContext("test", beforeGraph));
         }
-        for (var step : plan.additions()) {
+        for (var step : plan.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph));
         }
     }
@@ -122,8 +122,8 @@ class ForceDistributionTest {
         var plan2 = planner.plan(graph2, actual2);
 
         // Old units orphaned, new units provisioned
-        assertThat(plan2.removals()).isNotEmpty();
-        assertThat(plan2.additions()).isNotEmpty();
+        assertThat(plan2.flatRemovals()).isNotEmpty();
+        assertThat(plan2.flatAdditions()).isNotEmpty();
 
         executeAll(plan2, graph2, graph1);
         renderer.printFrame("After frontier expansion");
@@ -202,8 +202,8 @@ class ForceDistributionTest {
 
         // Old single zone deprovisioned, two new zones provisioned
         // This is a teardown-rebuild — expected finding #2
-        assertThat(plan2.removals()).isNotEmpty();
-        assertThat(plan2.additions()).isNotEmpty();
+        assertThat(plan2.flatRemovals()).isNotEmpty();
+        assertThat(plan2.flatAdditions()).isNotEmpty();
 
         executeAll(plan2, graph2, graph1);
         renderer.printFrame("After zone split");

@@ -53,5 +53,10 @@ public interface NodeProvisioner {
     }
 
     default boolean supportsStatefulLifecycle() {return false;}
+
+    default java.util.OptionalInt maxConcurrency() {
+        return java.util.OptionalInt.empty();
+    }
+
 }
 

@@ -6,6 +6,9 @@ package io.casehub.desiredstate.api;
  *
  * <p>Contrast with {@link HumanNodeHandler} which replaces the provisioner entirely.
  * PendingApprovalHandler is for automated nodes that need human approval before the machine provisions.
+ *
+ * <p>Implementations must be thread-safe. {@code check()} and {@code recordPending()} may be called
+ * concurrently for different nodes by {@code ParallelTransitionExecutor}.
  */
 public interface PendingApprovalHandler {
     ApprovalCheckResult check(DesiredNode node, StepAction action, String tenancyId);

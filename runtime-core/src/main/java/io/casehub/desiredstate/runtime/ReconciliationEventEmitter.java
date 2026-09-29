@@ -2,13 +2,15 @@ package io.casehub.desiredstate.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.casehub.neocortex.memory.cbr.CbrEventTypes;
-import io.casehub.neocortex.memory.cbr.CbrOutcomeData;
 import io.casehub.desiredstate.api.DesiredStateEventTypes;
+import io.casehub.desiredstate.api.LifecycleStateEnteredData;
+import io.casehub.desiredstate.api.LifecycleStateExitedData;
 import io.casehub.desiredstate.api.NodeDriftedData;
 import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeRecoveredData;
 import io.casehub.desiredstate.api.ReconciliationCompletedData;
+import io.casehub.neocortex.memory.cbr.CbrEventTypes;
+import io.casehub.neocortex.memory.cbr.CbrOutcomeData;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
 
@@ -74,6 +76,32 @@ public class ReconciliationEventEmitter {
                        .withExtension("successrate", String.valueOf(data.successRate()))
                        .withData("application/json", serialize(data))
                        .build();
+    }
+
+    public CloudEvent lifecycleStateEntered(LifecycleStateEnteredData data) {
+        var builder = base(DesiredStateEventTypes.LIFECYCLE_STATE_ENTERED)
+                              .withSubject(data.nodeId())
+                              .withExtension("tenancyid", data.tenancyId())
+                              .withExtension("nodetype", data.nodeType())
+                              .withExtension("state", data.state())
+                              .withData("application/json", serialize(data));
+        if (data.customEventType() != null) {
+            builder.withExtension("customeventtype", data.customEventType());
+        }
+        return builder.build();
+    }
+
+    public CloudEvent lifecycleStateExited(LifecycleStateExitedData data) {
+        var builder = base(DesiredStateEventTypes.LIFECYCLE_STATE_EXITED)
+                              .withSubject(data.nodeId())
+                              .withExtension("tenancyid", data.tenancyId())
+                              .withExtension("nodetype", data.nodeType())
+                              .withExtension("state", data.state())
+                              .withData("application/json", serialize(data));
+        if (data.customEventType() != null) {
+            builder.withExtension("customeventtype", data.customEventType());
+        }
+        return builder.build();
     }
 
 

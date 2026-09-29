@@ -13,11 +13,13 @@ import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
-import io.casehub.yaml.step.PrimitiveRegistry;
-import io.casehub.yaml.step.StepDef;
-import io.casehub.yaml.step.StepPipelineExecutor;
-import io.casehub.yaml.step.primitives.AssertPrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
+import io.casehub.yaml.core.condition.ConditionEvaluator;
+import io.casehub.yaml.plugin.api.MapServiceRegistry;
+import io.casehub.yaml.plugin.api.StepResult;
+import io.casehub.yaml.step.catalog.ResolvedStep;
+import io.casehub.yaml.step.eval.StepRunner;
+import io.casehub.yaml.step.eval.StructuralStepEvaluator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -29,8 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PluginIntegrationTest {
 
-    private static final NodeType MOCK_TYPE = NodeType.of("mock-resource");
-    private static PluginModel pluginModel;
+    private static final NodeType    MOCK_TYPE = NodeType.of("mock-resource");
+    private static       PluginModel pluginModel;
 
     @BeforeAll
     static void parsePlugin() throws IOException {
@@ -56,8 +58,8 @@ class PluginIntegrationTest {
 
         assertThat(provisioner.handledTypes()).containsExactly(MOCK_TYPE);
 
-        var node = createNode("n1", Map.of("name", "myapp", "status-code", 200));
-        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var node   = createNode("n1", Map.of("name", "myapp", "status-code", 200));
+        var graph  = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.provision(node, new ProvisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
@@ -67,8 +69,8 @@ class PluginIntegrationTest {
     void deprovisionerEndToEnd() {
         var provisioner = createProvisioner();
 
-        var node = createNode("n1", Map.of("name", "myapp", "status-code", 200));
-        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var node   = createNode("n1", Map.of("name", "myapp", "status-code", 200));
+        var graph  = new DefaultDesiredStateGraphFactory().empty().withNode(node);
         var result = provisioner.deprovision(node, new DeprovisionContext("tenant1", graph));
 
         assertThat(result).isInstanceOf(DeprovisionResult.Success.class);
@@ -77,8 +79,8 @@ class PluginIntegrationTest {
     @Test
     void actualStatePresent() {
         var adapter = createAdapter();
-        var node = createNode("n1", Map.of("name", "myapp", "status-code", 200));
-        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var node    = createNode("n1", Map.of("name", "myapp", "status-code", 200));
+        var graph   = new DefaultDesiredStateGraphFactory().empty().withNode(node);
 
         var actual = adapter.readActual(graph, "tenant1");
         assertThat(actual.statusOf(NodeId.of("n1"))).hasValue(NodeStatus.PRESENT);
@@ -87,8 +89,8 @@ class PluginIntegrationTest {
     @Test
     void actualStateAbsent() {
         var adapter = createAdapter();
-        var node = createNode("n1", Map.of("name", "gone", "status-code", 404));
-        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var node    = createNode("n1", Map.of("name", "gone", "status-code", 404));
+        var graph   = new DefaultDesiredStateGraphFactory().empty().withNode(node);
 
         var actual = adapter.readActual(graph, "tenant1");
         assertThat(actual.statusOf(NodeId.of("n1"))).hasValue(NodeStatus.ABSENT);
@@ -97,8 +99,8 @@ class PluginIntegrationTest {
     @Test
     void actualStateDrifted() {
         var adapter = createAdapter();
-        var node = createNode("n1", Map.of("name", "partial", "status-code", 206));
-        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var node    = createNode("n1", Map.of("name", "partial", "status-code", 206));
+        var graph   = new DefaultDesiredStateGraphFactory().empty().withNode(node);
 
         var actual = adapter.readActual(graph, "tenant1");
         assertThat(actual.statusOf(NodeId.of("n1"))).hasValue(NodeStatus.DRIFTED);
@@ -106,7 +108,7 @@ class PluginIntegrationTest {
 
     @Test
     void rasRegistrationEndToEnd() {
-        var registrar = new YamlPluginRasRegistrar("mock-resource", pluginModel.ras());
+        var registrar     = new YamlPluginRasRegistrar("mock-resource", pluginModel.ras());
         var registrations = registrar.registrations();
 
         assertThat(registrations).hasSize(1);
@@ -128,11 +130,11 @@ class PluginIntegrationTest {
     @Test
     void multipleNodesInGraph() {
         var adapter = createAdapter();
-        var n1 = createNode("n1", Map.of("name", "app1", "status-code", 200));
-        var n2 = createNode("n2", Map.of("name", "app2", "status-code", 404));
-        var n3 = createNode("n3", Map.of("name", "app3", "status-code", 206));
+        var n1      = createNode("n1", Map.of("name", "app1", "status-code", 200));
+        var n2      = createNode("n2", Map.of("name", "app2", "status-code", 404));
+        var n3      = createNode("n3", Map.of("name", "app3", "status-code", 206));
         var graph = new DefaultDesiredStateGraphFactory().empty()
-            .withNode(n1).withNode(n2).withNode(n3);
+                                                         .withNode(n1).withNode(n2).withNode(n3);
 
         var actual = adapter.readActual(graph, "tenant1");
         assertThat(actual.statusOf(NodeId.of("n1"))).hasValue(NodeStatus.PRESENT);
@@ -140,50 +142,93 @@ class PluginIntegrationTest {
         assertThat(actual.statusOf(NodeId.of("n3"))).hasValue(NodeStatus.DRIFTED);
     }
 
+
+    private static boolean evaluateExpression(String expr) {
+        String trimmed = expr.trim();
+        if (trimmed.contains("!=")) {
+            String[] parts = trimmed.split("!=", 2);
+            return !parts[0].trim().equals(parts[1].trim());
+        }
+        if (trimmed.contains("==")) {
+            String[] parts = trimmed.split("==", 2);
+            return parts[0].trim().equals(parts[1].trim());
+        }
+        if (trimmed.contains("<")) {
+            String[] parts = trimmed.split("<", 2);
+            try {
+                return Integer.parseInt(parts[0].trim()) < Integer.parseInt(parts[1].trim());
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return Boolean.parseBoolean(trimmed);
+    }
+
     private YamlPluginProvisioner createProvisioner() {
-        var descriptor = toDescriptor(pluginModel);
+        var        descriptor = toDescriptor(pluginModel);
+        var        condEval   = new ConditionEvaluator(PluginIntegrationTest::evaluateExpression);
+        var        evaluator  = new StructuralStepEvaluator(condEval);
+        StepRunner runner     = createRunner(condEval);
         return new YamlPluginProvisioner(
-            Map.of(MOCK_TYPE, descriptor), createExecutor(),
-            ref -> Map.of("token", "mock-token", "endpoint", "mock.api.local"));
+                Map.of(MOCK_TYPE, descriptor), evaluator, runner,
+                ref -> Map.of("token", "mock-token", "endpoint", "mock.api.local"));
     }
 
     private YamlPluginActualStateAdapter createAdapter() {
-        var descriptor = toDescriptor(pluginModel);
+        var        descriptor = toDescriptor(pluginModel);
+        var        condEval   = new ConditionEvaluator(PluginIntegrationTest::evaluateExpression);
+        var        evaluator  = new StructuralStepEvaluator(condEval);
+        StepRunner runner     = createRunner(condEval);
         return new YamlPluginActualStateAdapter(
-            Map.of(MOCK_TYPE, descriptor), createExecutor(),
-            ref -> Map.of("token", "mock-token", "endpoint", "mock.api.local"));
+                Map.of(MOCK_TYPE, descriptor), evaluator, runner,
+                ref -> Map.of("token", "mock-token", "endpoint", "mock.api.local"));
     }
 
-    private StepPipelineExecutor createExecutor() {
-        var registry = PrimitiveRegistry.of(Map.of(
-            "assert", new AssertPrimitive(),
-            "compare-state", new CompareStatePrimitive()));
-        return new StepPipelineExecutor(registry);
+    private StepRunner createRunner(ConditionEvaluator condEval) {
+        var comparePrimitive = new CompareStatePrimitive(condEval);
+        return (step, resolver) -> {
+            if (step instanceof ResolvedStep.PluginStep ps) {
+                Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
+                return switch (ps.name()) {
+                    case "assert" -> {
+                        String condition = (String) resolved.get("condition");
+                        if (condEval.evaluate(condition)) {
+                            yield StepResult.of(Map.of());
+                        }
+                        throw new RuntimeException("Assertion failed: " + condition);
+                    }
+                    case "compare-state" -> comparePrimitive.execute(resolved,
+                                                                     new MapServiceRegistry());
+                    default -> StepResult.failed("unknown step: " + ps.name());
+                };
+            }
+            return StepResult.failed("unsupported step type");
+        };
     }
 
     private static PluginDescriptor toDescriptor(PluginModel model) {
         return new PluginDescriptor(
-            model.header().type(),
-            model.header().version(),
-            Duration.ofSeconds(30),
-            model.header().auth() != null
+                model.header().type(),
+                model.header().version(),
+                Duration.ofSeconds(30),
+                model.header().auth() != null
                 ? model.header().auth().entrySet().stream()
-                    .collect(java.util.stream.Collectors.toMap(
-                        Map.Entry::getKey, e -> e.getValue().credentialRef()))
+                       .collect(java.util.stream.Collectors.toMap(
+                               Map.Entry::getKey, e -> e.getValue().credentialRef()))
                 : Map.of(),
-            model.spec(),
-            model.actualStateSteps(),
-            model.provisioner().provisionSteps(),
-            model.provisioner().deprovisionSteps(),
-            model.faultPolicies(),
-            model.cbr(),
-            model.ras());
+                model.spec(),
+                model.actualStateSteps(),
+                model.provisioner().provisionSteps(),
+                model.provisioner().deprovisionSteps(),
+                model.faultPolicies(),
+                model.cbr(),
+                model.ras());
     }
 
     private static DesiredNode createNode(String id, Map<String, Object> specFields) {
         return new DesiredNode(
-            NodeId.of(id),
-            new YamlNodeSpec(MOCK_TYPE, HumanGating.NONE, specFields),
-            HumanGating.NONE);
+                NodeId.of(id),
+                new YamlNodeSpec(MOCK_TYPE, HumanGating.NONE, specFields),
+                HumanGating.NONE);
     }
 }

@@ -11,7 +11,7 @@
 | Module | artifactId | Root package | Contents |
 |--------|-----------|-------------|----------|
 | `api/` | `casehub-desiredstate-api` | `io.casehub.desiredstate.api` | Core SPIs and domain types. Pure Java + Mutiny `provided`. No CDI, no framework. Contains: `DesiredStateGraph`, `DesiredNode`, `GoalCompiler`, `NodeProvisioner`, `ActualStateAdapter`, `FaultPolicy`, `EventSource`, `TransitionExecutor`, `HumanNodeHandler`, `PendingApprovalHandler`, `SituationRecompiler`, `GlobalReconciliationListener`, `ReconciliationListener`, `FaultCountStore`, `ConfigurationRetriever`, `ConfigurationAdapter`, `CompletionCondition`, `ThresholdFaultPolicy`, `InMemoryFaultCountStore`, `ReconciliationStateStore`, `InMemoryReconciliationStateStore`, sealed types (`GraphMutation`, `CompilationResult`, `StepOutcome`, `ProvisionResult`, `DeprovisionResult`, `ApprovalCheckResult`), `GraphMutations` utility, value types (`NodeId`, `NodeType`, `Dependency`, `HumanGating`, `StepAction`, `FaultType`, `NodeStatus`), CloudEvent data records. |
-| `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | CDI runtime: `ImmutableDesiredStateGraph`, `DefaultDesiredStateGraphFactory`, `TransitionPlanner`, `ReconciliationLoop` (with `Builder`), `SimpleTransitionExecutor`, `FaultPolicyEngine`, `LifecycleManager`, `DefaultNodeProvisionerRouter`, `CdiNodeProvisionerRouter`, `DefaultActualStateAdapterRouter`, `CdiActualStateAdapterRouter`, `DefaultMergedEventSource`, `CdiMergedEventSource`, `DefaultFaultCountStore`, `DefaultReconciliationStateStore`, `FaultCountEvictionListener`, `ReconciliationEventEmitter`, `SituationRecompilerEngine`, `CbrFaultPolicy`, `CbrSituationRecompiler`, `CbrProposalTracker`, `GraphDiff`, `DesiredStatePreferenceKeys`. Composition subpackage (`runtime.composition`): `CrossDomainCompositionEngine`, `DomainRegistration`, `DomainPhaseState`, `TenantCompositionState`, `DomainNodeSpec`, `DomainNodeProvisioner`, `DomainActualStateAdapter`. NoOp defaults: `NoOpHumanNodeHandler`, `NoOpPendingApprovalHandler`, `NoOpConfigurationRetriever`, `NoOpConfigurationAdapter`. `@ApplicationScoped` beans. OpenTelemetry instrumented. |
+| `runtime/` | `casehub-desiredstate` | `io.casehub.desiredstate.runtime` | CDI runtime: `ImmutableDesiredStateGraph`, `DefaultDesiredStateGraphFactory`, `TransitionPlanner`, `ReconciliationLoop` (with `Builder`), `NodeStepExecutor`, `SimpleTransitionExecutor`, `ParallelTransitionExecutor`, `StatefulNodeProvisioner`, `TransitionActionHandler`, `FaultPolicyEngine`, `LifecycleManager`, `DefaultNodeProvisionerRouter`, `CdiNodeProvisionerRouter` (`@DefaultBean`), `StatefulNodeProvisionerRouter` (lifecycle-aware), `CdiTransitionActionHandler`, `DefaultActualStateAdapterRouter`, `CdiActualStateAdapterRouter`, `DefaultMergedEventSource`, `CdiMergedEventSource`, `DefaultFaultCountStore`, `DefaultReconciliationStateStore`, `FaultCountEvictionListener`, `ReconciliationEventEmitter`, `SituationRecompilerEngine`, `CbrFaultPolicy`, `CbrSituationRecompiler`, `CbrProposalTracker`, `GraphDiff`, `DesiredStatePreferenceKeys`. Composition subpackage (`runtime.composition`): `CrossDomainCompositionEngine`, `DomainRegistration`, `DomainPhaseState`, `TenantCompositionState`, `DomainNodeSpec`, `DomainNodeProvisioner`, `DomainActualStateAdapter`. NoOp defaults: `NoOpHumanNodeHandler`, `NoOpPendingApprovalHandler`, `NoOpConfigurationRetriever`, `NoOpConfigurationAdapter`. `@ApplicationScoped` beans. OpenTelemetry instrumented. |
 | `testing/` | `casehub-desiredstate-testing` | `io.casehub.desiredstate.testing` | `MockNodeProvisioner`, `MockActualStateAdapter`, `MockPendingApprovalHandler`, `MockTransitionExecutor`, `MockConfigurationRetriever`, `MockConfigurationAdapter`, `CannedEventSource`, `TestTimeouts`. Test scope only. |
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | `CaseTransitionExecutor` displaces `SimpleTransitionExecutor`. `TransitionWorkflowGenerator` generates Serverless Workflow 1.0 definitions. `DesiredStateDispatch` registers `desiredstate:dispatch` via `CallableDispatchRegistry` and handles full PendingApproval lifecycle within workflow steps. `DesiredStateReplanDispatch` registers `desiredstate:replan` for RAS-triggered situation response via `SituationRecompilerEngine`. `DesiredStateExecutionRegistry` tracks per-execution graph/tenancy context and active case IDs. `DesiredStateExecutionContext` record. CTE pre-filters approval-gated nodes before case creation. |
 | `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | `WorkItemPendingApprovalHandler` -- WorkItem-backed approval lifecycle via `WorkItemCreator` SPI. Classpath-activated, displaces `NoOpPendingApprovalHandler`. |
@@ -71,9 +71,41 @@ The loop never dies on exception -- a dead loop is worse than a failed cycle.
 
 Discovers all `FaultPolicy` beans via CDI `Instance<FaultPolicy>`. On fault event, runs all matching policies, merges mutations, detects conflicts (`ConflictingMutationException` when two policies produce contradictory mutations for the same node).
 
+### NodeStepExecutor
+
+Per-node execution logic extracted from `SimpleTransitionExecutor` — shared by both `SimpleTransitionExecutor` and `ParallelTransitionExecutor`. Encapsulates the cross-cutting concerns for a single node step:
+
+1. OTel span creation per node
+2. Human gating check (`node.requiresHuman(action)` → `HumanNodeHandler`)
+3. Approval lifecycle (`PendingApprovalHandler.check()` → Pending/Rejected/Approved/None)
+4. Lifecycle hooks (pre/post provision/deprovision)
+5. Router delegation and result mapping to `StepOutcome`
+
+`execute(DesiredNode, StepAction, DesiredStateGraph, String tenancyId) → StepOutcome` dispatches to the appropriate private method based on `StepAction` (PROVISION, DEPROVISION, SUSPEND, RESUME).
+
+Produced via `@Produces @DefaultBean` in `RuntimeBeans`.
+
 ### SimpleTransitionExecutor
 
-`@DefaultBean` -- sequential executor. Walks removals (leaves-first) then additions (roots-first). Per-step precedence: `requiresHuman(action)` -> `HumanNodeHandler`, else check `PendingApprovalHandler.check()` -> if `Pending`/`Rejected` handle accordingly, if `Approved` add `PlanApproval` to context, if `None` proceed to provisioner. After provisioner returns `PendingApproval`, calls `PendingApprovalHandler.recordPending()`.
+`@DefaultBean` -- sequential executor. Delegates per-node execution to `NodeStepExecutor`. Walks removals (leaves-first) then additions (roots-first) using `flatRemovals()`/`flatAdditions()` accessors on `TransitionPlan`.
+
+### ParallelTransitionExecutor
+
+Layer-based concurrent provisioning via virtual threads (`Executors.newVirtualThreadPerTaskExecutor()`). Each topological layer executes in parallel; layers execute sequentially. Per-NodeType `Semaphore` rate limiting from `NodeProvisionerRouter.maxConcurrencyFor()`. Failure propagation: when a node fails, all dependents in subsequent layers are marked `Failed("dependency ... failed")`. OTel context propagation to virtual threads. Configurable layer timeout with `shutdownNow()` interrupt.
+
+Activated via `PARALLEL_EXECUTION` `BooleanPreference` in `DesiredStatePreferenceKeys`. Conditional production in `RuntimeBeans` and `DesiredStateRuntimeAutoConfiguration`.
+
+### StatefulNodeProvisioner
+
+Decorator wrapping any `NodeProvisioner` with per-node `OrcStateMachine<NodeLifecycleState>` (from yaml-core). Validates lifecycle transitions via CAS-based state machines — invalid transitions return `Failed` without calling the delegate. Fires `TransitionAction` items from `NodeLifecycleDefinition.onEnter`/`onExit` with try-catch-log guards (action failure never blocks the provision).
+
+State machines are keyed by `(tenancyId, NodeId)` in a `ConcurrentHashMap`. Initial state is inferred from the action type (PROVISION → ABSENT, DEPROVISION → PRESENT, etc.) or set explicitly via `initializeNodeState()` for state reconstruction from actual state after restarts.
+
+The wrapping is transparent — `StatefulNodeProvisioner` forwards `handledTypes()`, `resyncInterval()`, `maxConcurrency()` to the delegate and overrides `supportsStatefulLifecycle()` based on `NodeLifecycleDefinition.supportsSuspendResume()`.
+
+**CDI wiring:** `StatefulNodeProvisionerRouter` (`@ApplicationScoped`) wraps provisioners with matching `NodeLifecycleDefinition` beans. `CdiNodeProvisionerRouter` becomes `@DefaultBean` fallback. `CdiTransitionActionHandler` dispatches `TransitionAction.EmitEvent` to `ReconciliationEventEmitter.lifecycleStateEntered()` + `Event<CloudEvent>`.
+
+**Spring wiring:** `DesiredStateRuntimeAutoConfiguration.nodeProvisionerRouter()` performs the same wrapping inline using `DefaultNodeProvisionerRouter`.
 
 ### OpenTelemetry Tracing
 
@@ -248,7 +280,7 @@ Four examples validate the SPI surface:
 - Four working examples (dungeon, pipeline, spatial, expansion) demonstrating the full SPI surface including lifecycle phases and spatial graph sufficiency.
 - Engine-adapter integration demonstrated in `PipelineCaseTransitionTest`.
 - CBR pipeline complete: retrieve, adapt, apply, outcome feedback via CloudEvents.
-- Multi-provisioner dispatch with per-type reconciliation scheduling.
+- Multi-provisioner dispatch with per-type reconciliation scheduling. `NodeStepExecutor` extraction for shared per-node execution logic. `ParallelTransitionExecutor` for layer-based concurrent provisioning via virtual threads. `StatefulNodeProvisioner` decorator for OrcStateMachine lifecycle enforcement.
 - `LifecycleManager` for multi-phase deployments with dual CAS phase transitions.
 - `SituationRecompiler` SPI with CBR and RAS-adapter implementations.
 - Comprehensive OTel tracing on all reconciliation phases.
@@ -272,7 +304,7 @@ Framework-neutral logic is extracted into `-core` modules so the runtime can be 
 
 | Layer | Module | Contains |
 |-------|--------|----------|
-| Core POJOs | `runtime-core/` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, SimpleTransitionExecutor, CBR chain, composition engine. Constructor injection, `List<T>` for multi-bean, `Consumer<T>` for events. Zero CDI, zero Spring. |
+| Core POJOs | `runtime-core/` | TransitionPlanner, ReconciliationLoop, FaultPolicyEngine, NodeStepExecutor, SimpleTransitionExecutor, ParallelTransitionExecutor, StatefulNodeProvisioner, TransitionActionHandler, CBR chain, composition engine. Constructor injection, `List<T>` for multi-bean, `Consumer<T>` for events. Zero CDI, zero Spring. |
 | Quarkus wiring | `runtime/` | CDI bridges (`CdiNodeProvisionerRouter`, `CdiActualStateAdapterRouter`, `CdiMergedEventSource`) + `RuntimeBeans` (`@Produces` methods instantiating core POJOs) + lifecycle classes. |
 | Spring wiring | `runtime-spring/` | `@AutoConfiguration` with `@Bean` methods instantiating core POJOs. `Instance<T>` → `List<T>`, `Event<CloudEvent>` → `ApplicationEventPublisher`. |
 | Shared entities | `persistence-jpa-common/` | `FaultCountEntity`, `ReconciliationStateEntity`, `GraphSerializer`. Used by both Quarkus and Spring JPA modules. |

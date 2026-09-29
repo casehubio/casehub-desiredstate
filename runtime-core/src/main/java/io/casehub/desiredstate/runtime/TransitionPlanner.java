@@ -80,26 +80,16 @@ public class TransitionPlanner {
             }
         }
 
-        List<NodeId>      sortedAdditions = topologicalSort(desired, toAdd);
-        List<OrderedStep> additions       = new ArrayList<>();
-        for (NodeId nodeId : sortedAdditions) {
-            additions.add(new OrderedStep(desired.nodes().get(nodeId), StepAction.PROVISION));
-        }
-
-        List<NodeId>      sortedResumptions = topologicalSort(desired, toResume);
-        List<OrderedStep> resumptions       = new ArrayList<>();
-        for (NodeId nodeId : sortedResumptions) {
-            resumptions.add(new OrderedStep(desired.nodes().get(nodeId), StepAction.RESUME));
-        }
-
-        List<NodeId>      sortedSuspensions = topologicalSortReverse(desired, toSuspend);
-        List<OrderedStep> suspensions       = new ArrayList<>();
-        for (NodeId nodeId : sortedSuspensions) {
-            suspensions.add(new OrderedStep(desired.nodes().get(nodeId), StepAction.SUSPEND));
-        }
+        List<List<OrderedStep>> additionLayers = toLayers(topologicalSort(desired, toAdd),
+                                                          desired, StepAction.PROVISION);
+        List<List<OrderedStep>> resumptionLayers = toLayers(topologicalSort(desired, toResume),
+                                                            desired, StepAction.RESUME);
+        List<List<OrderedStep>> suspensionLayers = toLayers(topologicalSortReverse(desired, toSuspend),
+                                                            desired, StepAction.SUSPEND);
 
         DesiredStateGraph before = previousDesired != null ? previousDesired : desired;
-        return new TransitionPlan(removals, suspensions, resumptions, additions, before, desired);
+        return new TransitionPlan(List.of(removals), suspensionLayers, resumptionLayers,
+                                  additionLayers, before, desired);
     }
 
     private StepAction decideAction(NodeStatus actual, TargetStatus target) {
@@ -117,7 +107,21 @@ public class TransitionPlanner {
         };
     }
 
-    private List<NodeId> topologicalSort(DesiredStateGraph graph, Set<NodeId> toSort) {
+
+    private List<List<OrderedStep>> toLayers(List<List<NodeId>> nodeLayers,
+                                             DesiredStateGraph graph, StepAction action) {
+        List<List<OrderedStep>> result = new ArrayList<>();
+        for (List<NodeId> layer : nodeLayers) {
+            List<OrderedStep> steps = new ArrayList<>();
+            for (NodeId nodeId : layer) {
+                steps.add(new OrderedStep(graph.nodes().get(nodeId), action));
+            }
+            result.add(steps);
+        }
+        return result;
+    }
+
+    private List<List<NodeId>> topologicalSort(DesiredStateGraph graph, Set<NodeId> toSort) {
         if (toSort.isEmpty()) {
             return List.of();
         }
@@ -143,33 +147,38 @@ public class TransitionPlanner {
             }
         }
 
-        List<NodeId> result = new ArrayList<>();
+        List<List<NodeId>> layers    = new ArrayList<>();
+        int                processed = 0;
         while (!queue.isEmpty()) {
-            NodeId current = queue.poll();
-            result.add(current);
+            List<NodeId> layer = new ArrayList<>(queue);
+            queue.clear();
+            layers.add(layer);
+            processed += layer.size();
 
-            Set<NodeId> dependents = graph.dependentsOf(current);
-            for (NodeId dependent : dependents) {
-                if (toSort.contains(dependent)) {
-                    int newDegree = inDegree.merge(dependent, -1, Integer::sum);
-                    if (newDegree == 0) {
-                        queue.add(dependent);
+            for (NodeId current : layer) {
+                Set<NodeId> dependents = graph.dependentsOf(current);
+                for (NodeId dependent : dependents) {
+                    if (toSort.contains(dependent)) {
+                        int newDegree = inDegree.merge(dependent, -1, Integer::sum);
+                        if (newDegree == 0) {
+                            queue.add(dependent);
+                        }
                     }
                 }
             }
         }
 
-        if (result.size() != toSort.size()) {
+        if (processed != toSort.size()) {
             throw new IllegalStateException("Cycle detected in desired state graph");
         }
 
-        return result;
+        return layers;
     }
 
-    private List<NodeId> topologicalSortReverse(DesiredStateGraph graph, Set<NodeId> toSort) {
-        List<NodeId> sorted = topologicalSort(graph, toSort);
-        java.util.Collections.reverse(sorted);
-        return sorted;
+    private List<List<NodeId>> topologicalSortReverse(DesiredStateGraph graph, Set<NodeId> toSort) {
+        List<List<NodeId>> layers = topologicalSort(graph, toSort);
+        java.util.Collections.reverse(layers);
+        return layers;
     }
 
     private static class UnknownSpec implements NodeSpec {

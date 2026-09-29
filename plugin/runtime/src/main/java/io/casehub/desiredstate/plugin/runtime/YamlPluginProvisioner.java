@@ -9,8 +9,9 @@ import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.yaml.core.resolver.VariableResolver;
-import io.casehub.yaml.step.StepContext;
-import io.casehub.yaml.step.StepPipelineExecutor;
+import io.casehub.yaml.step.catalog.ResolvedStep;
+import io.casehub.yaml.step.eval.StepRunner;
+import io.casehub.yaml.step.eval.StructuralStepEvaluator;
 import io.casehub.platform.api.credentials.CredentialResolver;
 
 import java.time.Duration;
@@ -20,14 +21,17 @@ import java.util.Set;
 public class YamlPluginProvisioner implements NodeProvisioner {
 
     private final Map<NodeType, PluginDescriptor> plugins;
-    private final StepPipelineExecutor executor;
-    private final CredentialResolver credentialResolver;
+    private final StructuralStepEvaluator         evaluator;
+    private final StepRunner                      runner;
+    private final CredentialResolver              credentialResolver;
 
     public YamlPluginProvisioner(Map<NodeType, PluginDescriptor> plugins,
-                                 StepPipelineExecutor executor,
+                                 StructuralStepEvaluator evaluator,
+                                 StepRunner runner,
                                  CredentialResolver credentialResolver) {
-        this.plugins = Map.copyOf(plugins);
-        this.executor = executor;
+        this.plugins            = Map.copyOf(plugins);
+        this.evaluator          = evaluator;
+        this.runner             = runner;
         this.credentialResolver = credentialResolver;
     }
 
@@ -39,9 +43,9 @@ public class YamlPluginProvisioner implements NodeProvisioner {
     @Override
     public Duration resyncInterval() {
         return plugins.values().stream()
-            .map(PluginDescriptor::resyncInterval)
-            .min(Duration::compareTo)
-            .orElse(Duration.ofMinutes(5));
+                      .map(PluginDescriptor::resyncInterval)
+                      .min(Duration::compareTo)
+                      .orElse(Duration.ofMinutes(5));
     }
 
     @Override
@@ -49,12 +53,12 @@ public class YamlPluginProvisioner implements NodeProvisioner {
         PluginDescriptor plugin = plugins.get(node.type());
         if (plugin == null) {
             return new ProvisionResult.Failed(
-                "No plugin registered for type: " + node.type());
+                    "No plugin registered for type: " + node.type());
         }
         try {
-            StepContext stepContext = buildContext(node, plugin);
-            VariableResolver resolver = stepContext.toResolver();
-            executor.execute(plugin.provisionSteps(), stepContext, resolver);
+            VariableResolver resolver = buildResolver(node, plugin);
+            ResolvedStep     block    = new ResolvedStep.BlockStep(null, plugin.provisionSteps(), Map.of());
+            evaluator.evaluate(block, resolver, runner);
             return new ProvisionResult.Success();
         } catch (RuntimeException e) {
             return new ProvisionResult.Failed(e.getMessage());
@@ -66,28 +70,31 @@ public class YamlPluginProvisioner implements NodeProvisioner {
         PluginDescriptor plugin = plugins.get(node.type());
         if (plugin == null) {
             return new DeprovisionResult.Failed(
-                "No plugin registered for type: " + node.type());
+                    "No plugin registered for type: " + node.type());
         }
         try {
-            StepContext stepContext = buildContext(node, plugin);
-            VariableResolver resolver = stepContext.toResolver();
-            executor.execute(plugin.deprovisionSteps(), stepContext, resolver);
+            VariableResolver resolver = buildResolver(node, plugin);
+            ResolvedStep     block    = new ResolvedStep.BlockStep(null, plugin.deprovisionSteps(), Map.of());
+            evaluator.evaluate(block, resolver, runner);
             return new DeprovisionResult.Success();
         } catch (RuntimeException e) {
             return new DeprovisionResult.Failed(e.getMessage());
         }
     }
 
-    private StepContext buildContext(DesiredNode node, PluginDescriptor plugin) {
-        StepContext.Builder builder = StepContext.builder()
-            .spec(extractSpecFields(node));
-
+    private VariableResolver buildResolver(DesiredNode node, PluginDescriptor plugin) {
+        Map<String, Object>              specFields = extractSpecFields(node);
+        Map<String, Map<String, String>> authMap    = new java.util.HashMap<>();
         for (Map.Entry<String, String> entry : plugin.authCredentialRefs().entrySet()) {
-            Map<String, String> credentials =
-                credentialResolver.resolve(entry.getValue());
-            builder.addAuth(entry.getKey(), credentials);
+            authMap.put(entry.getKey(), credentialResolver.resolve(entry.getValue()));
         }
-        return builder.build();
+
+        VariableResolver resolver = new VariableResolver(Map.of(), Set.of());
+        resolver = resolver.withObjectScope("spec", specFields::get);
+        if (!authMap.isEmpty()) {
+            resolver = resolver.withObjectScope("auth", name -> authMap.get(name));
+        }
+        return resolver;
     }
 
     @SuppressWarnings("unchecked")

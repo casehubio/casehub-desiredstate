@@ -23,6 +23,7 @@ import io.casehub.desiredstate.runtime.DefaultFaultCountStore;
 import io.casehub.desiredstate.runtime.DefaultReconciliationStateStore;
 import io.casehub.desiredstate.runtime.FaultCountEvictionListener;
 import io.casehub.desiredstate.runtime.FaultPolicyEngine;
+import io.casehub.desiredstate.runtime.NodeStepExecutor;
 import io.casehub.desiredstate.runtime.ReconciliationLoop;
 import io.casehub.desiredstate.runtime.SimpleTransitionExecutor;
 import io.casehub.desiredstate.runtime.SituationRecompilerEngine;
@@ -94,15 +95,33 @@ public class DesiredStateRuntimeAutoConfiguration {
         return new FaultCountEvictionListener(store);
     }
 
+
     @Bean
-    @ConditionalOnMissingBean(TransitionExecutor.class)
-    public SimpleTransitionExecutor simpleTransitionExecutor(
+    @ConditionalOnMissingBean
+    public NodeStepExecutor nodeStepExecutor(
             NodeProvisionerRouter router,
             HumanNodeHandler humanNodeHandler,
             PendingApprovalHandler pendingApprovalHandler,
             LifecycleStepExecutor lifecycleStepExecutor) {
-        return new SimpleTransitionExecutor(router, humanNodeHandler,
-                pendingApprovalHandler, lifecycleStepExecutor);
+        return new NodeStepExecutor(router, humanNodeHandler,
+                                    pendingApprovalHandler, lifecycleStepExecutor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(TransitionExecutor.class)
+    public TransitionExecutor transitionExecutor(NodeStepExecutor nodeStepExecutor,
+                                                 NodeProvisionerRouter router,
+                                                 PreferenceProvider preferenceProvider) {
+        io.casehub.platform.api.preferences.Preferences prefs = preferenceProvider.resolve(
+                io.casehub.platform.api.preferences.SettingsScope.root(
+                        io.casehub.platform.api.identity.TenancyConstants.PLATFORM_TENANT_ID));
+        io.casehub.platform.api.preferences.BooleanPreference parallel =
+                prefs.get(io.casehub.desiredstate.runtime.DesiredStatePreferenceKeys.PARALLEL_EXECUTION);
+        if (parallel != null && parallel.value()) {
+            return new io.casehub.desiredstate.runtime.ParallelTransitionExecutor(
+                    nodeStepExecutor, router, java.time.Duration.ofMinutes(5));
+        }
+        return new SimpleTransitionExecutor(nodeStepExecutor);
     }
 
     @Bean
@@ -142,4 +161,52 @@ public class DesiredStateRuntimeAutoConfiguration {
     public DefaultDesiredStateGraphFactory defaultDesiredStateGraphFactory() {
         return new DefaultDesiredStateGraphFactory();
     }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public io.casehub.desiredstate.runtime.ReconciliationEventEmitter reconciliationEventEmitter() {
+        return new io.casehub.desiredstate.runtime.ReconciliationEventEmitter();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.runtime.TransitionActionHandler.class)
+    public io.casehub.desiredstate.runtime.TransitionActionHandler transitionActionHandler(
+            io.casehub.desiredstate.runtime.ReconciliationEventEmitter emitter,
+            ApplicationEventPublisher eventPublisher) {
+        return (action, nodeId, state, tenancyId) -> {
+            if (action instanceof io.casehub.desiredstate.api.TransitionAction.EmitEvent emit) {
+                var data = new io.casehub.desiredstate.api.LifecycleStateEnteredData(
+                        tenancyId, nodeId.value(), null, state.name(), null, emit.eventType());
+                CloudEvent event = emitter.lifecycleStateEntered(data);
+                eventPublisher.publishEvent(event);
+            }
+        };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(NodeProvisionerRouter.class)
+    public io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter nodeProvisionerRouter(
+            List<io.casehub.desiredstate.api.NodeProvisioner> provisioners,
+            List<io.casehub.desiredstate.api.NodeLifecycleDefinition> lifecycles,
+            io.casehub.desiredstate.runtime.TransitionActionHandler actionHandler) {
+        java.util.Map<io.casehub.desiredstate.api.NodeType, io.casehub.desiredstate.api.NodeLifecycleDefinition> lifecycleMap = new java.util.HashMap<>();
+        for (var lifecycle : lifecycles) {
+            lifecycleMap.put(lifecycle.nodeType(), lifecycle);
+        }
+        java.util.List<io.casehub.desiredstate.api.NodeProvisioner> wrapped = new java.util.ArrayList<>(provisioners.size());
+        for (var prov : provisioners) {
+            io.casehub.desiredstate.api.NodeLifecycleDefinition matched = null;
+            for (var type : prov.handledTypes()) {
+                matched = lifecycleMap.get(type);
+                if (matched != null) {break;}
+            }
+            if (matched != null) {
+                wrapped.add(new io.casehub.desiredstate.runtime.StatefulNodeProvisioner(prov, matched, actionHandler));
+            } else {
+                wrapped.add(prov);
+            }
+        }
+        return new io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter(wrapped);
+    }
+
 }

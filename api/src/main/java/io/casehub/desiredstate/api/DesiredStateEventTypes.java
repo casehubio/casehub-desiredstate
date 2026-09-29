@@ -16,4 +16,9 @@ public final class DesiredStateEventTypes {
             "io.casehub.desiredstate.node.suspended";
     public static final String NODE_RESUMED   =
             "io.casehub.desiredstate.node.resumed";
+    public static final String LIFECYCLE_STATE_ENTERED =
+            "io.casehub.desiredstate.lifecycle.state-entered";
+    public static final String LIFECYCLE_STATE_EXITED =
+            "io.casehub.desiredstate.lifecycle.state-exited";
+
 }

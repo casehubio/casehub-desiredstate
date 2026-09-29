@@ -735,13 +735,13 @@ public class ReconciliationLoop {
                                                    type -> router != null && router.supportsStatefulLifecycle(type));
                 reconciliationStateStore.store(tenancyId, desired);
                 span.setAttribute(AttributeKey.longKey("desiredstate.additions"),
-                                  plan.additions().size());
+                                  plan.flatAdditions().size());
                 span.setAttribute(AttributeKey.longKey("desiredstate.removals"),
-                                  plan.removals().size());
+                                  plan.flatRemovals().size());
                 span.setAttribute(AttributeKey.longKey("desiredstate.suspensions"),
-                                  plan.suspensions().size());
+                                  plan.flatSuspensions().size());
                 span.setAttribute(AttributeKey.longKey("desiredstate.resumptions"),
-                                  plan.resumptions().size());
+                                  plan.flatResumptions().size());
                 return plan;
             } finally {
                 span.end();
@@ -768,10 +768,10 @@ public class ReconciliationLoop {
             Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("faultFeedback").startSpan();
             try (Scope ignored = span.makeCurrent()) {
                 Map<NodeId, StepAction> plannedActions = new HashMap<>();
-                for (OrderedStep step : plan.removals()) {plannedActions.put(step.node().id(), StepAction.DEPROVISION);}
-                for (OrderedStep step : plan.suspensions()) {plannedActions.put(step.node().id(), StepAction.SUSPEND);}
-                for (OrderedStep step : plan.resumptions()) {plannedActions.put(step.node().id(), StepAction.RESUME);}
-                for (OrderedStep step : plan.additions()) {plannedActions.put(step.node().id(), StepAction.PROVISION);}
+                for (OrderedStep step : plan.flatRemovals()) {plannedActions.put(step.node().id(), StepAction.DEPROVISION);}
+                for (OrderedStep step : plan.flatSuspensions()) {plannedActions.put(step.node().id(), StepAction.SUSPEND);}
+                for (OrderedStep step : plan.flatResumptions()) {plannedActions.put(step.node().id(), StepAction.RESUME);}
+                for (OrderedStep step : plan.flatAdditions()) {plannedActions.put(step.node().id(), StepAction.PROVISION);}
 
                 int                              faultCount    = 0;
                 int                              mutationCount = 0;
@@ -844,16 +844,16 @@ public class ReconciliationLoop {
             List<CloudEvent> events  = new ArrayList<>();
 
             Map<NodeId, DesiredNode> planNodes = new HashMap<>();
-            for (OrderedStep step : plan.removals()) {planNodes.put(step.node().id(), step.node());}
-            for (OrderedStep step : plan.suspensions()) {planNodes.put(step.node().id(), step.node());}
-            for (OrderedStep step : plan.resumptions()) {planNodes.put(step.node().id(), step.node());}
-            for (OrderedStep step : plan.additions()) {planNodes.put(step.node().id(), step.node());}
+            for (OrderedStep step : plan.flatRemovals()) {planNodes.put(step.node().id(), step.node());}
+            for (OrderedStep step : plan.flatSuspensions()) {planNodes.put(step.node().id(), step.node());}
+            for (OrderedStep step : plan.flatResumptions()) {planNodes.put(step.node().id(), step.node());}
+            for (OrderedStep step : plan.flatAdditions()) {planNodes.put(step.node().id(), step.node());}
 
             Map<NodeId, StepAction> plannedActions = new HashMap<>();
-            for (OrderedStep step : plan.removals()) {plannedActions.put(step.node().id(), StepAction.DEPROVISION);}
-            for (OrderedStep step : plan.suspensions()) {plannedActions.put(step.node().id(), StepAction.SUSPEND);}
-            for (OrderedStep step : plan.resumptions()) {plannedActions.put(step.node().id(), StepAction.RESUME);}
-            for (OrderedStep step : plan.additions()) {plannedActions.put(step.node().id(), StepAction.PROVISION);}
+            for (OrderedStep step : plan.flatRemovals()) {plannedActions.put(step.node().id(), StepAction.DEPROVISION);}
+            for (OrderedStep step : plan.flatSuspensions()) {plannedActions.put(step.node().id(), StepAction.SUSPEND);}
+            for (OrderedStep step : plan.flatResumptions()) {plannedActions.put(step.node().id(), StepAction.RESUME);}
+            for (OrderedStep step : plan.flatAdditions()) {plannedActions.put(step.node().id(), StepAction.PROVISION);}
 
             Set<NodeId> recovered = new HashSet<>();
             for (NodeId problemNode : activeProblems) {
@@ -927,8 +927,8 @@ public class ReconciliationLoop {
                                          .count();
             ReconciliationCompletedData completedData = new ReconciliationCompletedData(
                     tenancyId, version, desired.nodes().size(),
-                    plan.additions().size(), plan.removals().size(),
-                    plan.suspensions().size(), plan.resumptions().size(),
+                    plan.flatAdditions().size(), plan.flatRemovals().size(),
+                    plan.flatSuspensions().size(), plan.flatResumptions().size(),
                     faultCount, Instant.now());
             events.add(eventEmitter.reconciliationCompleted(completedData));
 

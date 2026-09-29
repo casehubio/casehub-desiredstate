@@ -60,22 +60,22 @@ class PluginParserTest {
         var model = parseTestResource();
         assertThat(model.actualStateSteps()).hasSize(2);
 
-        var restCall = model.actualStateSteps().get(0);
-        assertThat(restCall.primitiveName()).isEqualTo("rest-call");
-        assertThat(restCall.parameters().get("method")).isEqualTo("GET");
-        assertThat(restCall.parameters().get("url"))
-            .isEqualTo("https://${auth.test-api.endpoint}/resources/${spec.name}");
-        assertThat(restCall.parameters().get("auth")).isEqualTo("test-api");
-        assertThat(restCall.resultName()).isEqualTo("response");
+        var restCall = (io.casehub.yaml.step.catalog.ResolvedStep.PluginStep) model.actualStateSteps().get(0);
+        assertThat(restCall.name()).isEqualTo("rest-call");
+        assertThat(restCall.params().get("method")).isEqualTo("GET");
+        assertThat(restCall.params().get("url"))
+                .isEqualTo("https://${auth.test-api.endpoint}/resources/${spec.name}");
+        assertThat(restCall.params().get("auth")).isEqualTo("test-api");
+        assertThat(restCall.decorators().get("result")).isEqualTo("response");
 
-        var compareState = model.actualStateSteps().get(1);
-        assertThat(compareState.primitiveName()).isEqualTo("compare-state");
-        assertThat(compareState.parameters().get("present-when"))
-            .isEqualTo("${result.response.status} == 200");
-        assertThat(compareState.parameters().get("drifted-when"))
-            .isEqualTo("${result.response.body.count} < ${spec.count}");
-        assertThat(compareState.parameters().get("absent-when"))
-            .isEqualTo("${result.response.status} == 404");
+        var compareState = (io.casehub.yaml.step.catalog.ResolvedStep.PluginStep) model.actualStateSteps().get(1);
+        assertThat(compareState.name()).isEqualTo("compare-state");
+        assertThat(compareState.params().get("present-when"))
+                .isEqualTo("${result.response.status} == 200");
+        assertThat(compareState.params().get("drifted-when"))
+                .isEqualTo("${result.response.body.count} < ${spec.count}");
+        assertThat(compareState.params().get("absent-when"))
+                .isEqualTo("${result.response.status} == 404");
     }
 
     @Test
@@ -84,26 +84,26 @@ class PluginParserTest {
         assertThat(model.provisioner().provisionSteps()).hasSize(2);
         assertThat(model.provisioner().deprovisionSteps()).hasSize(2);
 
-        var putCall = model.provisioner().provisionSteps().get(0);
-        assertThat(putCall.primitiveName()).isEqualTo("rest-call");
-        assertThat(putCall.parameters().get("method")).isEqualTo("PUT");
-        assertThat(putCall.resultName()).isEqualTo("response");
-        assertThat(putCall.parameters()).containsKey("headers");
-        assertThat(putCall.parameters()).containsKey("body");
+        var putCall = (io.casehub.yaml.step.catalog.ResolvedStep.PluginStep) model.provisioner().provisionSteps().get(0);
+        assertThat(putCall.name()).isEqualTo("rest-call");
+        assertThat(putCall.params().get("method")).isEqualTo("PUT");
+        assertThat(putCall.decorators().get("result")).isEqualTo("response");
+        assertThat(putCall.params()).containsKey("headers");
+        assertThat(putCall.params()).containsKey("body");
 
-        var assertion = model.provisioner().provisionSteps().get(1);
-        assertThat(assertion.primitiveName()).isEqualTo("assert");
-        assertThat(assertion.parameters().get("condition"))
-            .isEqualTo("${result.response.status} in [200, 201]");
-        assertThat(assertion.parameters().get("message"))
-            .isEqualTo("Provision failed: HTTP ${result.response.status}");
+        var assertion = (io.casehub.yaml.step.catalog.ResolvedStep.PluginStep) model.provisioner().provisionSteps().get(1);
+        assertThat(assertion.name()).isEqualTo("assert");
+        assertThat(assertion.params().get("condition"))
+                .isEqualTo("${result.response.status} in [200, 201]");
+        assertThat(assertion.params().get("message"))
+                .isEqualTo("Provision failed: HTTP ${result.response.status}");
     }
 
     @Test
     void stepDirectivesNotInParameters() throws IOException {
-        var model = parseTestResource();
-        var restCall = model.actualStateSteps().get(0);
-        assertThat(restCall.parameters()).doesNotContainKey("result");
+        var model    = parseTestResource();
+        var restCall = (io.casehub.yaml.step.catalog.ResolvedStep.PluginStep) model.actualStateSteps().get(0);
+        assertThat(restCall.params()).doesNotContainKey("result");
     }
 
     @Test
@@ -242,48 +242,50 @@ class PluginParserTest {
     @Test
     void parsesStepWithControlFlowDirectives() throws IOException {
         var yaml = """
-            plugin:
-              type: with-control
-              version: 1
-            spec:
-              fields:
-                name: { type: string }
-            actual-state:
-              steps:
-                - rest-call:
-                    method: GET
-                    url: "https://example.com"
-                    result: r
-                    when: "${spec.name} != null"
-                    on-error: retry
-                    max-retries: 5
-                    backoff: "exponential:1s"
-                - compare-state:
-                    present-when: "${result.r.status} == 200"
-                    absent-when: "${result.r.status} == 404"
-            provisioner:
-              provision:
-                steps:
-                  - assert:
-                      condition: "true"
-              deprovision:
-                steps:
-                  - assert:
-                      condition: "true"
-            cbr:
-              features: []
-              outcome-signals: {}
-            ras:
-              situations: []
-            """;
-        var model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
-        var step = model.actualStateSteps().get(0);
-        assertThat(step.when()).isEqualTo("${spec.name} != null");
-        assertThat(step.onError()).isEqualTo("retry");
-        assertThat(step.maxRetries()).isEqualTo(5);
-        assertThat(step.backoff()).isEqualTo("exponential:1s");
-        assertThat(step.parameters()).doesNotContainKeys(
-            "result", "when", "on-error", "max-retries", "backoff");
+                   plugin:
+                     type: with-control
+                     version: 1
+                   spec:
+                     fields:
+                       name: { type: string }
+                   actual-state:
+                     steps:
+                       - rest-call:
+                           method: GET
+                           url: "https://example.com"
+                           result: r
+                           when: "${spec.name} != null"
+                           on-error: retry
+                           max-retries: 5
+                           backoff: "exponential:1s"
+                       - compare-state:
+                           present-when: "${result.r.status} == 200"
+                           absent-when: "${result.r.status} == 404"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var model = PluginParser.parse(new java.io.ByteArrayInputStream(yaml.getBytes()));
+        var step  = (io.casehub.yaml.step.catalog.ResolvedStep.PluginStep) model.actualStateSteps().get(0);
+        assertThat(step.decorators().get("when")).isEqualTo("${spec.name} != null");
+        assertThat(step.decorators().get("on-error")).isEqualTo("retry");
+        @SuppressWarnings("unchecked")
+        var retryDecorator = (java.util.Map<String, Object>) step.decorators().get("retry");
+        assertThat(retryDecorator.get("max")).isEqualTo(5);
+        assertThat(retryDecorator.get("backoff")).isEqualTo("exponential:1s");
+        assertThat(step.params()).doesNotContainKeys(
+                "result", "when", "on-error", "max-retries", "backoff");
     }
 
     private PluginModel parseTestResource() throws IOException {

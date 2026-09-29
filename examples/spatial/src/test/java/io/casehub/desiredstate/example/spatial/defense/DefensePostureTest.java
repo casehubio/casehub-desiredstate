@@ -58,9 +58,9 @@ class DefensePostureTest {
         var actual = adapter.readActual(graph, "test");
         var plan = planner.plan(graph, actual);
 
-        assertThat(plan.additions()).isNotEmpty();
+        assertThat(plan.flatAdditions()).isNotEmpty();
 
-        for (var step : plan.additions()) {
+        for (var step : plan.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph));
         }
 
@@ -80,7 +80,7 @@ class DefensePostureTest {
         var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
-        for (var step : plan1.additions()) {
+        for (var step : plan1.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph1));
         }
         renderer.printFrame("Before scout");
@@ -100,8 +100,8 @@ class DefensePostureTest {
         var plan2 = planner.plan(graph2, actual2);
 
         // New cells and units added
-        assertThat(plan2.additions()).isNotEmpty();
-        for (var step : plan2.additions()) {
+        assertThat(plan2.flatAdditions()).isNotEmpty();
+        for (var step : plan2.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph2));
         }
         renderer.printFrame("After scout reveals");
@@ -119,7 +119,7 @@ class DefensePostureTest {
         var graph = ((CompilationResult.SingleGraph) result).graph();
         var actual1 = adapter.readActual(graph, "test");
         var plan1 = planner.plan(graph, actual1);
-        for (var step : plan1.additions()) {
+        for (var step : plan1.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph));
         }
 
@@ -132,10 +132,10 @@ class DefensePostureTest {
             .hasValue(NodeStatus.ABSENT);
 
         var plan2 = planner.plan(graph, actual2);
-        assertThat(plan2.additions()).anyMatch(step ->
+        assertThat(plan2.flatAdditions()).anyMatch(step ->
             step.node().id().equals(NodeId.of("unit-cell-1-0")));
 
-        for (var step : plan2.additions()) {
+        for (var step : plan2.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph));
         }
         assertThat(world.isUnitPlaced(NodeId.of("unit-cell-1-0"))).isTrue();
@@ -155,7 +155,7 @@ class DefensePostureTest {
         var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
-        for (var step : plan1.additions()) {
+        for (var step : plan1.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph1));
         }
 
@@ -172,8 +172,8 @@ class DefensePostureTest {
         var plan2 = planner.plan(graph2, actual2);
 
         // Units should be drifted — strength changed
-        assertThat(plan2.additions()).isNotEmpty();
-        for (var step : plan2.additions()) {
+        assertThat(plan2.flatAdditions()).isNotEmpty();
+        for (var step : plan2.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph2));
         }
         assertThat(world.unitStrength(NodeId.of("unit-cell-1-0"))).isEqualTo(80);
@@ -193,7 +193,7 @@ class DefensePostureTest {
         var graph1 = ((CompilationResult.SingleGraph) result1).graph();
         var actual1 = adapter.readActual(graph1, "test");
         var plan1 = planner.plan(graph1, actual1);
-        for (var step : plan1.additions()) {
+        for (var step : plan1.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph1));
         }
 
@@ -210,13 +210,13 @@ class DefensePostureTest {
         var plan2 = planner.plan(graph2, actual2);
 
         // Old unit at (2,5) should be orphaned → deprovisioned
-        assertThat(plan2.removals()).anyMatch(step ->
+        assertThat(plan2.flatRemovals()).anyMatch(step ->
             step.node().id().equals(NodeId.of("unit-cell-2-5")));
 
-        for (var step : plan2.removals()) {
+        for (var step : plan2.flatRemovals()) {
             provisioner.deprovision(step.node(), new DeprovisionContext("test", graph1));
         }
-        for (var step : plan2.additions()) {
+        for (var step : plan2.flatAdditions()) {
             provisioner.provision(step.node(), new ProvisionContext("test", graph2));
         }
         assertThat(world.isUnitPlaced(NodeId.of("unit-cell-2-5"))).isFalse();

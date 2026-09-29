@@ -37,7 +37,7 @@ class ExpansionLifecycleTest {
         adapter = new ExpansionActualStateAdapter(world);
 
         DefaultNodeProvisionerRouter router = new DefaultNodeProvisionerRouter(List.of(provisioner));
-        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor);
+        SimpleTransitionExecutor executor = new SimpleTransitionExecutor(new NodeStepExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpStepExecutor));
 
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
         loop = ReconciliationLoop.builder(new TransitionPlanner(), executor, adapterRouter,

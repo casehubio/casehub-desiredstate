@@ -1,7 +1,5 @@
 package io.casehub.desiredstate.plugin.spring;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.runtime.PluginDescriptor;
@@ -40,9 +38,20 @@ public class DesiredStatePluginAutoConfiguration implements SmartInitializingSin
 
             for (PluginModel plugin : plugins) {
                 String type = plugin.header().type();
+                var authRefs = plugin.header().auth() != null
+                               ? plugin.header().auth().entrySet().stream()
+                                       .collect(java.util.stream.Collectors.toMap(
+                                               java.util.Map.Entry::getKey, e -> e.getValue().credentialRef()))
+                               : java.util.Map.<String, String>of();
+                java.time.Duration resync = plugin.header().resyncInterval() != null
+                                            ? java.time.Duration.parse("PT" + plugin.header().resyncInterval())
+                                            : java.time.Duration.ofMinutes(5);
                 PluginDescriptor descriptor = new PluginDescriptor(
-                        type, plugin.header(), plugin.spec(), plugin.provisioner(),
-                        plugin.faultPolicy(), plugin.cbr(), plugin.ras());
+                        type, plugin.header().version(), resync, authRefs,
+                        plugin.spec(), plugin.actualStateSteps(),
+                        plugin.provisioner().provisionSteps(),
+                        plugin.provisioner().deprovisionSteps(),
+                        plugin.faultPolicies(), plugin.cbr(), plugin.ras());
                 String beanName = "pluginDescriptor_" + type;
                 context.registerBean(beanName, PluginDescriptor.class, () -> descriptor);
                 LOG.fine("Registered plugin descriptor: " + type);
@@ -53,16 +62,15 @@ public class DesiredStatePluginAutoConfiguration implements SmartInitializingSin
     }
 
     private List<PluginModel> discoverPlugins() throws IOException {
-        List<PluginModel> plugins = new ArrayList<>();
+        List<PluginModel>                   plugins  = new ArrayList<>();
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
         for (String pattern : List.of("classpath*:META-INF/desiredstate/plugins/*.yaml",
-                                       "classpath*:META-INF/desiredstate/plugins/*.yml")) {
+                                      "classpath*:META-INF/desiredstate/plugins/*.yml")) {
             for (Resource resource : resolver.getResources(pattern)) {
                 if (resource.isReadable()) {
                     try (InputStream is = resource.getInputStream()) {
-                        PluginModel model = PluginParser.parse(yamlMapper, is);
+                        PluginModel model = PluginParser.parse(is);
                         plugins.add(model);
                     }
                 }

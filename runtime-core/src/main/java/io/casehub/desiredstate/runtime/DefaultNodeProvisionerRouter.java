@@ -156,4 +156,11 @@ public class DefaultNodeProvisionerRouter implements NodeProvisionerRouter {
         NodeProvisioner provisioner = routing.get(type);
         return provisioner != null && provisioner.supportsStatefulLifecycle();
     }
+
+    @Override
+    public java.util.OptionalInt maxConcurrencyFor(NodeType type) {
+        NodeProvisioner provisioner = routing.get(type);
+        return provisioner != null ? provisioner.maxConcurrency() : java.util.OptionalInt.empty();
+    }
+
 }

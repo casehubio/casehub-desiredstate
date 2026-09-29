@@ -16,7 +16,7 @@ class TransitionPlanSuspendResumeTest {
 
     @Test
     void fourArgConstructorDefaultsToEmptyLists() {
-        TransitionPlan plan = new TransitionPlan(List.of(), List.of(), STUB, STUB);
+        TransitionPlan plan = TransitionPlan.ofFlat(List.of(), List.of(), STUB, STUB);
         assertTrue(plan.suspensions().isEmpty());
         assertTrue(plan.resumptions().isEmpty());
         assertTrue(plan.isEmpty());
@@ -24,7 +24,7 @@ class TransitionPlanSuspendResumeTest {
 
     @Test
     void sixArgConstructorAcceptsSuspensionsAndResumptions() {
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(), List.of(), List.of(), List.of(), STUB, STUB);
         assertTrue(plan.isEmpty());
     }
@@ -33,7 +33,7 @@ class TransitionPlanSuspendResumeTest {
     void isEmptyConsidersSuspensionsAndResumptions() {
         DesiredNode node = new DesiredNode(NodeId.of("n1"), SPEC, HumanGating.NONE);
         OrderedStep step = new OrderedStep(node, StepAction.SUSPEND);
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(), List.of(step), List.of(), List.of(), STUB, STUB);
         assertFalse(plan.isEmpty());
     }
@@ -42,7 +42,7 @@ class TransitionPlanSuspendResumeTest {
     void listsAreImmutable() {
         DesiredNode node        = new DesiredNode(NodeId.of("n1"), SPEC, HumanGating.NONE);
         var         suspensions = new java.util.ArrayList<>(List.of(new OrderedStep(node, StepAction.SUSPEND)));
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(), suspensions, List.of(), List.of(), STUB, STUB);
         assertThrows(UnsupportedOperationException.class, () -> plan.suspensions().add(null));
     }

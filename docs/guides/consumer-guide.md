@@ -106,8 +106,9 @@ SPI: `readActual(DesiredStateGraph desired, String tenancyId) -> ActualState`. R
 
 ### TransitionExecutor
 
-SPI: `execute(TransitionPlan plan, String tenancyId) -> TransitionResult`. Two implementations:
+SPI: `execute(TransitionPlan plan, String tenancyId) -> TransitionResult`. Three implementations:
 - `SimpleTransitionExecutor` (`@DefaultBean`) -- sequential in-process execution using `NodeProvisioner` directly. Handles `PendingApproval` re-entry and `HumanNodeHandler` delegation. Precedence per action: humanGating > PendingApproval > provisioner.
+- `ParallelTransitionExecutor` -- layer-based concurrent provisioning via virtual threads. Independent nodes (same topological layer) provision concurrently; dependencies between layers are respected. Per-NodeType `Semaphore` rate limiting from `NodeProvisioner.maxConcurrency()`. Failure in one layer propagates to dependents in subsequent layers. Activated via `PARALLEL_EXECUTION` BooleanPreference.
 - `CaseTransitionExecutor` (engine-adapter) -- translates the plan into a casehub-engine `CaseDefinition` with prune/grow Worker(Workflow) phases and `HumanTaskTarget` bindings, then starts it via `CaseHubRuntime`.
 
 ### FaultPolicy / FaultPolicyEngine
@@ -277,6 +278,48 @@ For multi-phase desired-state transitions without re-invoking `GoalCompiler`:
 
 ---
 
+## Node Lifecycle State Machines
+
+Provisioners can declare per-NodeType lifecycle state machines via `NodeLifecycleDefinition` beans. When present, provisioners are automatically wrapped with `StatefulNodeProvisioner`, enforcing valid state transitions (e.g. `ABSENT → PROVISIONING → PRESENT`) and firing custom events on state entry/exit.
+
+### Lifecycle Definition
+
+```java
+@Produces
+@ApplicationScoped
+NodeLifecycleDefinition vmLifecycle() {
+    return new NodeLifecycleDefinition(NodeType.of("cloud-vm"),
+        Set.of(
+            new Transition(ABSENT, PROVISIONING),
+            new Transition(PROVISIONING, PRESENT),
+            new Transition(PROVISIONING, DRIFTED),
+            new Transition(PRESENT, DEPROVISIONING),
+            new Transition(DEPROVISIONING, ABSENT),
+            new Transition(PRESENT, SUSPENDING),
+            new Transition(SUSPENDING, SUSPENDED),
+            new Transition(SUSPENDED, RESUMING),
+            new Transition(RESUMING, PRESENT)
+        ),
+        Map.of(PRESENT, List.of(new TransitionAction.EmitEvent("vm.ready"))),
+        Map.of());
+}
+```
+
+### How It Works
+
+1. The runtime matches `NodeLifecycleDefinition` beans to `NodeProvisioner` beans by `NodeType`.
+2. Matching provisioners are wrapped with `StatefulNodeProvisioner`, which maintains a per-node `OrcStateMachine<NodeLifecycleState>` (from yaml-core).
+3. Each provision/deprovision/suspend/resume call validates the transition against the state machine before delegating.
+4. On success, the state machine transitions to the target state and fires `onEnter`/`onExit` actions.
+5. On failure, the state machine transitions to a recovery state (e.g. `PROVISIONING → DRIFTED`) if defined.
+6. Invalid transitions return `Failed` without calling the delegate provisioner.
+
+### CloudEvents
+
+Custom events declared in `onEnter`/`onExit` are emitted as `io.casehub.desiredstate.lifecycle.state-entered` / `state-exited` CloudEvents with the custom event type in the `customEventType` extension.
+
+---
+
 ## Cross-Domain Composition
 
 When multiple domains share one classpath (e.g. infra, deployment, compliance, IoT), the `CrossDomainCompositionEngine` merges their graphs with correct ordering. Each domain compiles its own goals (preserving `GoalCompiler<G>` type safety) and registers the result with the engine.
@@ -359,6 +402,7 @@ Existing single-domain apps are unchanged. The engine is inert with zero or one 
 
 Preference keys via `DesiredStatePreferenceKeys` (runtime module):
 - `RESYNC_INTERVAL` -- per-NodeType resync interval override (default: 5 minutes)
+- `PARALLEL_EXECUTION` -- `BooleanPreference`: when true, `ParallelTransitionExecutor` replaces `SimpleTransitionExecutor` for layer-based concurrent provisioning (default: false)
 - `CBR_MIN_RETRIEVAL_CONFIDENCE` -- minimum retrieval confidence for CBR pipeline (default: 0.5)
 - `CBR_MIN_ADAPTATION_CONFIDENCE` -- minimum adaptation confidence for CBR pipeline (default: 0.6)
 - `CBR_MAX_CANDIDATES` -- maximum CBR candidates to retrieve (default: 3)
@@ -375,6 +419,8 @@ The runtime emits CloudEvents during reconciliation:
 | `io.casehub.desiredstate.node.faulted` | `NodeFaultedData` | Per-node provisioning failure |
 | `io.casehub.desiredstate.node.drifted` | `NodeDriftedData` | Per-node drift detection |
 | `io.casehub.desiredstate.node.recovered` | `NodeRecoveredData` | Per-node recovery (DRIFTED -> PRESENT) |
+| `io.casehub.desiredstate.lifecycle.state-entered` | `LifecycleStateEnteredData` | Node lifecycle state entered (with optional custom event type) |
+| `io.casehub.desiredstate.lifecycle.state-exited` | `LifecycleStateExitedData` | Node lifecycle state exited |
 | `io.casehub.cbr.outcome` | `CbrOutcomeData` | CBR proposal outcome feedback |
 
 ---

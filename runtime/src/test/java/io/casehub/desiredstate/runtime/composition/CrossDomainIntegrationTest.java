@@ -77,7 +77,7 @@ class CrossDomainIntegrationTest {
         var planner = new TransitionPlanner();
         var plan = planner.plan(composed, new ActualState(Map.of()));
 
-        List<NodeId> additionOrder = plan.additions().stream()
+        List<NodeId> additionOrder = plan.flatAdditions().stream()
             .map(step -> step.node().id()).toList();
         assertThat(additionOrder.indexOf(NodeId.of("infra:ns")))
             .isLessThan(additionOrder.indexOf(NodeId.of("deploy:agent")));
@@ -120,7 +120,7 @@ class CrossDomainIntegrationTest {
 
         var planner = new TransitionPlanner();
         var plan = planner.plan(composed, new ActualState(Map.of()));
-        List<NodeId> order = plan.additions().stream()
+        List<NodeId> order = plan.flatAdditions().stream()
             .map(step -> step.node().id()).toList();
         assertThat(order.indexOf(NodeId.of("a:1")))
             .isLessThan(order.indexOf(NodeId.of("b:1")));
@@ -186,7 +186,7 @@ class CrossDomainIntegrationTest {
         var planner = new TransitionPlanner();
         var plan = planner.plan(metaGraph, new ActualState(Map.of()));
 
-        List<NodeId> order = plan.additions().stream()
+        List<NodeId> order = plan.flatAdditions().stream()
             .map(step -> step.node().id()).toList();
         assertThat(order.indexOf(NodeId.of("domain:infra")))
             .isLessThan(order.indexOf(NodeId.of("domain:data")));

@@ -128,7 +128,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode, humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(),
                 List.of(
                         new OrderedStep(automatedNode, StepAction.PROVISION),
@@ -163,7 +163,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode, humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(),
                 List.of(
                         new OrderedStep(automatedNode, StepAction.PROVISION),
@@ -187,7 +187,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode, humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(),
                 List.of(
                         new OrderedStep(automatedNode, StepAction.PROVISION),
@@ -211,7 +211,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(automatedNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(),
                 List.of(new OrderedStep(automatedNode, StepAction.PROVISION)),
                 graph, graph
@@ -233,7 +233,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(),
                 List.of(new OrderedStep(humanNode, StepAction.PROVISION)),
                 graph, graph
@@ -257,7 +257,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
             List.of(),
             List.of(new OrderedStep(node, StepAction.PROVISION)),
             graph, graph);
@@ -281,7 +281,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
             List.of(),
             List.of(new OrderedStep(node, StepAction.PROVISION)),
             graph, graph);
@@ -304,7 +304,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(node), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
             List.of(),
             List.of(new OrderedStep(node, StepAction.PROVISION)),
             graph, graph);
@@ -331,7 +331,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph graph = factory.of(List.of(pendingNode, autoNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
             List.of(),
             List.of(
                 new OrderedStep(pendingNode, StepAction.PROVISION),
@@ -354,7 +354,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode, normalNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(
                         new OrderedStep(humanNode, StepAction.DEPROVISION),
                         new OrderedStep(normalNode, StepAction.DEPROVISION)
@@ -381,7 +381,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode, normalNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(
                         new OrderedStep(humanNode, StepAction.DEPROVISION),
                         new OrderedStep(normalNode, StepAction.DEPROVISION)
@@ -405,7 +405,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(new OrderedStep(humanNode, StepAction.DEPROVISION)),
                 List.of(),
                 graph, graph
@@ -425,7 +425,7 @@ class CaseTransitionExecutorTest {
         DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
         DesiredStateGraph        graph   = factory.of(List.of(humanNode), List.of());
 
-        TransitionPlan plan = new TransitionPlan(
+        TransitionPlan plan = TransitionPlan.ofFlat(
                 List.of(),
                 List.of(new OrderedStep(humanNode, StepAction.PROVISION)),
                 graph, graph

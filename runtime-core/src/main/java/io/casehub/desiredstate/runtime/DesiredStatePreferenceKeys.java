@@ -2,6 +2,7 @@ package io.casehub.desiredstate.runtime;
 
 import io.casehub.platform.api.preferences.DoublePreference;
 import io.casehub.platform.api.preferences.DurationPreference;
+import io.casehub.platform.api.preferences.BooleanPreference;
 import io.casehub.platform.api.preferences.IntPreference;
 import io.casehub.platform.api.preferences.PreferenceKey;
 
@@ -27,4 +28,9 @@ public final class DesiredStatePreferenceKeys {
     public static final PreferenceKey<IntPreference> CBR_MAX_CANDIDATES =
         new PreferenceKey<>("desiredstate", "cbr.max-candidates",
             new IntPreference(3), IntPreference::parse);
+    public static final PreferenceKey<BooleanPreference> PARALLEL_EXECUTION =
+            new PreferenceKey<>("desiredstate", "parallel-execution",
+                                new BooleanPreference(false),
+                                s -> new BooleanPreference(Boolean.parseBoolean(s)));
+
 }

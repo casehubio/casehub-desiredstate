@@ -9,9 +9,8 @@ import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.yaml.core.resolver.VariableResolver;
-import io.casehub.yaml.step.StepContext;
-import io.casehub.yaml.step.StepPipelineExecutor;
-import io.casehub.yaml.step.PrimitiveRegistry;
+import io.casehub.yaml.step.eval.StepRunner;
+import io.casehub.yaml.step.eval.StructuralStepEvaluator;
 import io.casehub.platform.api.credentials.CredentialResolver;
 
 import java.util.HashMap;
@@ -21,15 +20,16 @@ import java.util.Set;
 public class YamlPluginActualStateAdapter implements ActualStateAdapter {
 
     private final Map<NodeType, PluginDescriptor> plugins;
-    private final ActualStateStepExecutor actualStateExecutor;
-    private final CredentialResolver credentialResolver;
+    private final ActualStateStepExecutor         actualStateExecutor;
+    private final CredentialResolver              credentialResolver;
 
     public YamlPluginActualStateAdapter(Map<NodeType, PluginDescriptor> plugins,
-                                        StepPipelineExecutor executor,
+                                        StructuralStepEvaluator evaluator,
+                                        StepRunner runner,
                                         CredentialResolver credentialResolver) {
-        this.plugins = Map.copyOf(plugins);
-        this.actualStateExecutor = new ActualStateStepExecutor(executor);
-        this.credentialResolver = credentialResolver;
+        this.plugins             = Map.copyOf(plugins);
+        this.actualStateExecutor = new ActualStateStepExecutor(evaluator, runner);
+        this.credentialResolver  = credentialResolver;
     }
 
     @Override
@@ -44,11 +44,10 @@ public class YamlPluginActualStateAdapter implements ActualStateAdapter {
         for (DesiredNode node : desired.nodes().values()) {
             if (plugins.containsKey(node.type())) {
                 try {
-                    PluginDescriptor plugin = plugins.get(node.type());
-                    StepContext context = buildContext(node, plugin);
-                    VariableResolver resolver = context.toResolver();
+                    PluginDescriptor plugin   = plugins.get(node.type());
+                    VariableResolver resolver = buildResolver(node, plugin);
                     NodeStatus status = actualStateExecutor.execute(
-                        plugin.actualStateSteps(), context, resolver);
+                            plugin.actualStateSteps(), resolver);
                     states.put(node.id(), status);
                 } catch (RuntimeException e) {
                     states.put(node.id(), NodeStatus.UNKNOWN);
@@ -58,16 +57,19 @@ public class YamlPluginActualStateAdapter implements ActualStateAdapter {
         return new ActualState(states);
     }
 
-    private StepContext buildContext(DesiredNode node, PluginDescriptor plugin) {
-        StepContext.Builder builder = StepContext.builder()
-            .spec(extractSpecFields(node));
-
+    private VariableResolver buildResolver(DesiredNode node, PluginDescriptor plugin) {
+        Map<String, Object>              specFields = extractSpecFields(node);
+        Map<String, Map<String, String>> authMap    = new HashMap<>();
         for (Map.Entry<String, String> entry : plugin.authCredentialRefs().entrySet()) {
-            Map<String, String> credentials =
-                credentialResolver.resolve(entry.getValue());
-            builder.addAuth(entry.getKey(), credentials);
+            authMap.put(entry.getKey(), credentialResolver.resolve(entry.getValue()));
         }
-        return builder.build();
+
+        VariableResolver resolver = new VariableResolver(Map.of(), Set.of());
+        resolver = resolver.withObjectScope("spec", specFields::get);
+        if (!authMap.isEmpty()) {
+            resolver = resolver.withObjectScope("auth", name -> authMap.get(name));
+        }
+        return resolver;
     }
 
     private Map<String, Object> extractSpecFields(DesiredNode node) {

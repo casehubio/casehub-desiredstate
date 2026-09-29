@@ -65,10 +65,17 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- platform yaml-core orchestration primitives -->
+            <dependency>
+                <groupId>io.casehub</groupId>
+                <artifactId>casehub-platform-yaml-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <!-- platform step pipeline -->
             <dependency>
                 <groupId>io.casehub</groupId>
-                <artifactId>casehub-platform-yaml-step-core</artifactId>
+                <artifactId>casehub-platform-yaml-step-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

@@ -13,14 +13,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.CatalogEntry;
+import io.casehub.yaml.step.catalog.ResolvedStep;
 
 public class PluginParser {
 
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
 
-    private static final Set<String> STEP_DIRECTIVES =
-        Set.of("result", "when", "on-error", "max-retries", "backoff");
+    private static final Set<String> DECORATOR_KEYS =
+            Set.of("result", "when", "on-error", "retry", "loop", "deadline");
+
+    private static final Set<String> LEGACY_STEP_DIRECTIVES =
+            Set.of("result", "when", "on-error", "max-retries", "backoff");
 
     public static PluginModel parse(InputStream yaml) throws IOException {
         JsonNode root = YAML_MAPPER.readTree(yaml);
@@ -33,27 +37,27 @@ public class PluginParser {
         requireSection(root, "ras");
 
         return new PluginModel(
-            parseHeader(root.get("plugin")),
-            parseSpecSchema(root.get("spec")),
-            parseSteps(root.path("actual-state").path("steps")),
-            parseProvisioner(root.get("provisioner")),
-            parseFaultPolicies(root.path("fault-policy")),
-            parseCbr(root.get("cbr")),
-            parseRas(root.get("ras"))
+                parseHeader(root.get("plugin")),
+                parseSpecSchema(root.get("spec")),
+                parseSteps(root.path("actual-state").path("steps")),
+                parseProvisioner(root.get("provisioner")),
+                parseFaultPolicies(root.path("fault-policy")),
+                parseCbr(root.get("cbr")),
+                parseRas(root.get("ras"))
         );
     }
 
     private static PluginHeader parseHeader(JsonNode node) {
-        String type = requireText(node, "type", "plugin.type");
-        int version = node.path("version").asInt(1);
+        String type           = requireText(node, "type", "plugin.type");
+        int    version        = node.path("version").asInt(1);
         String resyncInterval = textOrNull(node, "resyncInterval");
 
-        Map<String, PluginAuthStanza> auth = new LinkedHashMap<>();
-        JsonNode authNode = node.get("auth");
+        Map<String, PluginAuthStanza> auth     = new LinkedHashMap<>();
+        JsonNode                      authNode = node.get("auth");
         if (authNode != null && authNode.isObject()) {
             authNode.fields().forEachRemaining(e -> {
                 String credentialRef = requireText(e.getValue(), "credentialRef",
-                    "plugin.auth." + e.getKey() + ".credentialRef");
+                                                   "plugin.auth." + e.getKey() + ".credentialRef");
                 auth.put(e.getKey(), new PluginAuthStanza(credentialRef));
             });
         }
@@ -67,66 +71,98 @@ public class PluginParser {
         }
         Map<String, PluginFieldDef> fields = new LinkedHashMap<>();
         fieldsNode.fields().forEachRemaining(e ->
-            fields.put(e.getKey(), parseFieldDef(e.getValue())));
+                                                     fields.put(e.getKey(), parseFieldDef(e.getValue())));
         return new PluginSpecSchema(Map.copyOf(fields));
     }
 
     private static PluginFieldDef parseFieldDef(JsonNode node) {
         return new PluginFieldDef(
-            requireText(node, "type", "field.type"),
-            node.path("required").asBoolean(false),
-            toJavaValueOrNull(node.get("default")),
-            textOrNull(node, "pattern"),
-            intOrNull(node, "minLength"),
-            intOrNull(node, "maxLength"),
-            numberOrNull(node, "min"),
-            numberOrNull(node, "max"),
-            textListOrNull(node, "values"),
-            textOrNull(node, "item-type"),
-            textOrNull(node, "value-type"),
-            intOrNull(node, "minItems"),
-            intOrNull(node, "maxItems")
+                requireText(node, "type", "field.type"),
+                node.path("required").asBoolean(false),
+                toJavaValueOrNull(node.get("default")),
+                textOrNull(node, "pattern"),
+                intOrNull(node, "minLength"),
+                intOrNull(node, "maxLength"),
+                numberOrNull(node, "min"),
+                numberOrNull(node, "max"),
+                textListOrNull(node, "values"),
+                textOrNull(node, "item-type"),
+                textOrNull(node, "value-type"),
+                intOrNull(node, "minItems"),
+                intOrNull(node, "maxItems")
         );
     }
 
-    private static List<StepDef> parseSteps(JsonNode stepsNode) {
+    static List<ResolvedStep> parseSteps(JsonNode stepsNode) {
         if (stepsNode.isMissingNode() || !stepsNode.isArray()) {
             return List.of();
         }
-        List<StepDef> steps = new ArrayList<>();
+        List<ResolvedStep> steps = new ArrayList<>();
         for (JsonNode stepNode : stepsNode) {
             Iterator<Map.Entry<String, JsonNode>> fields = stepNode.fields();
             if (!fields.hasNext()) {
                 continue;
             }
-            Map.Entry<String, JsonNode> entry = fields.next();
-            String primitiveName = entry.getKey();
-            JsonNode paramsNode = entry.getValue();
-
-            String resultName = textOrNull(paramsNode, "result");
-            String when = textOrNull(paramsNode, "when");
-            String onError = textOrNull(paramsNode, "on-error");
-            int maxRetries = paramsNode.path("max-retries").asInt(3);
-            String backoff = textOrNull(paramsNode, "backoff");
+            Map.Entry<String, JsonNode> entry         = fields.next();
+            String                      primitiveName = entry.getKey();
+            JsonNode                    paramsNode    = entry.getValue();
 
             Map<String, Object> parameters = new LinkedHashMap<>();
-            paramsNode.fields().forEachRemaining(e -> {
-                if (!STEP_DIRECTIVES.contains(e.getKey())) {
-                    parameters.put(e.getKey(), toJavaValue(e.getValue()));
-                }
-            });
+            Map<String, Object> decorators = new LinkedHashMap<>();
 
-            steps.add(new StepDef(
-                primitiveName, Map.copyOf(parameters),
-                resultName, when, onError, maxRetries, backoff));
+            if (paramsNode.isObject()) {
+                paramsNode.fields().forEachRemaining(e -> {
+                    if (!LEGACY_STEP_DIRECTIVES.contains(e.getKey())) {
+                        parameters.put(e.getKey(), toJavaValue(e.getValue()));
+                    }
+                });
+
+                buildLegacyDecorators(paramsNode, decorators);
+            }
+
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> decorator = fields.next();
+                if (DECORATOR_KEYS.contains(decorator.getKey())) {
+                    decorators.put(decorator.getKey(), toJavaValue(decorator.getValue()));
+                }
+            }
+
+            steps.add(new ResolvedStep.PluginStep(
+                    primitiveName,
+                    new CatalogEntry(primitiveName, null, null),
+                    Map.copyOf(parameters),
+                    Map.copyOf(decorators)));
         }
         return List.copyOf(steps);
     }
 
+    private static void buildLegacyDecorators(JsonNode paramsNode, Map<String, Object> decorators) {
+        String resultName = textOrNull(paramsNode, "result");
+        if (resultName != null) {
+            decorators.put("result", resultName);
+        }
+        String when = textOrNull(paramsNode, "when");
+        if (when != null) {
+            decorators.put("when", when);
+        }
+        String onError = textOrNull(paramsNode, "on-error");
+        if (onError != null) {
+            decorators.put("on-error", onError);
+        }
+        int    maxRetries = paramsNode.path("max-retries").asInt(0);
+        String backoff    = textOrNull(paramsNode, "backoff");
+        if (maxRetries > 0 || backoff != null) {
+            Map<String, Object> retry = new LinkedHashMap<>();
+            if (maxRetries > 0) {retry.put("max", maxRetries);}
+            if (backoff != null) {retry.put("backoff", backoff);}
+            decorators.put("retry", retry);
+        }
+    }
+
     private static PluginProvisionerDef parseProvisioner(JsonNode node) {
         return new PluginProvisionerDef(
-            parseSteps(node.path("provision").path("steps")),
-            parseSteps(node.path("deprovision").path("steps"))
+                parseSteps(node.path("provision").path("steps")),
+                parseSteps(node.path("deprovision").path("steps"))
         );
     }
 
@@ -142,73 +178,73 @@ public class PluginParser {
     }
 
     private static PluginFaultPolicyDef parseFaultPolicy(JsonNode node) {
-        List<PluginFaultPolicyDef.TierDef> tiers = new ArrayList<>();
-        JsonNode tiersNode = node.get("tiers");
+        List<PluginFaultPolicyDef.TierDef> tiers     = new ArrayList<>();
+        JsonNode                           tiersNode = node.get("tiers");
         if (tiersNode != null && tiersNode.isArray()) {
             for (JsonNode tierNode : tiersNode) {
-                JsonNode reviewNode = tierNode.get("reviewNode");
+                JsonNode                           reviewNode    = tierNode.get("reviewNode");
                 PluginFaultPolicyDef.ReviewNodeDef reviewNodeDef = null;
                 if (reviewNode != null) {
                     reviewNodeDef = new PluginFaultPolicyDef.ReviewNodeDef(
-                        textOrNull(reviewNode, "type"),
-                        textOrNull(reviewNode, "humanGating"),
-                        toMapOrNull(reviewNode.get("spec"))
+                            textOrNull(reviewNode, "type"),
+                            textOrNull(reviewNode, "humanGating"),
+                            toMapOrNull(reviewNode.get("spec"))
                     );
                 }
                 tiers.add(new PluginFaultPolicyDef.TierDef(
-                    tierNode.path("threshold").asInt(),
-                    reviewNodeDef
+                        tierNode.path("threshold").asInt(),
+                        reviewNodeDef
                 ));
             }
         }
         return new PluginFaultPolicyDef(
-            textList(node, "faultTypes"),
-            textList(node, "nodeTypes"),
-            textList(node, "ignoreTypes"),
-            textOrNull(node, "namespace"),
-            List.copyOf(tiers)
+                textList(node, "faultTypes"),
+                textList(node, "nodeTypes"),
+                textList(node, "ignoreTypes"),
+                textOrNull(node, "namespace"),
+                List.copyOf(tiers)
         );
     }
 
     private static PluginCbrDef parseCbr(JsonNode node) {
-        List<PluginCbrDef.Feature> features = new ArrayList<>();
-        JsonNode featuresNode = node.get("features");
+        List<PluginCbrDef.Feature> features     = new ArrayList<>();
+        JsonNode                   featuresNode = node.get("features");
         if (featuresNode != null && featuresNode.isArray()) {
             for (JsonNode f : featuresNode) {
                 features.add(new PluginCbrDef.Feature(
-                    textOrNull(f, "name"),
-                    textOrNull(f, "source"),
-                    textOrNull(f, "similarity"),
-                    textOrNull(f, "transform")
+                        textOrNull(f, "name"),
+                        textOrNull(f, "source"),
+                        textOrNull(f, "similarity"),
+                        textOrNull(f, "transform")
                 ));
             }
         }
         Map<String, String> outcomeSignals = new LinkedHashMap<>();
-        JsonNode signalsNode = node.get("outcome-signals");
+        JsonNode            signalsNode    = node.get("outcome-signals");
         if (signalsNode != null && signalsNode.isObject()) {
             signalsNode.fields().forEachRemaining(e ->
-                outcomeSignals.put(e.getKey(), e.getValue().asText()));
+                                                          outcomeSignals.put(e.getKey(), e.getValue().asText()));
         }
         return new PluginCbrDef(List.copyOf(features), Map.copyOf(outcomeSignals));
     }
 
     private static PluginRasDef parseRas(JsonNode node) {
         List<PluginRasDef.Situation> situations = new ArrayList<>();
-        JsonNode sitNode = node.get("situations");
+        JsonNode                     sitNode    = node.get("situations");
         if (sitNode != null && sitNode.isArray()) {
             for (JsonNode s : sitNode) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> chainMode = s.has("chain-mode")
-                    ? (Map<String, Object>) toJavaValue(s.get("chain-mode"))
-                    : Map.of();
+                                                ? (Map<String, Object>) toJavaValue(s.get("chain-mode"))
+                                                : Map.of();
                 situations.add(new PluginRasDef.Situation(
-                    textOrNull(s, "name"),
-                    textList(s, "events"),
-                    textOrNull(s, "correlation-window"),
-                    chainMode,
-                    textOrNull(s, "trigger"),
-                    textOrNull(s, "trigger-mode"),
-                    textOrNull(s, "correlation-key")
+                        textOrNull(s, "name"),
+                        textList(s, "events"),
+                        textOrNull(s, "correlation-window"),
+                        chainMode,
+                        textOrNull(s, "trigger"),
+                        textOrNull(s, "trigger-mode"),
+                        textOrNull(s, "correlation-key")
                 ));
             }
         }

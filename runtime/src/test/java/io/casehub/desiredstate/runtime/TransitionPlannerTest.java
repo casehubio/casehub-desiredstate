@@ -42,8 +42,8 @@ class TransitionPlannerTest {
         TransitionPlan plan = planner.plan(desired, actual);
 
         assertTrue(plan.isEmpty());
-        assertEquals(0, plan.removals().size());
-        assertEquals(0, plan.additions().size());
+        assertEquals(0, plan.flatRemovals().size());
+        assertEquals(0, plan.flatAdditions().size());
     }
 
     @Test
@@ -59,9 +59,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(0, plan.removals().size());
-        assertEquals(2, plan.additions().size());
-        assertTrue(plan.additions().stream().allMatch(s -> s.action() == StepAction.PROVISION));
+        assertEquals(0, plan.flatRemovals().size());
+        assertEquals(2, plan.flatAdditions().size());
+        assertTrue(plan.flatAdditions().stream().allMatch(s -> s.action() == StepAction.PROVISION));
     }
 
     @Test
@@ -74,9 +74,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(2, plan.removals().size());
-        assertEquals(0, plan.additions().size());
-        assertTrue(plan.removals().stream().allMatch(s -> s.action() == StepAction.DEPROVISION));
+        assertEquals(2, plan.flatRemovals().size());
+        assertEquals(0, plan.flatAdditions().size());
+        assertTrue(plan.flatRemovals().stream().allMatch(s -> s.action() == StepAction.DEPROVISION));
     }
 
     @Test
@@ -102,10 +102,10 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(3, plan.additions().size());
+        assertEquals(3, plan.flatAdditions().size());
 
         // Extract order
-        List<NodeId> order = plan.additions().stream()
+        List<NodeId> order = plan.flatAdditions().stream()
             .map(step -> step.node().id())
             .toList();
 
@@ -145,7 +145,7 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        List<NodeId> order = plan.additions().stream()
+        List<NodeId> order = plan.flatAdditions().stream()
             .map(step -> step.node().id())
             .toList();
 
@@ -172,11 +172,11 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(1, plan.additions().size());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(1, plan.flatAdditions().size());
 
-        assertEquals(NodeId.of("orphan"), plan.removals().get(0).node().id());
-        assertEquals(NodeId.of("a"), plan.additions().get(0).node().id());
+        assertEquals(NodeId.of("orphan"), plan.flatRemovals().get(0).node().id());
+        assertEquals(NodeId.of("a"), plan.flatAdditions().get(0).node().id());
     }
 
     @Test
@@ -190,10 +190,10 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(0, plan.removals().size());
-        assertEquals(1, plan.additions().size());
-        assertEquals(NodeId.of("a"), plan.additions().get(0).node().id());
-        assertEquals(StepAction.PROVISION, plan.additions().get(0).action());
+        assertEquals(0, plan.flatRemovals().size());
+        assertEquals(1, plan.flatAdditions().size());
+        assertEquals(NodeId.of("a"), plan.flatAdditions().get(0).node().id());
+        assertEquals(StepAction.PROVISION, plan.flatAdditions().get(0).action());
     }
 
     @Test
@@ -205,10 +205,10 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(0, plan.additions().size());
-        assertEquals(NodeId.of("orphan"), plan.removals().get(0).node().id());
-        assertEquals(StepAction.DEPROVISION, plan.removals().get(0).action());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(0, plan.flatAdditions().size());
+        assertEquals(NodeId.of("orphan"), plan.flatRemovals().get(0).node().id());
+        assertEquals(StepAction.DEPROVISION, plan.flatRemovals().get(0).action());
     }
 
     @Test
@@ -233,9 +233,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(3, plan.additions().size());
+        assertEquals(3, plan.flatAdditions().size());
 
-        List<NodeId> order = plan.additions().stream()
+        List<NodeId> order = plan.flatAdditions().stream()
             .map(step -> step.node().id())
             .toList();
 
@@ -271,10 +271,10 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        List<NodeId> addedIds = plan.additions().stream()
+        List<NodeId> addedIds = plan.flatAdditions().stream()
             .map(step -> step.node().id())
             .toList();
-        List<NodeId> removedIds = plan.removals().stream()
+        List<NodeId> removedIds = plan.flatRemovals().stream()
             .map(step -> step.node().id())
             .toList();
 
@@ -316,8 +316,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(0, plan.removals().size());
-        assertEquals(0, plan.additions().size());
+        assertEquals(0, plan.flatRemovals().size());
+        assertEquals(0, plan.flatAdditions().size());
     }
 
     @Test
@@ -329,8 +329,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(0, plan.removals().size());
-        assertEquals(0, plan.additions().size());
+        assertEquals(0, plan.flatRemovals().size());
+        assertEquals(0, plan.flatAdditions().size());
     }
 
     @Test
@@ -352,9 +352,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(0, plan.removals().size());
-        assertEquals(1, plan.additions().size());
-        assertEquals(NodeId.of("b"), plan.additions().get(0).node().id());
+        assertEquals(0, plan.flatRemovals().size());
+        assertEquals(1, plan.flatAdditions().size());
+        assertEquals(NodeId.of("b"), plan.flatAdditions().get(0).node().id());
     }
 
 
@@ -373,9 +373,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, previousDesired);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(NodeId.of("orphan"), plan.removals().get(0).node().id());
-        assertSame(orphanSpec, plan.removals().get(0).node().spec());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(NodeId.of("orphan"), plan.flatRemovals().get(0).node().id());
+        assertSame(orphanSpec, plan.flatRemovals().get(0).node().spec());
     }
 
     @Test
@@ -387,8 +387,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(NodeType.of("unknown"), plan.removals().get(0).node().type());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(NodeType.of("unknown"), plan.flatRemovals().get(0).node().type());
     }
 
     @Test
@@ -403,9 +403,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, previousDesired);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(NodeId.of("never-desired"), plan.removals().get(0).node().id());
-        assertEquals(NodeType.of("unknown"), plan.removals().get(0).node().type());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(NodeId.of("never-desired"), plan.flatRemovals().get(0).node().id());
+        assertEquals(NodeType.of("unknown"), plan.flatRemovals().get(0).node().type());
     }
 
     @Test
@@ -419,8 +419,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, previousDesired);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(HumanGating.DEPROVISION_ONLY, plan.removals().get(0).node().humanGating());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(HumanGating.DEPROVISION_ONLY, plan.flatRemovals().get(0).node().humanGating());
     }
 
     @Test
@@ -442,6 +442,52 @@ class TransitionPlannerTest {
     }
 
 
+    @Test
+    void layeredAdditions_groupsNodesByTopologicalDepth() {
+        // A -> B -> C  (A is root, C is leaf)
+        DesiredNode nodeA = new DesiredNode(NodeId.of("A"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("B"), new TestSpec("B"), HumanGating.NONE);
+        DesiredNode nodeC = new DesiredNode(NodeId.of("C"), new TestSpec("C"), HumanGating.NONE);
+
+        DesiredStateGraph graph = factory.of(
+                List.of(nodeA, nodeB, nodeC),
+                List.of(new Dependency(NodeId.of("B"), NodeId.of("A")),
+                        new Dependency(NodeId.of("C"), NodeId.of("B"))));
+        ActualState actual = new ActualState(Map.of());
+
+        TransitionPlan plan = planner.plan(graph, actual);
+
+        assertEquals(3, plan.additions().size(), "3 layers");
+        assertEquals(1, plan.additions().get(0).size(), "Layer 0: root");
+        assertEquals(NodeId.of("A"), plan.additions().get(0).get(0).node().id());
+        assertEquals(1, plan.additions().get(1).size(), "Layer 1: middle");
+        assertEquals(NodeId.of("B"), plan.additions().get(1).get(0).node().id());
+        assertEquals(1, plan.additions().get(2).size(), "Layer 2: leaf");
+        assertEquals(NodeId.of("C"), plan.additions().get(2).get(0).node().id());
+        assertEquals(3, plan.flatAdditions().size(), "flat view: 3 nodes total");
+    }
+
+    @Test
+    void layeredAdditions_independentNodesInSameLayer() {
+        // A and B are independent roots, C depends on both
+        DesiredNode nodeA = new DesiredNode(NodeId.of("A"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode nodeB = new DesiredNode(NodeId.of("B"), new TestSpec("B"), HumanGating.NONE);
+        DesiredNode nodeC = new DesiredNode(NodeId.of("C"), new TestSpec("C"), HumanGating.NONE);
+
+        DesiredStateGraph graph = factory.of(
+                List.of(nodeA, nodeB, nodeC),
+                List.of(new Dependency(NodeId.of("C"), NodeId.of("A")),
+                        new Dependency(NodeId.of("C"), NodeId.of("B"))));
+        ActualState actual = new ActualState(Map.of());
+
+        TransitionPlan plan = planner.plan(graph, actual);
+
+        assertEquals(2, plan.additions().size(), "2 layers");
+        assertEquals(2, plan.additions().get(0).size(), "Layer 0: A and B");
+        assertEquals(1, plan.additions().get(1).size(), "Layer 1: C");
+        assertEquals(NodeId.of("C"), plan.additions().get(1).get(0).node().id());
+    }
+
     // Helper test spec
     record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 
@@ -455,10 +501,10 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
 
-        assertEquals(1, plan.suspensions().size());
-        assertEquals(StepAction.SUSPEND, plan.suspensions().get(0).action());
-        assertTrue(plan.additions().isEmpty());
-        assertTrue(plan.removals().isEmpty());
+        assertEquals(1, plan.flatSuspensions().size());
+        assertEquals(StepAction.SUSPEND, plan.flatSuspensions().get(0).action());
+        assertTrue(plan.flatAdditions().isEmpty());
+        assertTrue(plan.flatRemovals().isEmpty());
     }
 
     @Test
@@ -469,10 +515,10 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
 
-        assertEquals(1, plan.resumptions().size());
-        assertEquals(StepAction.RESUME, plan.resumptions().get(0).action());
-        assertTrue(plan.additions().isEmpty());
-        assertTrue(plan.suspensions().isEmpty());
+        assertEquals(1, plan.flatResumptions().size());
+        assertEquals(StepAction.RESUME, plan.flatResumptions().get(0).action());
+        assertTrue(plan.flatAdditions().isEmpty());
+        assertTrue(plan.flatSuspensions().isEmpty());
     }
 
     @Test
@@ -483,8 +529,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
 
-        assertEquals(1, plan.resumptions().size());
-        assertEquals(StepAction.RESUME, plan.resumptions().get(0).action());
+        assertEquals(1, plan.flatResumptions().size());
+        assertEquals(StepAction.RESUME, plan.flatResumptions().get(0).action());
     }
 
     @Test
@@ -506,7 +552,7 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
 
-        assertEquals(1, plan.suspensions().size());
+        assertEquals(1, plan.flatSuspensions().size());
     }
 
     @Test
@@ -516,8 +562,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(1, plan.removals().size());
-        assertEquals(StepAction.DEPROVISION, plan.removals().get(0).action());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(StepAction.DEPROVISION, plan.flatRemovals().get(0).action());
     }
 
     @Test
@@ -528,9 +574,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> false);
 
-        assertTrue(plan.suspensions().isEmpty());
-        assertEquals(1, plan.removals().size());
-        assertEquals(StepAction.DEPROVISION, plan.removals().get(0).action());
+        assertTrue(plan.flatSuspensions().isEmpty());
+        assertEquals(1, plan.flatRemovals().size());
+        assertEquals(StepAction.DEPROVISION, plan.flatRemovals().get(0).action());
     }
 
     @Test
@@ -541,9 +587,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> false);
 
-        assertTrue(plan.resumptions().isEmpty());
-        assertEquals(1, plan.additions().size());
-        assertEquals(StepAction.PROVISION, plan.additions().get(0).action());
+        assertTrue(plan.flatResumptions().isEmpty());
+        assertEquals(1, plan.flatAdditions().size());
+        assertEquals(StepAction.PROVISION, plan.flatAdditions().get(0).action());
     }
 
     @Test
@@ -557,9 +603,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
 
-        assertEquals(2, plan.suspensions().size());
-        assertEquals(NodeId.of("leaf"), plan.suspensions().get(0).node().id());
-        assertEquals(NodeId.of("root"), plan.suspensions().get(1).node().id());
+        assertEquals(2, plan.flatSuspensions().size());
+        assertEquals(NodeId.of("leaf"), plan.flatSuspensions().get(0).node().id());
+        assertEquals(NodeId.of("root"), plan.flatSuspensions().get(1).node().id());
     }
 
     @Test
@@ -573,9 +619,9 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual, null, type -> true);
 
-        assertEquals(2, plan.resumptions().size());
-        assertEquals(NodeId.of("root"), plan.resumptions().get(0).node().id());
-        assertEquals(NodeId.of("leaf"), plan.resumptions().get(1).node().id());
+        assertEquals(2, plan.flatResumptions().size());
+        assertEquals(NodeId.of("root"), plan.flatResumptions().get(0).node().id());
+        assertEquals(NodeId.of("leaf"), plan.flatResumptions().get(1).node().id());
     }
 
     @Test
@@ -586,8 +632,8 @@ class TransitionPlannerTest {
 
         TransitionPlan plan = planner.plan(desired, actual);
 
-        assertEquals(1, plan.additions().size());
-        assertTrue(plan.suspensions().isEmpty());
-        assertTrue(plan.resumptions().isEmpty());
+        assertEquals(1, plan.flatAdditions().size());
+        assertTrue(plan.flatSuspensions().isEmpty());
+        assertTrue(plan.flatResumptions().isEmpty());
     }
 }

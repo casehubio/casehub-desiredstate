@@ -51,4 +51,9 @@ public interface NodeProvisionerRouter {
     ResumeResult resume(DesiredNode node, ResumeContext context);
 
     boolean supportsStatefulLifecycle(NodeType type);
+
+    default java.util.OptionalInt maxConcurrencyFor(NodeType type) {
+        return java.util.OptionalInt.empty();
+    }
+
 }

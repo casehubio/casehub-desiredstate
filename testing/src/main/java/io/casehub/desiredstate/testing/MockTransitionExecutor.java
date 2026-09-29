@@ -25,14 +25,14 @@ public class MockTransitionExecutor implements TransitionExecutor {
         executedPlans.add(plan);
 
         Map<NodeId, StepOutcome> outcomes = new LinkedHashMap<>();
-        for (OrderedStep step : plan.removals()) {
+        for (OrderedStep step : plan.flatRemovals()) {
             if (failDeprovisionNodes.contains(step.node().id())) {
                 outcomes.put(step.node().id(), new StepOutcome.Failed("test deprovision failure"));
             } else {
                 outcomes.put(step.node().id(), new StepOutcome.Succeeded());
             }
         }
-        for (OrderedStep step : plan.additions()) {
+        for (OrderedStep step : plan.flatAdditions()) {
             if (rejectNodes.contains(step.node().id())) {
                 outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
             } else if (failNodes.contains(step.node().id())) {

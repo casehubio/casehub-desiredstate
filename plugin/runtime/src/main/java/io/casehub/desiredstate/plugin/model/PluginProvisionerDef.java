@@ -1,10 +1,10 @@
 package io.casehub.desiredstate.plugin.model;
 
-import io.casehub.yaml.step.StepDef;
+import io.casehub.yaml.step.catalog.ResolvedStep;
 
 import java.util.List;
 
 public record PluginProvisionerDef(
-    List<StepDef> provisionSteps,
-    List<StepDef> deprovisionSteps
+        List<ResolvedStep> provisionSteps,
+        List<ResolvedStep> deprovisionSteps
 ) {}
