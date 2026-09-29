@@ -16,7 +16,7 @@ import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
 import io.casehub.yaml.plugin.api.MapServiceRegistry;
-import io.casehub.yaml.plugin.api.StepResult;
+import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
@@ -193,16 +193,16 @@ class PluginIntegrationTest {
                     case "assert" -> {
                         String condition = (String) resolved.get("condition");
                         if (condEval.evaluate(condition)) {
-                            yield StepResult.of(Map.of());
+                            yield Result.of(Map.of());
                         }
                         throw new RuntimeException("Assertion failed: " + condition);
                     }
                     case "compare-state" -> comparePrimitive.execute(resolved,
                                                                      new MapServiceRegistry());
-                    default -> StepResult.failed("unknown step: " + ps.name());
+                    default -> Result.failed("unknown step: " + ps.name());
                 };
             }
-            return StepResult.failed("unsupported step type");
+            return Result.failed("unsupported step type");
         };
     }
 

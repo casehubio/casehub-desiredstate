@@ -7,9 +7,12 @@ import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginRasDef;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.yaml.step.CatalogEntry;
+import io.casehub.yaml.plugin.api.Definition;
+import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import org.junit.jupiter.api.Test;
+
+import io.casehub.desiredstate.plugin.runtime.PluginValidator;
 
 import java.util.List;
 import java.util.Map;
@@ -21,14 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class YamlPluginProcessorTest {
 
-    private static final Set<String> PRIMITIVES = Set.of(
-        "rest-call", "graphql-call", "json-extract", "compare-state", "assert", "approval-gate");
-
     @Test
     void validPluginPassesValidation() {
         var plugin = createValidPlugin();
         assertThatCode(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
             .doesNotThrowAnyException();
     }
 
@@ -40,8 +40,8 @@ class YamlPluginProcessorTest {
         var plugin = createPlugin("bad-type", spec);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("unsupported type 'complex'");
     }
 
@@ -53,8 +53,8 @@ class YamlPluginProcessorTest {
         var plugin = createPlugin("bad-range", spec);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("min")
             .hasMessageContaining("max");
     }
@@ -67,8 +67,8 @@ class YamlPluginProcessorTest {
         var plugin = createPlugin("bad-length", spec);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("minLength")
             .hasMessageContaining("maxLength");
     }
@@ -81,8 +81,8 @@ class YamlPluginProcessorTest {
         var plugin = createPlugin("bad-enum", spec);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("enum")
             .hasMessageContaining("values");
     }
@@ -95,8 +95,8 @@ class YamlPluginProcessorTest {
         var plugin = createPlugin("bad-list", spec);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("list")
             .hasMessageContaining("item-type");
     }
@@ -108,8 +108,8 @@ class YamlPluginProcessorTest {
         var plugin = createPluginWithSteps("bad-prim", spec, steps);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("rest-callz")
             .hasMessageContaining("did you mean 'rest-call'");
     }
@@ -125,8 +125,8 @@ class YamlPluginProcessorTest {
         var plugin = createPluginWithSteps("bad-ref", spec, steps);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("namespce")
             .hasMessageContaining("did you mean 'namespace'");
     }
@@ -137,8 +137,8 @@ class YamlPluginProcessorTest {
         var typeRegistry = Map.of("test-resource", "com.example.TestResource");
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, typeRegistry, PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, typeRegistry, PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("Type conflict")
             .hasMessageContaining("@NodeTypeId");
     }
@@ -152,8 +152,8 @@ class YamlPluginProcessorTest {
         var plugin = createPluginWithSteps("bad-result", spec, steps);
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("result binding 'missing'");
     }
 
@@ -168,7 +168,7 @@ class YamlPluginProcessorTest {
         var plugin = createPluginWithSteps("good-result", spec, steps);
 
         assertThatCode(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
             .doesNotThrowAnyException();
     }
 
@@ -185,8 +185,8 @@ class YamlPluginProcessorTest {
             List.of(), emptyCbr(), emptyRas());
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("compare-state")
             .hasMessageContaining("exactly one");
     }
@@ -205,29 +205,29 @@ class YamlPluginProcessorTest {
             List.of(), emptyCbr(), emptyRas());
 
         assertThatThrownBy(() ->
-            YamlPluginProcessor.validatePlugin(plugin, Map.of(), PRIMITIVES))
-            .isInstanceOf(PluginValidationException.class)
+            PluginValidator.validatePlugin(plugin, Map.of(), PluginValidator.BUILT_IN_PRIMITIVES))
+            .isInstanceOf(io.casehub.desiredstate.plugin.runtime.PluginValidationException.class)
             .hasMessageContaining("approval-gate");
     }
 
     @Test
     void levenshteinDistanceIsCorrect() {
-        assertThat(YamlPluginProcessor.levenshtein("rest-call", "rest-callz")).isEqualTo(1);
-        assertThat(YamlPluginProcessor.levenshtein("assert", "assert")).isEqualTo(0);
-        assertThat(YamlPluginProcessor.levenshtein("namespace", "namespce")).isEqualTo(1);
-        assertThat(YamlPluginProcessor.levenshtein("abc", "xyz")).isEqualTo(3);
+        assertThat(PluginValidator.levenshtein("rest-call", "rest-callz")).isEqualTo(1);
+        assertThat(PluginValidator.levenshtein("assert", "assert")).isEqualTo(0);
+        assertThat(PluginValidator.levenshtein("namespace", "namespce")).isEqualTo(1);
+        assertThat(PluginValidator.levenshtein("abc", "xyz")).isEqualTo(3);
     }
 
     @Test
     void suggestSimilarFindsCloseMatch() {
-        assertThat(YamlPluginProcessor.suggestSimilar("rest-callz",
+        assertThat(PluginValidator.suggestSimilar("rest-callz",
             Set.of("rest-call", "assert", "compare-state")))
             .isEqualTo("rest-call");
     }
 
     @Test
     void suggestSimilarReturnsNullForDistantMatch() {
-        assertThat(YamlPluginProcessor.suggestSimilar("completely-different",
+        assertThat(PluginValidator.suggestSimilar("completely-different",
             Set.of("rest-call", "assert")))
             .isNull();
     }
@@ -285,7 +285,7 @@ class YamlPluginProcessorTest {
         Map<String, Object> decorators = result != null
                                          ? Map.of("result", result) : Map.of();
         return new ResolvedStep.PluginStep(primitive,
-                                           new CatalogEntry(primitive, null, null),
+                                           Definition.of(primitive).execute((p, s) -> Result.of(Map.of())).build(),
                                            params, decorators);
     }
 

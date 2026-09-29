@@ -1,0 +1,43 @@
+plugin: mock-resource
+infrastructure: http-mock
+
+tests:
+  - name: provision succeeds for valid spec
+    spec:
+      name: myapp
+      status-code: 200
+    action: provision
+    assert:
+      provision: success
+
+  - name: actual state is PRESENT when status 200
+    spec:
+      name: myapp
+      status-code: 200
+    action: actual-state
+    assert:
+      actual-state: PRESENT
+
+  - name: actual state is ABSENT when status 404
+    spec:
+      name: gone
+      status-code: 404
+    action: actual-state
+    assert:
+      actual-state: ABSENT
+
+  - name: actual state is DRIFTED when status 206
+    spec:
+      name: partial
+      status-code: 206
+    action: actual-state
+    assert:
+      actual-state: DRIFTED
+
+  - name: deprovision succeeds
+    spec:
+      name: myapp
+      status-code: 200
+    action: deprovision
+    assert:
+      deprovision: success

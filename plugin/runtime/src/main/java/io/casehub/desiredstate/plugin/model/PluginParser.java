@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import io.casehub.yaml.step.CatalogEntry;
+import io.casehub.yaml.plugin.api.Definition;
+import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 
 public class PluginParser {
@@ -129,7 +130,9 @@ public class PluginParser {
 
             steps.add(new ResolvedStep.PluginStep(
                     primitiveName,
-                    new CatalogEntry(primitiveName, null, null),
+                    Definition.of(primitiveName)
+                        .execute((params, services) -> Result.of(Map.of()))
+                        .build(),
                     Map.copyOf(parameters),
                     Map.copyOf(decorators)));
         }

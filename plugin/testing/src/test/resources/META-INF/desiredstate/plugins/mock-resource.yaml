@@ -1,0 +1,56 @@
+plugin:
+  type: mock-resource
+  version: 1
+  resyncInterval: 30s
+  auth:
+    mock-api:
+      credentialRef: mock-api-credentials
+
+spec:
+  fields:
+    name:
+      type: string
+      required: true
+    status-code:
+      type: integer
+      default: 200
+
+actual-state:
+  steps:
+    - compare-state:
+        present-when: "${spec.status-code} == 200"
+        drifted-when: "${spec.status-code} == 206"
+        absent-when: "${spec.status-code} == 404"
+
+provisioner:
+  provision:
+    steps:
+      - assert:
+          condition: "${spec.name} != null"
+          message: "Name is required"
+  deprovision:
+    steps:
+      - assert:
+          condition: "${spec.name} != null"
+          message: "Name is required for deprovision"
+
+cbr:
+  features:
+    - name: status
+      source: spec.status-code
+      similarity: numeric
+  outcome-signals:
+    success: "${spec.status-code} == 200"
+
+ras:
+  situations:
+    - name: repeated-provision-failure
+      events:
+        - NODE_FAULTED
+        - NODE_RECOVERED
+      correlation-window: 5m
+      chain-mode:
+        streak: 3
+      trigger: create-case
+      trigger-mode: fire-once
+      correlation-key: "${spec.name}"

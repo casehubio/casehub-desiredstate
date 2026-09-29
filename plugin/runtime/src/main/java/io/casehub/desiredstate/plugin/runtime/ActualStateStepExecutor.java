@@ -2,7 +2,7 @@ package io.casehub.desiredstate.plugin.runtime;
 
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.yaml.core.resolver.VariableResolver;
-import io.casehub.yaml.plugin.api.StepResult;
+import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
@@ -26,8 +26,8 @@ final class ActualStateStepExecutor {
         }
         try {
             ResolvedStep block  = new ResolvedStep.BlockStep(null, steps, Map.of());
-            StepResult   result = evaluator.evaluate(block, resolver, runner);
-            if (result instanceof StepResult.Success s) {
+            Result       result = evaluator.evaluate(block, resolver, runner);
+            if (result instanceof Result.Success s) {
                 Object status = s.output().get("nodeStatus");
                 if (status instanceof String statusStr) {
                     return NodeStatus.valueOf(statusStr);

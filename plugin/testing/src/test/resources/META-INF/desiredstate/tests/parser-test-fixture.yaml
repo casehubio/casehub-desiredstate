@@ -1,0 +1,57 @@
+plugin: mock-resource
+infrastructure: http-mock
+
+setup:
+  stubs:
+    - request:
+        method: GET
+        path: /auth
+      response:
+        status: 200
+        body:
+          token: test-token
+  variables:
+    auth:
+      api:
+        endpoint: "${wiremock.url}"
+
+tests:
+  - name: provision succeeds
+    spec:
+      name: test-app
+      status-code: 200
+    expectations:
+      - request:
+          method: POST
+          path: /resources
+        response:
+          status: 201
+    action: provision
+    assert:
+      provision: success
+
+  - name: actual state is present
+    spec:
+      name: test-app
+      status-code: 200
+    action: actual-state
+    assert:
+      actual-state: PRESENT
+
+  - name: validation catches missing name
+    spec:
+      status-code: 200
+    action: validate
+    assert:
+      error-matches: "name is required"
+
+  - name: fault injection
+    spec:
+      name: test-app
+    fault-injection:
+      action: provision
+      fail-count: 3
+      error: "Connection refused"
+    assert:
+      provision: failed
+      error-matches: "Connection refused"

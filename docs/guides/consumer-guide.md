@@ -489,6 +489,96 @@ The desiredstate runtime can be embedded in Spring Boot applications via auto-co
 
 ---
 
+## Testing Plugins
+
+`casehub-desiredstate-plugin-testing` provides a declarative test framework for YAML plugins. Plugin authors write `*.test.yaml` files alongside their plugin definitions — no Java authoring required.
+
+### Minimal Test Class
+
+```java
+class MyPluginTest {
+    @RegisterExtension
+    static PluginTestExtension ext = PluginTestExtension.forPlugin("my-plugin");
+
+    @TestFactory
+    Stream<DynamicTest> tests() { return ext.discoverTests(); }
+}
+```
+
+### Test YAML Format
+
+Place test files at `src/test/resources/META-INF/desiredstate/tests/<plugin-name>.test.yaml`:
+
+```yaml
+plugin: my-plugin
+infrastructure: http-mock   # or: shell-sandbox
+
+setup:
+  stubs:                     # WireMock stubs shared across all tests
+    - request: { method: GET, path: /auth }
+      response: { status: 200, body: { token: test } }
+  variables:
+    auth:
+      api: { endpoint: "${wiremock.url}", token: test-token }
+
+tests:
+  - name: provision creates resource
+    spec: { name: my-resource }
+    expectations:
+      - request: { method: POST, path: /api/resources }
+        response: { status: 201 }
+    action: provision
+    assert:
+      provision: success
+
+  - name: actual state is PRESENT
+    spec: { name: my-resource }
+    action: actual-state
+    assert:
+      actual-state: PRESENT
+
+  - name: fault injection after 3 failures
+    spec: { name: my-resource }
+    fault-injection:
+      action: provision
+      fail-count: 3
+      error: "Connection refused"
+    assert:
+      provision: failed
+      error-matches: "Connection refused"
+```
+
+### Infrastructure Types
+
+| Type | What it provides | Use for |
+|------|-----------------|---------|
+| `http-mock` | Embedded WireMock server | REST API plugins (most common) |
+| `shell-sandbox` | Temp directory with `${sandbox.dir}` | File-system / CLI plugins |
+
+### Assertions
+
+| Key | Values | Notes |
+|-----|--------|-------|
+| `provision` | `success`, `failed` | Matches `ProvisionResult` type |
+| `deprovision` | `success`, `failed` | Matches `DeprovisionResult` type |
+| `actual-state` | `PRESENT`, `ABSENT`, `DRIFTED`, `UNKNOWN` | Matches `NodeStatus` |
+| `error-matches` | substring or regex | Matches failure message |
+| `file-exists` | path | Shell-sandbox only |
+| `file-absent` | path | Shell-sandbox only |
+
+### Maven Dependency
+
+```xml
+<dependency>
+    <groupId>io.casehub</groupId>
+    <artifactId>casehub-desiredstate-plugin-testing</artifactId>
+    <version>${casehub.version}</version>
+    <scope>test</scope>
+</dependency>
+```
+
+---
+
 ## What This Repo Does NOT Do
 
 - Persist desired-state graphs -- graphs are in-memory per tenant

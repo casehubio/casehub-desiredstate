@@ -1,13 +1,9 @@
 package io.casehub.desiredstate.plugin.deployment;
 
-public class PluginValidationException extends RuntimeException {
-
-    private final String pluginType;
+public class PluginValidationException
+        extends io.casehub.desiredstate.plugin.runtime.PluginValidationException {
 
     public PluginValidationException(String pluginType, String message) {
-        super("Plugin '" + pluginType + "': " + message);
-        this.pluginType = pluginType;
+        super(pluginType, message);
     }
-
-    public String pluginType() { return pluginType; }
 }

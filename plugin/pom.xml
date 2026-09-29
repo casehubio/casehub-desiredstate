@@ -19,5 +19,6 @@
         <module>runtime</module>
         <module>deployment</module>
         <module>spring</module>
+        <module>testing</module>
     </modules>
 </project>

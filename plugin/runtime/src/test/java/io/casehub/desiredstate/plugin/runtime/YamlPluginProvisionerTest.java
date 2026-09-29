@@ -12,8 +12,9 @@ import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
-import io.casehub.yaml.plugin.api.StepResult;
-import io.casehub.yaml.step.CatalogEntry;
+import io.casehub.yaml.plugin.api.Result;
+import io.casehub.yaml.plugin.api.Definition;
+import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
@@ -96,11 +97,11 @@ class YamlPluginProvisionerTest {
             if (step instanceof ResolvedStep.PluginStep ps) {
                 Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
                 if ("my-resource".equals(resolved.get("expected"))) {
-                    return StepResult.of(Map.of("verified", true));
+                    return Result.of(Map.of("verified", true));
                 }
                 throw new RuntimeException("Expected 'my-resource' but got: " + resolved.get("expected"));
             }
-            return StepResult.failed("unsupported");
+            return Result.failed("unsupported");
         };
 
         var evaluator = new StructuralStepEvaluator(new ConditionEvaluator(null));
@@ -128,11 +129,11 @@ class YamlPluginProvisionerTest {
             if (step instanceof ResolvedStep.PluginStep ps) {
                 Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
                 if ("secret-token".equals(resolved.get("token"))) {
-                    return StepResult.of(Map.of("verified", true));
+                    return Result.of(Map.of("verified", true));
                 }
                 throw new RuntimeException("Expected 'secret-token' but got: " + resolved.get("token"));
             }
-            return StepResult.failed("unsupported");
+            return Result.failed("unsupported");
         };
 
         var evaluator = new StructuralStepEvaluator(new ConditionEvaluator(null));
@@ -153,11 +154,11 @@ class YamlPluginProvisionerTest {
             if (step instanceof ResolvedStep.PluginStep ps && "assert".equals(ps.name())) {
                 String condition = (String) ps.params().get("condition");
                 if ("true".equals(condition)) {
-                    return StepResult.of(Map.of());
+                    return Result.of(Map.of());
                 }
                 throw new RuntimeException("Assertion failed: " + condition);
             }
-            return StepResult.failed("unknown step");
+            return Result.failed("unknown step");
         };
         var evaluator = new StructuralStepEvaluator(new ConditionEvaluator(null));
         return new YamlPluginProvisioner(
@@ -182,7 +183,7 @@ class YamlPluginProvisionerTest {
 
     private static ResolvedStep pluginStep(String name, Map<String, Object> params) {
         return new ResolvedStep.PluginStep(name,
-                                           new CatalogEntry(name, null, null), params, Map.of());
+                                           Definition.of(name).execute((p, s) -> Result.of(Map.of())).build(), params, Map.of());
     }
 
     private static DesiredNode createNode(String id, Map<String, Object> specFields) {
