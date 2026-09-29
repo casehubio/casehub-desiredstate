@@ -173,10 +173,18 @@ C4Container
   }
 
   Container_Boundary(b9, "Layer: L9 Declaration Surfaces") {
-    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, @GraphRule, @GraphInvariant, GraphRuleEngine, GraphInvariantEngine, PatternMatchingSupport, GraphPatternMatcher, descriptors, recorder")
-    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, @GraphRule/@GraphInvariant scanning (interface + standalone), cross-model validation (MergedGraph), parameter validation, Gizmo impl, SyntheticBeanBuildItem")
-    Container(yaml_surface, "YAML Surface", "Planned", "YAML → GraphDescriptor pipeline. Conditional/iterated subgraph inclusion. Drools-backed rule evaluation")
-    Container(ts_surface, "TypeScript DSL", "Planned", "Constrained TS DSL → GraphDescriptor. Type-safe graph declarations with IDE support")
+    Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, @GraphRule, @GraphInvariant, GraphRuleEngine, GraphInvariantEngine, PatternMatchingSupport, GraphPatternMatcher, GoalCompilerFactory, FaultPolicyFactory, descriptors, recorder")
+    Container(ann_core, "Annotations Core", "Java", "Framework-neutral Jandex scanner — DescriptorScanner builds GraphDescriptor and FaultPolicyDescriptor from IndexView")
+    Container(ann_deploy, "Annotations Deployment", "Quarkus Build Extension", "Jandex scan, @GraphRule/@GraphInvariant scanning, cross-model validation (MergedGraph), Gizmo impl, SyntheticBeanBuildItem")
+    Container(ann_spring, "Annotations Spring", "Spring AutoConfiguration", "Jandex-at-startup scan via DescriptorScanner, GoalCompilerFactory bean registration")
+    Container(yaml_surface, "YAML Surface", "Jackson YAML", "YamlGraph → GoalCompiler pipeline. NodeSpecRegistry, VariableResolver, ObjectVariableSource, ForEachExpander, YamlGoalCompilerFactory")
+    Container(yaml_deploy, "YAML Deployment", "Quarkus Build Extension", "Classpath YAML discovery at META-INF/desiredstate/*.yaml, type registry scan, build-time validation")
+    Container(yaml_spring, "YAML Spring", "Spring AutoConfiguration", "Classpath YAML discovery, YamlGoalCompilerFactory GoalCompiler registration")
+    Container(ts_surface, "TypeScript DSL", "npm + Java", "defineGraph(), defineLifecycle(), node() helper. TsGoalCompilerFactory. Quarkus + Spring auto-config")
+    Container(plugin_runtime, "Plugin Runtime", "Java", "YAML plugin model, PluginParser, YamlPluginProvisioner, YamlPluginActualStateAdapter, PluginValidator, CompareStatePrimitive, step pipeline execution")
+    Container(plugin_deploy, "Plugin Deployment", "Quarkus Build Extension", "Plugin YAML discovery at META-INF/desiredstate/plugins/*.yaml, spec schema validation, primitive validation with typo suggestions")
+    Container(plugin_spring, "Plugin Spring", "Spring AutoConfiguration", "Classpath plugin YAML discovery, plugin model registration")
+    Container(plugin_testing, "Plugin Testing", "JUnit5", "PluginTestExtension, declarative *.test.yaml, embedded WireMock HttpMockInfrastructure, ShellSandboxInfrastructure, FaultInjectingStepRunner")
   }
 
   Rel(planner, api_graph, "Reads desired graph")
@@ -196,18 +204,39 @@ C4Container
 | Module | Artifact | Root package |
 |---|---|---|
 | api/ | casehub-desiredstate-api | io.casehub.desiredstate.api |
+| runtime-core/ | casehub-desiredstate-runtime-core | io.casehub.desiredstate.runtime |
 | runtime/ | casehub-desiredstate | io.casehub.desiredstate.runtime |
+| runtime-spring/ | casehub-desiredstate-runtime-spring | io.casehub.desiredstate.runtime.spring |
 | testing/ | casehub-desiredstate-testing | io.casehub.desiredstate.testing |
 | engine-adapter/ | casehub-desiredstate-engine | io.casehub.desiredstate.engine |
 | work-adapter/ | casehub-desiredstate-work | io.casehub.desiredstate.work |
 | ras-adapter/ | casehub-desiredstate-ras | io.casehub.desiredstate.ras |
+| persistence-jpa-common/ | casehub-desiredstate-persistence-jpa-common | io.casehub.desiredstate.persistence.jpa |
+| persistence-jpa/ | casehub-desiredstate-persistence-jpa | io.casehub.desiredstate.persistence.jpa |
+| persistence-spring-jpa/ | casehub-desiredstate-persistence-spring-jpa | io.casehub.desiredstate.persistence.jpa |
+| annotations/runtime/ | casehub-desiredstate-annotations | io.casehub.desiredstate.annotations |
+| annotations/core/ | casehub-desiredstate-annotations-core | io.casehub.desiredstate.annotations.core |
+| annotations/deployment/ | casehub-desiredstate-annotations-deployment | io.casehub.desiredstate.annotations.deployment |
+| annotations/spring/ | casehub-desiredstate-annotations-spring | io.casehub.desiredstate.annotations.spring |
+| yaml/runtime/ | casehub-desiredstate-yaml | io.casehub.desiredstate.yaml |
+| yaml/deployment/ | casehub-desiredstate-yaml-deployment | io.casehub.desiredstate.yaml.deployment |
+| yaml/spring/ | casehub-desiredstate-yaml-spring | io.casehub.desiredstate.yaml.spring |
+| ts-dsl/runtime/ | casehub-desiredstate-ts | io.casehub.desiredstate.ts |
+| ts-dsl/deployment/ | casehub-desiredstate-ts-deployment | io.casehub.desiredstate.ts.deployment |
+| ts-dsl/spring/ | casehub-desiredstate-ts-spring | io.casehub.desiredstate.ts.spring |
+| ts-dsl/sdk/ | @casehub/desiredstate (npm) | — |
+| plugin/api/ | casehub-desiredstate-plugin-api | io.casehub.desiredstate.plugin.api |
+| plugin/runtime/ | casehub-desiredstate-plugin | io.casehub.desiredstate.plugin.runtime |
+| plugin/deployment/ | casehub-desiredstate-plugin-deployment | io.casehub.desiredstate.plugin.deployment |
+| plugin/spring/ | casehub-desiredstate-plugin-spring | io.casehub.desiredstate.plugin.spring |
+| plugin/testing/ | casehub-desiredstate-plugin-testing | io.casehub.desiredstate.plugin.testing |
 | examples/dungeon/ | casehub-desiredstate-example-dungeon | io.casehub.desiredstate.example.dungeon |
 | examples/pipeline/ | casehub-desiredstate-example-pipeline | io.casehub.desiredstate.example.pipeline |
 | examples/spatial/ | casehub-desiredstate-example-spatial | io.casehub.desiredstate.example.spatial |
 | examples/expansion/ | casehub-desiredstate-example-expansion | io.casehub.desiredstate.example.expansion |
-| annotations/runtime/ | casehub-desiredstate-annotations | io.casehub.desiredstate.annotations |
-| annotations/deployment/ | casehub-desiredstate-annotations-deployment | io.casehub.desiredstate.annotations.deployment |
 | examples/pipeline-annotated/ | casehub-desiredstate-example-pipeline-annotated | io.casehub.desiredstate.example.pipeline.annotated |
+| examples/pipeline-yaml/ | casehub-desiredstate-example-pipeline-yaml | io.casehub.desiredstate.example.pipeline.yaml |
+| examples/pipeline-ts/ | casehub-desiredstate-example-pipeline-ts | io.casehub.desiredstate.example.pipeline.ts |
 
 ---
 
