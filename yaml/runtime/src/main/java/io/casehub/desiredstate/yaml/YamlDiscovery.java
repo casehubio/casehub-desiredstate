@@ -62,7 +62,6 @@ public class YamlDiscovery {
         return beans;
     }
 
-    @SuppressWarnings("unchecked")
     private List<ResolvedInvariant> buildInvariants(Map<String, YamlInvariant> yamlInvariants) {
         List<ResolvedInvariant> invariants = new ArrayList<>();
         for (Map.Entry<String, YamlInvariant> entry : yamlInvariants.entrySet()) {
