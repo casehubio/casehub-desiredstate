@@ -1,8 +1,10 @@
 package io.casehub.desiredstate.plugin.spring;
 
+import io.casehub.desiredstate.api.BeanRegistration;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.runtime.PluginDescriptor;
+import io.casehub.desiredstate.plugin.runtime.PluginDiscovery;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -14,13 +16,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 @AutoConfiguration
 @ConditionalOnClass(PluginDescriptor.class)
 public class DesiredStatePluginAutoConfiguration implements SmartInitializingSingleton {
-
-    private static final Logger LOG = Logger.getLogger(DesiredStatePluginAutoConfiguration.class.getName());
 
     private final GenericApplicationContext context;
 
@@ -32,33 +31,16 @@ public class DesiredStatePluginAutoConfiguration implements SmartInitializingSin
     public void afterSingletonsInstantiated() {
         try {
             List<PluginModel> plugins = discoverPlugins();
-            if (plugins.isEmpty()) {
-                return;
-            }
-
-            for (PluginModel plugin : plugins) {
-                String type = plugin.header().type();
-                var authRefs = plugin.header().auth() != null
-                               ? plugin.header().auth().entrySet().stream()
-                                       .collect(java.util.stream.Collectors.toMap(
-                                               java.util.Map.Entry::getKey, e -> e.getValue().credentialRef()))
-                               : java.util.Map.<String, String>of();
-                java.time.Duration resync = plugin.header().resyncInterval() != null
-                                            ? java.time.Duration.parse("PT" + plugin.header().resyncInterval())
-                                            : java.time.Duration.ofMinutes(5);
-                PluginDescriptor descriptor = new PluginDescriptor(
-                        type, plugin.header().version(), resync, authRefs,
-                        plugin.spec(), plugin.actualStateSteps(),
-                        plugin.provisioner().provisionSteps(),
-                        plugin.provisioner().deprovisionSteps(),
-                        plugin.faultPolicies(), plugin.cbr(), plugin.ras());
-                String beanName = "pluginDescriptor_" + type;
-                context.registerBean(beanName, PluginDescriptor.class, () -> descriptor);
-                LOG.fine("Registered plugin descriptor: " + type);
-            }
+            new PluginDiscovery().discover(plugins)
+                                 .forEach(this::registerBean);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to discover desired state plugins", e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> void registerBean(BeanRegistration reg) {
+        context.registerBean(reg.name(), (Class<T>) reg.type(), () -> (T) reg.instance());
     }
 
     private List<PluginModel> discoverPlugins() throws IOException {
