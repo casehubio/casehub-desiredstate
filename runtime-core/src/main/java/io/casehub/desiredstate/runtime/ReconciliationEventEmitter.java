@@ -5,6 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.casehub.desiredstate.api.DesiredStateEventTypes;
 import io.casehub.desiredstate.api.LifecycleStateEnteredData;
 import io.casehub.desiredstate.api.LifecycleStateExitedData;
+import io.casehub.desiredstate.api.NodeAlreadyConvergedData;
 import io.casehub.desiredstate.api.NodeDriftedData;
 import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeRecoveredData;
@@ -67,6 +68,15 @@ public class ReconciliationEventEmitter {
             .withData("application/json", serialize(data))
             .build();
     }
+
+    public CloudEvent nodeAlreadyConverged(NodeAlreadyConvergedData data) {
+        return base(DesiredStateEventTypes.NODE_ALREADY_CONVERGED)
+                       .withSubject(data.nodeId())
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
 
     public CloudEvent cbrOutcome(CbrOutcomeData data) {
         return base(CbrEventTypes.CBR_OUTCOME)

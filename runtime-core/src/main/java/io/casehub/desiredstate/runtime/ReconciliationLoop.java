@@ -10,6 +10,7 @@ import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.InMemoryReconciliationStateStore;
 import io.casehub.desiredstate.api.MergedEventSource;
+import io.casehub.desiredstate.api.NodeAlreadyConvergedData;
 import io.casehub.desiredstate.api.NodeDriftedData;
 import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeId;
@@ -918,6 +919,16 @@ public class ReconciliationLoop {
                                 "APPROVAL_REJECTED", rejected.reason(), version, parentNodeId);
                         events.add(eventEmitter.nodeFaulted(data));
                         activeProblems.add(entry.getKey());
+                    }
+                } else if (entry.getValue() instanceof StepOutcome.AlreadyConverged) {
+                    DesiredNode node = planNodes.getOrDefault(entry.getKey(),
+                                                              desired.nodes().get(entry.getKey()));
+                    if (node != null) {
+                        String parentNodeId = resolveParent(desired, entry.getKey());
+                        NodeAlreadyConvergedData data = new NodeAlreadyConvergedData(
+                                tenancyId, entry.getKey().value(), node.type().value(),
+                                version, parentNodeId);
+                        events.add(eventEmitter.nodeAlreadyConverged(data));
                     }
                 }
             }

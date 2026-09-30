@@ -1,6 +1,5 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.neocortex.memory.cbr.CbrPath;
 import io.casehub.desiredstate.api.CbrProposal;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.HumanGating;
@@ -9,6 +8,7 @@ import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TransitionResult;
+import io.casehub.neocortex.memory.cbr.CbrPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +55,22 @@ class CbrProposalTrackerTest {
         assertThat(outcomes.get(0).sourceId()).isEqualTo("src-1");
         assertThat(outcomes.get(0).path()).isEqualTo(CbrPath.FAULT);
     }
+
+    @Test
+    void proposalMatchedWithAlreadyConverged_countsAsSuccess() {
+        var nodeId = new NodeId("n1");
+        tracker.recordProposal("t1", new CbrProposal(
+                "src-1", CbrPath.FAULT, Set.of(nodeId.value()), Instant.now()));
+
+        var result   = new TransitionResult(Map.of(nodeId, new StepOutcome.AlreadyConverged()));
+        var outcomes = tracker.matchOutcomes("t1", result, factory.empty());
+
+        assertThat(outcomes).hasSize(1);
+        assertThat(outcomes.get(0).successCount()).isEqualTo(1);
+        assertThat(outcomes.get(0).failureCount()).isZero();
+        assertThat(outcomes.get(0).nodeOutcomes().get("n1")).isEqualTo("ALREADY_CONVERGED");
+    }
+
 
     @Test
     void proposalMatchedWithFailed() {

@@ -3,6 +3,9 @@ package io.casehub.desiredstate.api;
 public sealed interface StepOutcome {
     record Succeeded() implements StepOutcome {}
 
+    record AlreadyConverged() implements StepOutcome {}
+
+
     record Failed(String reason) implements StepOutcome {
         public Failed {java.util.Objects.requireNonNull(reason, "StepOutcome.Failed.reason must not be null");}
     }

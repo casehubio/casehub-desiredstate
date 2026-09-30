@@ -76,6 +76,7 @@ class TypesTest {
         StepOutcome outcome = new StepOutcome.Failed("boom");
         String result = switch (outcome) {
             case StepOutcome.Succeeded s -> "ok";
+            case StepOutcome.AlreadyConverged a -> "converged";
             case StepOutcome.Failed f -> "fail:" + f.reason();
             case StepOutcome.Skipped s -> "skip:" + s.reason();
             case StepOutcome.Rejected r -> "reject:" + r.reason();

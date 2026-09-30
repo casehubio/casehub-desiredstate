@@ -33,6 +33,7 @@ public final class PluginTestAssertions {
         }
         String actual = switch (result.provisionResult()) {
             case ProvisionResult.Success ignored -> "success";
+            case ProvisionResult.AlreadyConverged ignored -> "already-converged";
             case ProvisionResult.Failed f -> "failed";
             case ProvisionResult.PendingApproval p -> "pending-approval";
         };

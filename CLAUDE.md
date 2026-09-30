@@ -141,7 +141,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeSpec` | Marker interface — domains implement with typed records. `humanGating()` default returns `NONE` |
 | `NodeId`, `NodeType`, `Dependency` | Value types for graph identity and edges |
 | `TransitionPlan` | Four-phase layered steps — `removals`, `suspensions`, `resumptions`, `additions` as `List<List<OrderedStep>>` (BFS layers). `flatRemovals()`/`flatSuspensions()`/`flatResumptions()`/`flatAdditions()` for sequential iteration. `before`/`after` graphs. Execution order: removals → suspensions → resumptions → additions. Backward-compatible constructors wrap flat lists as single-layer |
-| `TransitionResult` | Per-node `StepOutcome` map (Succeeded/Failed/Skipped) |
+| `TransitionResult` | Per-node `StepOutcome` map (Succeeded/AlreadyConverged/Failed/Skipped/Rejected) |
 | `ActualState` | Map of `NodeId → NodeStatus` (PRESENT/ABSENT/DEGRADED/UNKNOWN/SUSPENDED) |
 | `ReconciliationResult` | `resolved`, `drifted`, `faulted` node sets + `mutations` |
 | `FaultEvent` | Node + `FaultType` + detail |
@@ -155,12 +155,13 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `DeprovisionContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
 | `PlanApproval` | `planReference`, `approvedBy`, `approvedAt` — carried in context on re-entry |
 | `ApprovalCheckResult` | Sealed — None / Pending(planReference) / Approved(PlanApproval) / Rejected(planReference, reason) |
-| `ProvisionResult`, `DeprovisionResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
+| `ProvisionResult` | Sealed — Success / AlreadyConverged / Failed(reason) / PendingApproval(nodeId, planReference). AlreadyConverged signals idempotent no-op — provisioner verified node already matches desired spec |
+| `DeprovisionResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
 | `SuspendResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
 | `ResumeResult` | Sealed — Success / Failed(reason) / PendingApproval(nodeId, planReference) |
 | `SuspendContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
 | `ResumeContext` | `tenancyId` + `DesiredStateGraph` + optional `PlanApproval` (re-entry after approval) |
-| `StepOutcome` | Sealed — Succeeded / Failed(reason) / Skipped(reason) / Rejected(reason) |
+| `StepOutcome` | Sealed — Succeeded / AlreadyConverged / Failed(reason) / Skipped(reason) / Rejected(reason) |
 | `DefaultNodeProvisionerRouter` | Runtime implementation of NodeProvisionerRouter — builds routing table from all provisioners, validates resync intervals, integrates Preferences overrides |
 | `CdiNodeProvisionerRouter` | CDI-wired subclass injecting `Instance<NodeProvisioner>` and `PreferenceProvider` |
 | `DefaultActualStateAdapterRouter` | Runtime implementation of ActualStateAdapterRouter — builds routing table from all adapters, dispatches readActual by NodeType, merges results |
@@ -193,9 +194,10 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeFaultedData` | CloudEvent data — per-node fault |
 | `NodeDriftedData` | CloudEvent data — per-node drift |
 | `NodeRecoveredData` | CloudEvent data — per-node recovery |
+| `NodeAlreadyConvergedData` | CloudEvent data — per-node idempotent provision (already at desired spec) |
 | `NodeSuspendedData` | CloudEvent data — per-node suspend |
 | `NodeResumedData` | CloudEvent data — per-node resume |
-| `DesiredStateEventTypes` | CloudEvent type URI constants for `io.casehub.desiredstate.*` namespace. Includes `LIFECYCLE_STATE_ENTERED`, `LIFECYCLE_STATE_EXITED` |
+| `DesiredStateEventTypes` | CloudEvent type URI constants for `io.casehub.desiredstate.*` namespace. Includes `NODE_ALREADY_CONVERGED`, `LIFECYCLE_STATE_ENTERED`, `LIFECYCLE_STATE_EXITED` |
 | `NodeLifecycleState` | Enum — `ABSENT`, `PROVISIONING`, `PRESENT`, `DRIFTED`, `DEPROVISIONING`, `SUSPENDING`, `SUSPENDED`, `RESUMING`. `isTransient()` for transient states. `fromNodeStatus(NodeStatus)` for mapping from actual state |
 | `TransitionAction` | Sealed interface — `EmitEvent(String eventType)`. Domain-declared actions fired on lifecycle state transitions |
 | `NodeLifecycleDefinition` | Record — `nodeType`, `transitions` (Set of from→to), `onEnter`/`onExit` action maps. `supportsSuspendResume()`, `validate()` for build-time checking |

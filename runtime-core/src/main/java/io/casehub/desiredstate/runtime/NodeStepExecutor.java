@@ -97,16 +97,13 @@ public class NodeStepExecutor {
             ProvisionResult result = router.provision(node, context);
 
             return switch (result) {
-                case ProvisionResult.Success ignored -> {
-                    if (node.hooks() != null) {
-                        for (LifecycleStep step : node.hooks().provisionPost()) {
-                            StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
-                            if (hookResult instanceof StepOutcome.Failed f) {
-                                LOG.warning(String.format("post-provision hook failed for %s: %s", node.id().value(), f.reason()));
-                            }
-                        }
-                    }
+                case ProvisionResult.Success s -> {
+                    runPostProvisionHooks(node, tenancyId);
                     yield new StepOutcome.Succeeded();
+                }
+                case ProvisionResult.AlreadyConverged a -> {
+                    runPostProvisionHooks(node, tenancyId);
+                    yield new StepOutcome.AlreadyConverged();
                 }
                 case ProvisionResult.Failed f -> {
                     span.setStatus(StatusCode.ERROR, f.reason());
@@ -119,6 +116,18 @@ public class NodeStepExecutor {
             span.end();
         }
     }
+
+    private void runPostProvisionHooks(DesiredNode node, String tenancyId) {
+        if (node.hooks() != null) {
+            for (LifecycleStep step : node.hooks().provisionPost()) {
+                StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                if (hookResult instanceof StepOutcome.Failed f) {
+                    LOG.warning(String.format("post-provision hook failed for %s: %s", node.id().value(), f.reason()));
+                }
+            }
+        }
+    }
+
 
     StepOutcome executeDeprovision(DesiredNode node, DesiredStateGraph graph, String tenancyId) {
         Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("deprovision")

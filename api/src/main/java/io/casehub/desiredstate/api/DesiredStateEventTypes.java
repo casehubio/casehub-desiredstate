@@ -11,6 +11,9 @@ public final class DesiredStateEventTypes {
         "io.casehub.desiredstate.node.drifted";
     public static final String NODE_RECOVERED =
         "io.casehub.desiredstate.node.recovered";
+    public static final String NODE_ALREADY_CONVERGED =
+            "io.casehub.desiredstate.node.already-converged";
+
 
     public static final String NODE_SUSPENDED =
             "io.casehub.desiredstate.node.suspended";

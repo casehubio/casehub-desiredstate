@@ -1,11 +1,17 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.DesiredStateEventTypes;
+import io.casehub.desiredstate.api.NodeAlreadyConvergedData;
+import io.casehub.desiredstate.api.NodeDriftedData;
+import io.casehub.desiredstate.api.NodeFaultedData;
+import io.casehub.desiredstate.api.NodeRecoveredData;
+import io.casehub.desiredstate.api.ReconciliationCompletedData;
 import io.cloudevents.CloudEvent;
 import org.junit.jupiter.api.Test;
+
 import java.time.Instant;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ReconciliationEventEmitterTest {
 
@@ -87,6 +93,18 @@ class ReconciliationEventEmitterTest {
 
         assertThat(event.getType()).isEqualTo(DesiredStateEventTypes.NODE_RECOVERED);
         assertThat(event.getSubject()).isEqualTo("unit-cell-4-0");
+        assertThat(event.getExtension("tenancyid")).isEqualTo("tenant-1");
+    }
+
+    @Test
+    void buildNodeAlreadyConverged_setsTypeAndSubject() {
+        var data = new NodeAlreadyConvergedData(
+                "tenant-1", "db-server", "DATABASE", 7L, "cluster-1");
+
+        CloudEvent event = emitter.nodeAlreadyConverged(data);
+
+        assertThat(event.getType()).isEqualTo(DesiredStateEventTypes.NODE_ALREADY_CONVERGED);
+        assertThat(event.getSubject()).isEqualTo("db-server");
         assertThat(event.getExtension("tenancyid")).isEqualTo("tenant-1");
     }
 }

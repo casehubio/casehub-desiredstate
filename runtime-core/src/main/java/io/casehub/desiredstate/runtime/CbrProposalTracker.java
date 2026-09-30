@@ -53,6 +53,10 @@ public class CbrProposalTracker {
                             nodeOutcomes.put(nodeIdStr, "SUCCEEDED");
                             success++;
                         }
+                        case StepOutcome.AlreadyConverged a -> {
+                            nodeOutcomes.put(nodeIdStr, "ALREADY_CONVERGED");
+                            success++;
+                        }
                         case StepOutcome.Failed f -> {
                             nodeOutcomes.put(nodeIdStr, "FAILED");
                             failure++;

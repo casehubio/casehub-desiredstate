@@ -115,6 +115,9 @@ public class PipelineProvisioner implements NodeProvisioner {
 
     private ProvisionResult provisionDataSource(DesiredNode node) {
         DataSourceSpec spec = (DataSourceSpec) node.spec();
+        if (world.hasSource(node.id())) {
+            return new ProvisionResult.AlreadyConverged();
+        }
         world.registerSource(node.id(),
                 new PipelineWorld.DataSourceEntry(spec.name(), spec.format(), spec.uri()));
         return new ProvisionResult.Success();
@@ -122,6 +125,9 @@ public class PipelineProvisioner implements NodeProvisioner {
 
     private ProvisionResult provisionSchema(DesiredNode node) {
         SchemaSpec spec = (SchemaSpec) node.spec();
+        if (world.hasSchema(spec.name())) {
+            return new ProvisionResult.AlreadyConverged();
+        }
         world.registerSchema(spec.name(),
                 new PipelineWorld.SchemaDefinition(spec.name(), spec.fields(), spec.version()));
         return new ProvisionResult.Success();

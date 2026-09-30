@@ -91,7 +91,7 @@ ProvisionResult provision(DesiredNode, ProvisionContext);
 DeprovisionResult deprovision(DesiredNode, DeprovisionContext);
 ```
 
-**Provision results** (sealed): `Success`, `Failed(reason)`, `PendingApproval(nodeId, planReference)`.
+**Provision results** (sealed): `Success`, `AlreadyConverged`, `Failed(reason)`, `PendingApproval(nodeId, planReference)`. `AlreadyConverged` signals the node already matches the desired spec — provisioner verified state and skipped the mutation.
 **Deprovision results** (sealed): `Success`, `Failed(reason)`, `PendingApproval(nodeId, planReference)`.
 
 `PendingApproval` triggers a re-entry protocol: the runtime calls `provision()` again with `context.approval()` populated after human approval. Provisioners should check `context.hasApproval()` and proceed with the approved plan, or return a new `PendingApproval` if the plan is stale. The `planReference` is opaque to the runtime -- round-tripped unchanged.
@@ -240,7 +240,7 @@ Runtime provides `NoOpConfigurationRetriever` and `NoOpConfigurationAdapter` as 
 
 ### StepOutcome
 
-Sealed interface -- per-node execution outcome: `Succeeded`, `Failed(reason)`, `Skipped(reason)`, `Rejected(reason)`. All reason fields are non-null.
+Sealed interface -- per-node execution outcome: `Succeeded`, `AlreadyConverged`, `Failed(reason)`, `Skipped(reason)`, `Rejected(reason)`. All reason fields are non-null. `AlreadyConverged` is treated as success for transition outcome but emits a distinct `NODE_ALREADY_CONVERGED` CloudEvent.
 
 ---
 
@@ -559,7 +559,7 @@ tests:
 
 | Key | Values | Notes |
 |-----|--------|-------|
-| `provision` | `success`, `failed` | Matches `ProvisionResult` type |
+| `provision` | `success`, `already-converged`, `failed` | Matches `ProvisionResult` type |
 | `deprovision` | `success`, `failed` | Matches `DeprovisionResult` type |
 | `actual-state` | `PRESENT`, `ABSENT`, `DRIFTED`, `UNKNOWN` | Matches `NodeStatus` |
 | `error-matches` | substring or regex | Matches failure message |

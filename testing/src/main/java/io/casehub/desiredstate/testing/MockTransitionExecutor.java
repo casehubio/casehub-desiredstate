@@ -19,6 +19,8 @@ public class MockTransitionExecutor implements TransitionExecutor {
     public final Set<NodeId> failNodes = ConcurrentHashMap.newKeySet();
     public final Set<NodeId> failDeprovisionNodes = ConcurrentHashMap.newKeySet();
     public final Set<NodeId> rejectNodes = ConcurrentHashMap.newKeySet();
+    public final Set<NodeId> alreadyConvergedNodes = ConcurrentHashMap.newKeySet();
+
 
     @Override
     public TransitionResult execute(TransitionPlan plan, String tenancyId) {
@@ -37,6 +39,8 @@ public class MockTransitionExecutor implements TransitionExecutor {
                 outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
             } else if (failNodes.contains(step.node().id())) {
                 outcomes.put(step.node().id(), new StepOutcome.Failed("test failure"));
+            } else if (alreadyConvergedNodes.contains(step.node().id())) {
+                outcomes.put(step.node().id(), new StepOutcome.AlreadyConverged());
             } else {
                 outcomes.put(step.node().id(), new StepOutcome.Succeeded());
             }

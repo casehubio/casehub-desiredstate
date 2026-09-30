@@ -92,6 +92,8 @@ public class DesiredStateDispatch {
         return switch (result) {
             case ProvisionResult.Success ignored ->
                 resultMap(node, "PROVISION", "SUCCESS", null, null);
+            case ProvisionResult.AlreadyConverged ignored ->
+                resultMap(node, "PROVISION", "ALREADY_CONVERGED", null, null);
             case ProvisionResult.Failed f ->
                 resultMap(node, "PROVISION", "FAILED", f.reason(), null);
             case ProvisionResult.PendingApproval pa -> {

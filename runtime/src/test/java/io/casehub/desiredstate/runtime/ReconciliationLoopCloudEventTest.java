@@ -247,5 +247,30 @@ class ReconciliationLoopCloudEventTest {
         assertThat(faultEvent.getExtension("tenancyid")).isEqualTo("test-tenant");
     }
 
+    @Test
+    void emitsNodeAlreadyConvergedOnIdempotentProvision() {
+        DesiredNode       node  = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+
+        actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
+        testExecutor.alreadyConvergedNodes.add(NodeId.of("n1"));
+
+        loop.start("test-tenant", graph);
+
+        await().atMost(AWAIT).until(() ->
+                                            capturedEvents.stream().anyMatch(e ->
+                                                                                     e.getType().equals(DesiredStateEventTypes.NODE_ALREADY_CONVERGED)
+                                                                                     && "n1".equals(e.getSubject())));
+
+        CloudEvent convergedEvent = capturedEvents.stream()
+                                                  .filter(e -> e.getType().equals(DesiredStateEventTypes.NODE_ALREADY_CONVERGED))
+                                                  .findFirst()
+                                                  .orElseThrow();
+
+        assertThat(convergedEvent.getSubject()).isEqualTo("n1");
+        assertThat(convergedEvent.getExtension("tenancyid")).isEqualTo("test-tenant");
+    }
+
+
     record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 }

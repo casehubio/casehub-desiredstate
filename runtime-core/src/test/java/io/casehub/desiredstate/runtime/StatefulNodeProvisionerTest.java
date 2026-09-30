@@ -8,7 +8,6 @@ import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeLifecycleDefinition;
 import io.casehub.desiredstate.api.NodeLifecycleDefinition.Transition;
-import io.casehub.desiredstate.api.NodeLifecycleState;
 import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
@@ -28,7 +27,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static io.casehub.desiredstate.api.NodeLifecycleState.*;
+import static io.casehub.desiredstate.api.NodeLifecycleState.ABSENT;
+import static io.casehub.desiredstate.api.NodeLifecycleState.DEPROVISIONING;
+import static io.casehub.desiredstate.api.NodeLifecycleState.DRIFTED;
+import static io.casehub.desiredstate.api.NodeLifecycleState.PRESENT;
+import static io.casehub.desiredstate.api.NodeLifecycleState.PROVISIONING;
+import static io.casehub.desiredstate.api.NodeLifecycleState.RESUMING;
+import static io.casehub.desiredstate.api.NodeLifecycleState.SUSPENDED;
+import static io.casehub.desiredstate.api.NodeLifecycleState.SUSPENDING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -120,6 +126,23 @@ class StatefulNodeProvisionerTest {
 
         assertInstanceOf(ProvisionResult.Failed.class, result);
     }
+
+    @Test
+    void provision_alreadyConverged_transitionsToPresentState() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.AlreadyConverged());
+
+        var provisioner = new StatefulNodeProvisioner(delegate, standardLifecycle(), actionHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+        var result      = provisioner.provision(node, new ProvisionContext("t1", graph));
+
+        assertInstanceOf(ProvisionResult.AlreadyConverged.class, result);
+
+        // After AlreadyConverged, should be in PRESENT state — deprovision should work
+        when(delegate.deprovision(any(), any())).thenReturn(new DeprovisionResult.Success());
+        var deprovisionResult = provisioner.deprovision(node, new DeprovisionContext("t1", graph));
+        assertInstanceOf(DeprovisionResult.Success.class, deprovisionResult);
+    }
+
 
     @Test
     void deprovision_validTransition_delegatesAndTransitions() {

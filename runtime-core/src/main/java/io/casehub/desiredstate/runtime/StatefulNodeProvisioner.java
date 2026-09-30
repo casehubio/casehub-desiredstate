@@ -84,7 +84,7 @@ public class StatefulNodeProvisioner implements NodeProvisioner {
 
         ProvisionResult result = delegate.provision(node, context);
 
-        if (result instanceof ProvisionResult.Success) {
+        if (result instanceof ProvisionResult.Success || result instanceof ProvisionResult.AlreadyConverged) {
             tryTransition(machine, PROVISIONING, PRESENT, node.id(), context.tenancyId());
         } else if (result instanceof ProvisionResult.Failed) {
             tryTransitionQuietly(machine, PROVISIONING, DRIFTED, node.id(), context.tenancyId());
