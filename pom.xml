@@ -47,6 +47,7 @@
         <module>examples/webapp-yaml</module>
         <module>examples/pipeline-ts</module>
         <module>eidos</module>
+        <module>spring-integration-test</module>
     </modules>
 
     <properties>
