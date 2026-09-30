@@ -11,6 +11,7 @@ import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.MergedEventSource;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
 import io.casehub.desiredstate.api.PendingApprovalHandler;
+import io.casehub.desiredstate.api.ReconciliationCompletedData;
 import io.casehub.desiredstate.api.ReconciliationStateStore;
 import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.desiredstate.api.TransitionExecutor;
@@ -124,10 +125,11 @@ public class RuntimeBeans {
             CbrProposalTracker cbrTracker,
             ReconciliationStateStore stateStore) {
         return new ReconciliationLoop(planner, executor, actualStateRouter,
-                faultPolicyEngine, mergedEventSource, router,
-                ReconciliationLoop.DEFAULT_DEBOUNCE, null,
-                cloudEventSink::fire, cbrTracker,
-                listeners.stream().toList(), stateStore);
+                                      faultPolicyEngine, mergedEventSource, router,
+                                      ReconciliationLoop.DEFAULT_DEBOUNCE, null,
+                                      cloudEventSink::fire, cbrTracker,
+                                      listeners.stream().toList(), stateStore,
+                                      ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD);
     }
 
     @Produces

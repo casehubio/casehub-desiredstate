@@ -106,6 +106,7 @@ public class ReconciliationLoop {
     private final CbrProposalTracker cbrTracker;
     private final List<GlobalReconciliationListener> globalListeners;
     private final ReconciliationStateStore reconciliationStateStore;
+    private final int                      nodeOutcomesThreshold;
 
 
     private final ConcurrentHashMap<String, TenantLoop> loops = new ConcurrentHashMap<>();
@@ -118,7 +119,8 @@ public class ReconciliationLoop {
             FaultPolicyEngine faultPolicyEngine,
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
-             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null);
+             null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
+             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD);
     }
 
     public ReconciliationLoop(
@@ -133,7 +135,8 @@ public class ReconciliationLoop {
             Consumer<CloudEvent> cloudEventSink,
             CbrProposalTracker cbrTracker,
             List<GlobalReconciliationListener> globalListeners,
-            ReconciliationStateStore reconciliationStateStore) {
+            ReconciliationStateStore reconciliationStateStore,
+            int nodeOutcomesThreshold) {
         this.planner                  = planner;
         this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
@@ -147,6 +150,7 @@ public class ReconciliationLoop {
         this.cbrTracker               = cbrTracker != null ? cbrTracker : new CbrProposalTracker();
         this.globalListeners          = globalListeners != null ? List.copyOf(globalListeners) : List.of();
         this.reconciliationStateStore = reconciliationStateStore != null ? reconciliationStateStore : new InMemoryReconciliationStateStore();
+        this.nodeOutcomesThreshold    = nodeOutcomesThreshold;
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -361,6 +365,8 @@ public class ReconciliationLoop {
         private       CbrProposalTracker                 cbrTracker;
         private       List<GlobalReconciliationListener> globalListeners = List.of();
         private       ReconciliationStateStore           reconciliationStateStore;
+        private       int                                nodeOutcomesThreshold = ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD;
+
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
                         ActualStateAdapterRouter actualStateAdapterRouter,
@@ -408,11 +414,17 @@ public class ReconciliationLoop {
             return this;
         }
 
+
+        public Builder nodeOutcomesThreshold(int nodeOutcomesThreshold) {
+            this.nodeOutcomesThreshold = nodeOutcomesThreshold;
+            return this;
+        }
+
         public ReconciliationLoop build() {
             return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
                                           faultPolicyEngine, mergedEventSource, router, debounceWindow,
                                           resyncInterval, cloudEventSink, cbrTracker, globalListeners,
-                                          reconciliationStateStore);
+                                          reconciliationStateStore, nodeOutcomesThreshold);
         }
     }
 
@@ -936,11 +948,21 @@ public class ReconciliationLoop {
             int faultCount = (int) result.outcomes().values().stream()
                                          .filter(o -> o instanceof StepOutcome.Failed || o instanceof StepOutcome.Rejected)
                                          .count();
+            Map<String, String> nodeOutcomes;
+            if (result.outcomes().size() <= nodeOutcomesThreshold) {
+                nodeOutcomes = new LinkedHashMap<>();
+                for (Map.Entry<NodeId, StepOutcome> entry2 : result.outcomes().entrySet()) {
+                    nodeOutcomes.put(entry2.getKey().value(), outcomeLabel(entry2.getValue()));
+                }
+                nodeOutcomes = Map.copyOf(nodeOutcomes);
+            } else {
+                nodeOutcomes = Map.of();
+            }
             ReconciliationCompletedData completedData = new ReconciliationCompletedData(
                     tenancyId, version, desired.nodes().size(),
                     plan.flatAdditions().size(), plan.flatRemovals().size(),
                     plan.flatSuspensions().size(), plan.flatResumptions().size(),
-                    faultCount, Instant.now());
+                    faultCount, nodeOutcomes, Instant.now());
             events.add(eventEmitter.reconciliationCompleted(completedData));
 
             events.forEach(cloudEventSink);
@@ -965,6 +987,17 @@ public class ReconciliationLoop {
             }
             return deps.iterator().next().value();
         }
+
+        private static String outcomeLabel(StepOutcome outcome) {
+            return switch (outcome) {
+                case StepOutcome.Succeeded ignored -> "SUCCEEDED";
+                case StepOutcome.AlreadyConverged ignored -> "ALREADY_CONVERGED";
+                case StepOutcome.Failed ignored -> "FAILED";
+                case StepOutcome.Skipped ignored -> "SKIPPED";
+                case StepOutcome.Rejected ignored -> "REJECTED";
+            };
+        }
+
     }
 }
 

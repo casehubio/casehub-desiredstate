@@ -12,6 +12,7 @@ import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.MergedEventSource;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
 import io.casehub.desiredstate.api.PendingApprovalHandler;
+import io.casehub.desiredstate.api.ReconciliationCompletedData;
 import io.casehub.desiredstate.api.ReconciliationStateStore;
 import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.desiredstate.api.TransitionExecutor;
@@ -139,9 +140,10 @@ public class DesiredStateRuntimeAutoConfiguration {
             ReconciliationStateStore stateStore) {
         Consumer<CloudEvent> cloudEventSink = event -> eventPublisher.publishEvent(event);
         return new ReconciliationLoop(planner, executor, actualStateRouter,
-                faultPolicyEngine, mergedEventSource, router,
-                ReconciliationLoop.DEFAULT_DEBOUNCE, null,
-                cloudEventSink, cbrTracker, listeners, stateStore);
+                                      faultPolicyEngine, mergedEventSource, router,
+                                      ReconciliationLoop.DEFAULT_DEBOUNCE, null,
+                                      cloudEventSink, cbrTracker, listeners, stateStore,
+                                      ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD);
     }
 
     @Bean

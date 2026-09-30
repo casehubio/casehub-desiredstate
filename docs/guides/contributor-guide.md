@@ -176,7 +176,7 @@ Types are grouped by their effective resync interval (provisioner default or Pre
 
 ### ReconciliationEventEmitter
 
-Package-private class instantiated by `ReconciliationLoop`. Builds CloudEvents for reconciliation lifecycle: `ReconciliationCompletedData` (cycle summary), `NodeFaultedData` (per-node failures), `NodeDriftedData` (per-node drift), `NodeRecoveredData` (per-node recovery from DRIFTED to PRESENT). CloudEvent type URIs defined in `DesiredStateEventTypes`.
+Package-private class instantiated by `ReconciliationLoop`. Builds CloudEvents for reconciliation lifecycle: `ReconciliationCompletedData` (cycle summary with per-node outcome map), `NodeFaultedData` (per-node failures), `NodeDriftedData` (per-node drift), `NodeRecoveredData` (per-node recovery from DRIFTED to PRESENT). CloudEvent type URIs defined in `DesiredStateEventTypes`.
 
 ### NoOp Default Beans
 

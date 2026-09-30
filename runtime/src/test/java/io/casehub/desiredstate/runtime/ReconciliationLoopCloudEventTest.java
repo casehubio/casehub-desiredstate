@@ -160,6 +160,66 @@ class ReconciliationLoopCloudEventTest {
     }
 
     @Test
+    void reconciliationCompletedCarriesPerNodeOutcomes() {
+        DesiredNode       n1    = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredNode       n2    = new DesiredNode(NodeId.of("n2"), new TestSpec("v2"), HumanGating.NONE);
+        DesiredStateGraph graph = factory.of(List.of(n1, n2), List.of());
+
+        actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT,
+                                         NodeId.of("n2"), NodeStatus.ABSENT));
+        testExecutor.failNodes.add(NodeId.of("n2"));
+
+        loop.start("test-tenant", graph);
+
+        await().atMost(AWAIT).until(() ->
+                                            capturedEvents.stream().anyMatch(e ->
+                                                                                     e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED)));
+
+        CloudEvent completedEvent = capturedEvents.stream()
+                                                  .filter(e -> e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED))
+                                                  .findFirst()
+                                                  .orElseThrow();
+
+        String payload = new String(completedEvent.getData().toBytes());
+        assertThat(payload).contains("\"nodeOutcomes\"");
+        assertThat(payload).contains("\"n1\":\"SUCCEEDED\"");
+        assertThat(payload).contains("\"n2\":\"FAILED\"");
+    }
+
+    @Test
+    void reconciliationCompletedOmitsNodeOutcomesWhenAboveThreshold() {
+        DesiredNode       n1    = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
+        DesiredStateGraph graph = factory.of(List.of(n1), List.of());
+
+        actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.ABSENT));
+
+        // Use a loop with a custom threshold of 0 to trigger omission
+        var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
+        ReconciliationLoop thresholdLoop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+                                                             .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC)
+                                                             .cloudEventSink(capturedEvents::add)
+                                                             .nodeOutcomesThreshold(0)
+                                                             .build();
+
+        thresholdLoop.start("test-tenant", graph);
+
+        await().atMost(AWAIT).until(() ->
+                                            capturedEvents.stream().anyMatch(e ->
+                                                                                     e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED)));
+
+        CloudEvent completedEvent = capturedEvents.stream()
+                                                  .filter(e -> e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED))
+                                                  .findFirst()
+                                                  .orElseThrow();
+
+        String payload = new String(completedEvent.getData().toBytes());
+        assertThat(payload).contains("\"nodeOutcomes\":{}");
+
+        thresholdLoop.stop("test-tenant");
+    }
+
+
+    @Test
     void getDesired_returnsCurrentGraph() {
         DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE);
         DesiredStateGraph graph = factory.of(List.of(node), List.of());

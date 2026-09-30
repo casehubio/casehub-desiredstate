@@ -415,7 +415,7 @@ The runtime emits CloudEvents during reconciliation:
 
 | Type URI | Data class | When emitted |
 |----------|-----------|--------------|
-| `io.casehub.desiredstate.reconciliation.completed` | `ReconciliationCompletedData` | After each reconciliation cycle |
+| `io.casehub.desiredstate.reconciliation.completed` | `ReconciliationCompletedData` | After each reconciliation cycle. Includes `nodeOutcomes` map (nodeId → status label: SUCCEEDED, FAILED, ALREADY_CONVERGED, SKIPPED, REJECTED). Omitted for graphs exceeding `NODE_OUTCOMES_THRESHOLD` (default 1000) |
 | `io.casehub.desiredstate.node.faulted` | `NodeFaultedData` | Per-node provisioning failure |
 | `io.casehub.desiredstate.node.drifted` | `NodeDriftedData` | Per-node drift detection |
 | `io.casehub.desiredstate.node.recovered` | `NodeRecoveredData` | Per-node recovery (DRIFTED -> PRESENT) |

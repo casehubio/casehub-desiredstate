@@ -190,7 +190,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `CbrOutcomeData` | CloudEvent data — CBR outcome with per-node results, success rate, timestamps |
 | `CbrEventTypes` | CloudEvent type URI constants for `io.casehub.cbr.*` namespace |
 | `CbrProposalTracker` | `@ApplicationScoped` — mediates CBR proposals and reconciliation outcomes. Records proposals, matches against TransitionResult |
-| `ReconciliationCompletedData` | CloudEvent data — cycle summary with `suspensionsCount`, `resumptionsCount` |
+| `ReconciliationCompletedData` | CloudEvent data — cycle summary with `suspensionsCount`, `resumptionsCount`, `nodeOutcomes` (nodeId→status label map, omitted above `NODE_OUTCOMES_THRESHOLD`) |
 | `NodeFaultedData` | CloudEvent data — per-node fault |
 | `NodeDriftedData` | CloudEvent data — per-node drift |
 | `NodeRecoveredData` | CloudEvent data — per-node recovery |

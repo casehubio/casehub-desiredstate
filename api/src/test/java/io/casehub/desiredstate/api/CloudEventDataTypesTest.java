@@ -1,8 +1,12 @@
 package io.casehub.desiredstate.api;
 
 import org.junit.jupiter.api.Test;
+
 import java.time.Instant;
-import static org.assertj.core.api.Assertions.*;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CloudEventDataTypesTest {
 
@@ -20,6 +24,41 @@ class CloudEventDataTypesTest {
         assertThat(data.tenancyId()).isEqualTo("tenant-1");
         assertThat(data.graphVersion()).isEqualTo(5L);
     }
+
+    @Test
+    void reconciliationCompletedData_carriesNodeOutcomes() {
+        var outcomes = Map.of("node-1", "SUCCEEDED", "node-2", "FAILED");
+        var data = new ReconciliationCompletedData(
+                "tenant-1", 5L, 10, 2, 1, 0, 0, 0, outcomes, Instant.now());
+        assertThat(data.nodeOutcomes()).isEqualTo(outcomes);
+    }
+
+    @Test
+    void reconciliationCompletedData_nodeOutcomesDefensiveCopy() {
+        var mutable = new java.util.HashMap<String, String>();
+        mutable.put("node-1", "SUCCEEDED");
+        var data = new ReconciliationCompletedData(
+                "tenant-1", 5L, 10, 1, 0, 0, 0, 0, mutable, Instant.now());
+        assertThatThrownBy(() -> data.nodeOutcomes().put("node-2", "FAILED"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void reconciliationCompletedData_backwardCompatConstructorsDefaultToEmptyOutcomes() {
+        var data7 = new ReconciliationCompletedData(
+                "tenant-1", 5L, 10, 2, 1, 0, Instant.now());
+        assertThat(data7.nodeOutcomes()).isEmpty();
+
+        var data9 = new ReconciliationCompletedData(
+                "tenant-1", 5L, 10, 2, 1, 0, 0, 0, Instant.now());
+        assertThat(data9.nodeOutcomes()).isEmpty();
+    }
+
+    @Test
+    void reconciliationCompletedData_nodeOutcomesThresholdConstant() {
+        assertThat(ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD).isGreaterThan(0);
+    }
+
 
     @Test
     void nodeFaultedData_carriesParentNodeId() {
