@@ -136,6 +136,14 @@ public class RuntimeBeans {
         return new SimpleTransitionExecutor(nodeStepExecutor);
     }
 
+
+    @Produces
+    @ApplicationScoped
+    public PlanApprovalGate planApprovalGate(io.casehub.desiredstate.api.PlanApprovalPolicy policy,
+                                             io.casehub.desiredstate.api.PlanApprovalHandler handler) {
+        return new PlanApprovalGate(policy, handler);
+    }
+
     @Produces
     @DefaultBean
     @ApplicationScoped
@@ -151,14 +159,15 @@ public class RuntimeBeans {
             CbrProposalTracker cbrTracker,
             ReconciliationStateStore stateStore,
             DriftPolicyEngine driftPolicyEngine,
-            ExemptionStore exemptionStore) {
+            ExemptionStore exemptionStore,
+            PlanApprovalGate approvalGate) {
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
                                       cloudEventSink::fire, cbrTracker,
                                       listeners.stream().toList(), stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
-                                      driftPolicyEngine, exemptionStore);
+                                      driftPolicyEngine, exemptionStore, approvalGate);
     }
 
     @Produces

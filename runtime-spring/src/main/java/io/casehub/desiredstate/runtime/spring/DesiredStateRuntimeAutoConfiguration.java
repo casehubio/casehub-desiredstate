@@ -8,9 +8,9 @@ import io.casehub.desiredstate.api.DriftPolicy;
 import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultCountStore;
 import io.casehub.desiredstate.api.FaultPolicy;
-import io.casehub.desiredstate.api.InMemoryExemptionStore;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.HumanNodeHandler;
+import io.casehub.desiredstate.api.InMemoryExemptionStore;
 import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.MergedEventSource;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
@@ -148,6 +148,36 @@ public class DesiredStateRuntimeAutoConfiguration {
         return new SimpleTransitionExecutor(nodeStepExecutor);
     }
 
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.PlanApprovalPolicy.class)
+    public io.casehub.desiredstate.api.PlanApprovalPolicy planApprovalPolicy() {
+        return (plan, tenancyId) -> new io.casehub.desiredstate.api.PlanApprovalDecision.AutoApprove();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.PlanApprovalHandler.class)
+    public io.casehub.desiredstate.api.PlanApprovalHandler planApprovalHandler() {
+        return new io.casehub.desiredstate.api.PlanApprovalHandler() {
+            @Override
+            public String submit(io.casehub.desiredstate.api.TransitionPlan plan, String tenancyId, String reason) {return "noop";}
+
+            @Override
+            public io.casehub.desiredstate.api.ApprovalCheckResult check(String ref, String tenancyId)             {return new io.casehub.desiredstate.api.ApprovalCheckResult.None();}
+
+            @Override
+            public void cancel(String ref, String tenancyId)                                                       {}
+        };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public io.casehub.desiredstate.runtime.PlanApprovalGate planApprovalGate(
+            io.casehub.desiredstate.api.PlanApprovalPolicy policy,
+            io.casehub.desiredstate.api.PlanApprovalHandler handler) {
+        return new io.casehub.desiredstate.runtime.PlanApprovalGate(policy, handler);
+    }
+
     @Bean
     @ConditionalOnMissingBean
     public ReconciliationLoop reconciliationLoop(
@@ -162,14 +192,15 @@ public class DesiredStateRuntimeAutoConfiguration {
             CbrProposalTracker cbrTracker,
             ReconciliationStateStore stateStore,
             DriftPolicyEngine driftPolicyEngine,
-            ExemptionStore exemptionStore) {
+            ExemptionStore exemptionStore,
+            io.casehub.desiredstate.runtime.PlanApprovalGate approvalGate) {
         Consumer<CloudEvent> cloudEventSink = event -> eventPublisher.publishEvent(event);
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
                                       cloudEventSink, cbrTracker, listeners, stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
-                                      driftPolicyEngine, exemptionStore);
+                                      driftPolicyEngine, exemptionStore, approvalGate);
     }
 
     @Bean

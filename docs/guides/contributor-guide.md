@@ -43,6 +43,10 @@ Created by `DefaultDesiredStateGraphFactory` (`@ApplicationScoped`).
 
 Compares desired graph to actual state. Produces a `TransitionPlan` with topologically ordered additions (roots before leaves, Kahn's algorithm) and removals (orphaned nodes, leaves before roots). Plans are deterministic given the same inputs. Ordering rule: pruning before growing -- removals execute first, then additions.
 
+**Flat-graph fast-path:** When the graph has no dependency edges and no ordering constraints, the planner skips the BFS topological sort and emits all additions in a single layer.
+
+**Ordering constraints as virtual edges:** `OrderingConstraint(before, after)` entries on the graph are resolved during `topologicalSort()` as virtual in-degree increments. For each constraint, all nodes of type `after` receive virtual in-degree from all nodes of type `before`. A reverse map tracks virtual dependents for BFS propagation. Constraints that reference types with no matching nodes in the current plan are harmlessly ignored.
+
 **Orphan spec resolution:** `plan(desired, actual, previousDesired)` resolves orphan node specs from the previous desired graph. When a node is removed from the desired graph but still present in actual state, the planner retrieves the node's original `DesiredNode` (with real spec, type, and humanGating) from `previousDesired`. Falls back to `UnknownSpec` (type "unknown") when no previous graph is available (cold start) or the orphan was never in any desired graph.
 
 Exhaustive `NodeStatus` handling: `PRESENT` nodes are skipped (already correct), `ABSENT` nodes are additions, `DRIFTED` nodes are skipped by the planner (present but degraded -- fault policies handle them), `UNKNOWN` nodes are treated as additions (provision to resolve ambiguity).
@@ -53,7 +57,9 @@ Per-tenant event-driven reconciliation engine (`@ApplicationScoped`). Two trigge
 - **Event-driven** -- subscribes to `MergedEventSource.stream()` with debouncing (default 1s window).
 - **Periodic re-sync** -- interval-grouped timers from `NodeProvisionerRouter.resyncIntervalFor(NodeType)`. Types sharing the same effective interval share a timer.
 
-Each cycle: read actual state -> detect drift (create `NODE_DEGRADED` fault events for `DRIFTED` nodes) -> evaluate drift faults -> load previous desired from `ReconciliationStateStore` -> plan transitions (with previous for orphan spec resolution) -> store current desired -> execute -> evaluate execution faults -> CAS update desired graph with mutations -> emit CloudEvents -> match CBR outcomes -> fire `GlobalReconciliationListener` callbacks. Store is cleaned up on tenant stop.
+Each cycle: read actual state -> detect drift (create `NODE_DEGRADED` fault events for `DRIFTED` nodes) -> evaluate drift faults -> load previous desired from `ReconciliationStateStore` -> plan transitions (with previous for orphan spec resolution) -> **plan approval gate** -> store current desired -> execute -> evaluate execution faults -> CAS update desired graph with mutations -> emit CloudEvents -> match CBR outcomes -> fire `GlobalReconciliationListener` callbacks. Store is cleaned up on tenant stop.
+
+**Plan approval gate:** `PlanApprovalGate` injects between plan and execute with skip-and-recheck semantics. On each cycle: (1) check if a pending plan exists and its version still matches the current desired graph -- if stale, cancel and re-plan; (2) if no pending plan, evaluate the new plan via `PlanApprovalPolicy` -- `AutoApprove` proceeds, `RequireApproval` stores the plan and skips execution until the next cycle; (3) on re-check, `PlanApprovalHandler.check()` returns `Approved` (execute), `Pending` (skip again), or `Rejected` (emit `PLAN_REJECTED` fault). CloudEvents emitted: `PLAN_AWAITING_APPROVAL`, `PLAN_APPROVED`, `PLAN_REJECTED`, `PLAN_INVALIDATED`.
 
 The loop never dies on exception -- a dead loop is worse than a failed cycle.
 

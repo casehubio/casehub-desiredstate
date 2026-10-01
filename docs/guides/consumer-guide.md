@@ -46,6 +46,10 @@ Immutable directed acyclic graph of `DesiredNode` instances connected by `Depend
 - `overlay(DesiredStateGraph)` -- merge two graphs (union; shared nodes must be equal)
 - `connect(DesiredStateGraph)` -- join graphs (all leaves of this -> all roots of other)
 - `filterByTypes(Set<NodeType>)` -- subtractive filter, removes nodes not matching types
+- `orderingConstraints()` -- type-level ordering constraints (default empty)
+- `withOrderingConstraints(Set<OrderingConstraint>)` -- set type-level ordering constraints
+
+**Ordering constraints:** `OrderingConstraint(NodeType before, NodeType after)` declares that all nodes of type `before` must be provisioned before any node of type `after`, without requiring per-node dependency edges. Declared via YAML `orderingConstraints:`, annotation `@OrderBefore`, or TS DSL `orderingConstraints`. The `TransitionPlanner` resolves these as virtual BFS edges.
 
 **Navigation:**
 - `nodes()` -- all nodes as `Map<NodeId, DesiredNode>`
@@ -172,6 +176,34 @@ void acknowledgeRejection(DesiredNode, StepAction, String tenancyId);
 `NoOpPendingApprovalHandler` (`@DefaultBean`) returns `Failed` on `recordPending()` -- misconfiguration signal when no handler is configured to create WorkItems. `WorkItemPendingApprovalHandler` (work-adapter, classpath-activated) creates WorkItems and polls each cycle.
 
 **Contrast with HumanNodeHandler:** `PendingApprovalHandler` wraps the provisioner (approval before machine action). `HumanNodeHandler` replaces the provisioner (human does the action).
+
+### PlanApprovalPolicy
+
+SPI for plan-level approval gates -- evaluated after `TransitionPlanner.plan()` produces a `TransitionPlan` but before `TransitionExecutor.execute()`. Operates at the whole-plan level, unlike `PendingApprovalHandler` which gates individual nodes.
+
+```java
+PlanApprovalDecision evaluate(TransitionPlan plan, String tenancyId);
+```
+
+**PlanApprovalDecision** (sealed): `AutoApprove` (proceed immediately) or `RequireApproval(reason)` (pause and wait for external approval).
+
+`NoOpPlanApprovalPolicy` (`@DefaultBean`) returns `AutoApprove` for all plans -- transparent when no policy is configured.
+
+### PlanApprovalHandler
+
+SPI for managing plan approval lifecycle -- submit plans for review, check approval status, cancel stale plans.
+
+```java
+String submit(TransitionPlan plan, String tenancyId, String reason);
+ApprovalCheckResult check(String planReference, String tenancyId);
+void cancel(String planReference, String tenancyId);
+```
+
+`NoOpPlanApprovalHandler` (`@DefaultBean`) returns `None` on check -- misconfiguration signal when `RequireApproval` is used without a handler.
+
+**GateDecision** (sealed): `Execute(plan)`, `AwaitingApproval(planReference)`, `Rejected(planReference, reason)`. Returned by `PlanApprovalGate` after combining policy evaluation and handler status.
+
+**Contrast with PendingApprovalHandler:** `PlanApprovalPolicy/Handler` gates the entire plan (terraform-plan-style). `PendingApprovalHandler` gates individual nodes within an already-approved plan.
 
 ### EventSource
 

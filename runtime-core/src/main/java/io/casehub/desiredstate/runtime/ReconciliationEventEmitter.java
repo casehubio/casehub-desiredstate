@@ -123,6 +123,27 @@ public class ReconciliationEventEmitter {
     }
 
 
+    public CloudEvent planAwaitingApproval(io.casehub.desiredstate.api.PlanAwaitingApprovalData data) {
+        return base(DesiredStateEventTypes.PLAN_AWAITING_APPROVAL)
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
+    public CloudEvent planRejected(io.casehub.desiredstate.api.PlanRejectedData data) {
+        return base(DesiredStateEventTypes.PLAN_REJECTED)
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
+    public CloudEvent planInvalidated(io.casehub.desiredstate.api.PlanInvalidatedData data) {
+        return base(DesiredStateEventTypes.PLAN_INVALIDATED)
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
     private CloudEventBuilder base(String type) {
         return CloudEventBuilder.v1()
             .withId(UUID.randomUUID().toString())

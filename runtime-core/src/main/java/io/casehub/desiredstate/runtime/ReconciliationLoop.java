@@ -116,6 +116,7 @@ public class ReconciliationLoop {
     private final ReconciliationStateStore reconciliationStateStore;
     private final DriftPolicyEngine        driftPolicyEngine;
     private final ExemptionStore           exemptionStore;
+    private final PlanApprovalGate         approvalGate;
 
 
     private final int                      nodeOutcomesThreshold;
@@ -132,7 +133,7 @@ public class ReconciliationLoop {
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
-             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null);
+             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null);
     }
 
     public ReconciliationLoop(
@@ -150,7 +151,8 @@ public class ReconciliationLoop {
             ReconciliationStateStore reconciliationStateStore,
             int nodeOutcomesThreshold,
             DriftPolicyEngine driftPolicyEngine,
-            ExemptionStore exemptionStore) {
+            ExemptionStore exemptionStore,
+            PlanApprovalGate approvalGate) {
         this.planner                  = planner;
         this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
@@ -167,6 +169,7 @@ public class ReconciliationLoop {
         this.nodeOutcomesThreshold    = nodeOutcomesThreshold;
         this.driftPolicyEngine        = driftPolicyEngine != null ? driftPolicyEngine : new DriftPolicyEngine(List.of());
         this.exemptionStore           = exemptionStore != null ? exemptionStore : new InMemoryExemptionStore();
+        this.approvalGate             = approvalGate;
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -384,6 +387,7 @@ public class ReconciliationLoop {
         private       int                                nodeOutcomesThreshold = ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD;
         private       DriftPolicyEngine                  driftPolicyEngine;
         private       ExemptionStore                     exemptionStore;
+        private       PlanApprovalGate                   approvalGate;
 
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
@@ -448,12 +452,18 @@ public class ReconciliationLoop {
             return this;
         }
 
+
+        public Builder approvalGate(PlanApprovalGate approvalGate) {
+            this.approvalGate = approvalGate;
+            return this;
+        }
+
         public ReconciliationLoop build() {
             return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
                                           faultPolicyEngine, mergedEventSource, router, debounceWindow,
                                           resyncInterval, cloudEventSink, cbrTracker, globalListeners,
                                           reconciliationStateStore, nodeOutcomesThreshold,
-                                          driftPolicyEngine, exemptionStore);
+                                          driftPolicyEngine, exemptionStore, approvalGate);
         }
     }
 
@@ -624,26 +634,49 @@ public class ReconciliationLoop {
         private void reconcile() {
             Tracer tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME);
             Span reconcileSpan = tracer.spanBuilder("reconcile")
-                    .setAttribute(AttributeKey.stringKey("desiredstate.tenant.id"), tenancyId)
-                    .startSpan();
+                                       .setAttribute(AttributeKey.stringKey("desiredstate.tenant.id"), tenancyId)
+                                       .startSpan();
             try (Scope ignored = reconcileSpan.makeCurrent()) {
                 DesiredStateGraph desired = desiredRef.get();
 
+                if (approvalGate != null) {
+                    java.util.Optional<io.casehub.desiredstate.api.GateDecision> pending =
+                            approvalGate.checkPending(tenancyId, desired.version());
+                    if (pending.isPresent()) {
+                        switch (pending.get()) {
+                            case io.casehub.desiredstate.api.GateDecision.Execute exec -> {
+                                TransitionResult result     = execute(exec.plan(), tenancyId);
+                                ActualState      postActual = readActual(exec.plan().after(), tenancyId);
+                                faultFeedback(exec.plan().after(), exec.plan(), result, postActual);
+                                emitCycleEvents(exec.plan().after(), exec.plan(), result, postActual, Set.of(), Set.of());
+                            }
+                            case io.casehub.desiredstate.api.GateDecision.AwaitingApproval a -> {
+                                // Still pending — skip cycle
+                            }
+                            case io.casehub.desiredstate.api.GateDecision.Rejected r -> {
+                                // Emit plan rejected event via cloud event sink
+                                cloudEventSink.accept(eventEmitter.planRejected(
+                                        new io.casehub.desiredstate.api.PlanRejectedData(tenancyId, r.planReference(), r.reason())));
+                            }
+                        }
+                        return;
+                    }
+                }
+
                 ActualState actual = readActual(desired, tenancyId);
 
-                // Listener fires unconditionally — including empty-plan cycles
                 fireGlobalListeners(desired, actual);
                 firePerTenantListener(desired, actual);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
-                Set<NodeId> exemptNodes = new HashSet<>();
+                Set<NodeId> exemptNodes  = new HashSet<>();
                 desired = detectDrift(desired, actual, driftedNodes, exemptNodes);
 
                 TransitionPlan plan = plan(desired, actual, exemptNodes);
                 if (plan.isEmpty()) {
                     TransitionResult emptyResult = new TransitionResult(Map.of());
                     List<CbrOutcomeData> cbrOutcomes = cbrTracker.matchOutcomes(
-                        tenancyId, emptyResult, desired);
+                            tenancyId, emptyResult, desired);
                     if (!driftedNodes.isEmpty() || !exemptNodes.isEmpty() || !activeProblems.isEmpty()) {
                         emitCycleEvents(desired, plan, emptyResult, actual, driftedNodes, exemptNodes);
                     }
@@ -651,10 +684,37 @@ public class ReconciliationLoop {
                     return;
                 }
 
+                if (approvalGate != null) {
+                    io.casehub.desiredstate.api.GateDecision decision =
+                            approvalGate.evaluateNewPlan(plan, tenancyId);
+                    switch (decision) {
+                        case io.casehub.desiredstate.api.GateDecision.Execute exec -> {
+                            TransitionResult result = execute(exec.plan(), tenancyId);
+                            List<CbrOutcomeData> cbrOutcomes = cbrTracker.matchOutcomes(
+                                    tenancyId, result, desired);
+                            faultFeedback(desired, exec.plan(), result, actual);
+                            emitCycleEvents(desired, exec.plan(), result, actual, driftedNodes, exemptNodes);
+                            emitCbrOutcomeEvents(cbrOutcomes);
+                        }
+                        case io.casehub.desiredstate.api.GateDecision.AwaitingApproval a -> {
+                            cloudEventSink.accept(eventEmitter.planAwaitingApproval(
+                                    new io.casehub.desiredstate.api.PlanAwaitingApprovalData(
+                                            tenancyId, a.planReference(),
+                                            plan.flatAdditions().size(), plan.flatRemovals().size(),
+                                            plan.flatSuspensions().size(), plan.flatResumptions().size(),
+                                            "awaiting approval")));
+                        }
+                        case io.casehub.desiredstate.api.GateDecision.Rejected r -> {
+                            // Should not occur from evaluateNewPlan
+                        }
+                    }
+                    return;
+                }
+
                 TransitionResult result = execute(plan, tenancyId);
 
                 List<CbrOutcomeData> cbrOutcomes = cbrTracker.matchOutcomes(
-                    tenancyId, result, desired);
+                        tenancyId, result, desired);
 
                 faultFeedback(desired, plan, result, actual);
 
