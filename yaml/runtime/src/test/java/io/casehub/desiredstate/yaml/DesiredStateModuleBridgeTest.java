@@ -6,7 +6,7 @@ import io.casehub.desiredstate.yaml.model.YamlNode;
 import io.casehub.desiredstate.yaml.model.YamlPattern;
 import io.casehub.desiredstate.yaml.model.YamlRule;
 import io.casehub.yaml.core.module.ModuleExpander;
-import io.casehub.yaml.core.module.ParameterType;
+import io.casehub.yaml.plugin.api.ParameterType;
 import io.casehub.yaml.core.module.SectionContentRewriter;
 import io.casehub.yaml.core.module.TypedExpandedModule;
 import io.casehub.yaml.core.module.YamlImport;
