@@ -156,7 +156,7 @@ class WorkItemPendingApprovalHandlerTest {
             created.add(request);
             var ref = new WorkItemRef(UUID.randomUUID(), WorkItemStatus.PENDING,
                                       request.callerRef, null, null, request.candidateGroups,
-                                      null, request.tenancyId, request.payload, null, null);
+                                      null, request.tenancyId, request.payload, null, null, null);
             byCallerRef.put(request.callerRef, ref);
             return ref;
         }
@@ -177,7 +177,7 @@ class WorkItemPendingApprovalHandlerTest {
                                                             new WorkItemRef(ref.id(), WorkItemStatus.OBSOLETE, ref.callerRef(),
                                                                             ref.assigneeId(), ref.resolution(), ref.candidateGroups(),
                                                                             ref.outcome(), ref.tenancyId(), ref.payload(),
-                                                                            ref.payloadTypeName(), ref.resolutionTypeName()));
+                                                                            ref.payloadTypeName(), ref.resolutionTypeName(), ref.originRef()));
         }
 
         void setStatus(String callerRef, WorkItemStatus status) {
@@ -185,7 +185,7 @@ class WorkItemPendingApprovalHandlerTest {
                                                             new WorkItemRef(ref.id(), status, ref.callerRef(),
                                                                             ref.assigneeId(), ref.resolution(), ref.candidateGroups(),
                                                                             ref.outcome(), ref.tenancyId(), ref.payload(),
-                                                                            ref.payloadTypeName(), ref.resolutionTypeName()));
+                                                                            ref.payloadTypeName(), ref.resolutionTypeName(), ref.originRef()));
         }
 
         void setStatusAndAssignee(String callerRef, WorkItemStatus status, String assigneeId) {
@@ -193,7 +193,7 @@ class WorkItemPendingApprovalHandlerTest {
                                                             new WorkItemRef(ref.id(), status, ref.callerRef(),
                                                                             assigneeId, ref.resolution(), ref.candidateGroups(),
                                                                             ref.outcome(), ref.tenancyId(), ref.payload(),
-                                                                            ref.payloadTypeName(), ref.resolutionTypeName()));
+                                                                            ref.payloadTypeName(), ref.resolutionTypeName(), ref.originRef()));
         }
 
         void setStatusAndOutcome(String callerRef, WorkItemStatus status, String outcome) {
@@ -201,7 +201,7 @@ class WorkItemPendingApprovalHandlerTest {
                                                             new WorkItemRef(ref.id(), status, ref.callerRef(),
                                                                             ref.assigneeId(), ref.resolution(), ref.candidateGroups(),
                                                                             outcome, ref.tenancyId(), ref.payload(),
-                                                                            ref.payloadTypeName(), ref.resolutionTypeName()));
+                                                                            ref.payloadTypeName(), ref.resolutionTypeName(), ref.originRef()));
         }
     }
 }
