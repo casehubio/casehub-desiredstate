@@ -7,7 +7,6 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DriftContext;
 import io.casehub.desiredstate.api.DriftDecision;
 import io.casehub.desiredstate.api.Exemption;
-import io.casehub.desiredstate.api.ExemptionSpec;
 import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultType;
