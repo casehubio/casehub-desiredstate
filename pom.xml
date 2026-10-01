@@ -241,6 +241,11 @@
                 <artifactId>cloudevents-core</artifactId>
                 <version>4.0.1</version>
             </dependency>
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr-runtime</artifactId>
+                <version>3.5.3</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
