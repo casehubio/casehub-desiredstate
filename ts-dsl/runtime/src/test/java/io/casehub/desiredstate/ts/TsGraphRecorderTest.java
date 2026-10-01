@@ -76,7 +76,7 @@ class TsGraphRecorderTest {
                                 List.of(new TsEnvelopeNode("api", "test-type",
                                         Map.of("value", "service"), HumanGating.NONE, null)),
                                 List.of(new DependencyDescriptor("api", "db")))
-                ));
+                ), null);
 
         var compiler = recorder.createTsLifecycleGoalCompiler(
                 envelope, TYPE_REGISTRY, List.of()).getValue();
@@ -108,7 +108,7 @@ class TsGraphRecorderTest {
                                 List.of(new TsEnvelopeNode("db", "test-type",
                                         Map.of("value", "v2"), HumanGating.NONE, null)),
                                 List.of())
-                ));
+                ), null);
 
         var compiler = recorder.createTsLifecycleGoalCompiler(
                 envelope, TYPE_REGISTRY, List.of()).getValue();
@@ -118,5 +118,26 @@ class TsGraphRecorderTest {
 
         var phase2Db = phases.get(1).graph().nodes().get(NodeId.of("db"));
         assertThat(((TestNodeSpec) phase2Db.spec()).value()).isEqualTo("v2");
+    }
+
+    @Test
+    void orderingConstraints_resolvedToCompiledGraph() {
+        var descriptor = new GraphDescriptor(
+                "test", "ordered", null, null,
+                List.of(
+                        new NodeDescriptor.InlineNode("a", TestNodeSpec.class.getName(),
+                                                      Map.of("value", "hello"), HumanGating.NONE),
+                        new NodeDescriptor.InlineNode("b", TestNodeSpec.class.getName(),
+                                                      Map.of("value", "world"), HumanGating.NONE)),
+                List.of(), List.of(), null, List.of(), List.of(),
+                List.of(new io.casehub.desiredstate.annotations.runtime.OrderingConstraintDescriptor(
+                        "test-type", "other-type")));
+
+        var compiler = recorder.createTsGoalCompiler(
+                descriptor, TYPE_REGISTRY, List.of(), List.of(), List.of()).getValue();
+        var result = compiler.compile(null, factory);
+        var graph  = ((CompilationResult.SingleGraph) result).graph();
+
+        assertThat(graph.orderingConstraints()).hasSize(1);
     }
 }

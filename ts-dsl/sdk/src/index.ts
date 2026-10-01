@@ -3,7 +3,7 @@ export type {
     NodeHooks, HookBlock, HookStep, VerifyStep, NotifyStep, WaitStep,
     LifecycleDef, PhaseDef, CompletionCondition, DependencyDef,
     GraphEnvelope, LifecycleEnvelope, EnvelopeNode, EnvelopePhase,
-    NodeTypeMap,
+    OrderingConstraintDef, NodeTypeMap,
 } from './types.js';
 
 import type {
@@ -37,6 +37,7 @@ export function defineGraph(def: GraphDef): GraphEnvelope {
         name: def.name,
         nodes,
         dependencies: [...dependencies, ...(def.dependencies ?? [])],
+        ...(def.orderingConstraints && { orderingConstraints: def.orderingConstraints }),
     };
 }
 
@@ -54,6 +55,7 @@ export function defineLifecycle(def: LifecycleDef): LifecycleEnvelope {
                 dependencies: [...dependencies, ...(phase.dependencies ?? [])],
             };
         }),
+        ...(def.orderingConstraints && { orderingConstraints: def.orderingConstraints }),
     };
 }
 

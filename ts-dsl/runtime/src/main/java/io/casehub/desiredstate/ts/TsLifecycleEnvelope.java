@@ -9,9 +9,11 @@ public record TsLifecycleEnvelope(
         String kind,
         String namespace,
         String name,
-        List<TsEnvelopePhase> phases) {
+        List<TsEnvelopePhase> phases,
+        List<TsOrderingConstraint> orderingConstraints) {
 
     public TsLifecycleEnvelope {
-        if (phases == null) phases = List.of();
+        if (phases == null) {phases = List.of();}
+        if (orderingConstraints == null) {orderingConstraints = List.of();}
     }
 }

@@ -3,6 +3,7 @@ package io.casehub.desiredstate.ts;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
+import io.casehub.desiredstate.annotations.runtime.OrderingConstraintDescriptor;
 import io.casehub.desiredstate.api.BeanRegistration;
 import io.casehub.desiredstate.api.GoalCompiler;
 
@@ -45,11 +46,14 @@ public class TsDslDiscovery {
         for (TsEnvelopeNode en : envelope.nodes()) {
             String specClassName = typeRegistry.get(en.type());
             nodes.add(new NodeDescriptor.InlineNode(en.id(), specClassName,
-                en.spec() != null ? en.spec() : Map.of(), null));
+                en.spec() != null ? en.spec() : Map.of(), en.humanGating()));
         }
+        List<OrderingConstraintDescriptor> constraints = envelope.orderingConstraints().stream()
+            .map(c -> new OrderingConstraintDescriptor(c.before(), c.after()))
+            .toList();
         return new GraphDescriptor(
             envelope.namespace(), envelope.name(),
             null, null, nodes, envelope.dependencies(),
-            List.of(), null, List.of(), List.of());
+            List.of(), null, List.of(), List.of(), constraints);
     }
 }

@@ -2,11 +2,17 @@ import type { NodeTypeMap } from './generated/node-type-map.js';
 
 export type { NodeTypeMap };
 
+export interface OrderingConstraintDef {
+    before: string;
+    after: string;
+}
+
 export interface GraphDef {
     namespace: string;
     name: string;
     nodes: Record<string, NodeDef>;
     dependencies?: DependencyDef[];
+    orderingConstraints?: OrderingConstraintDef[];
 }
 
 export type NodeDef = {
@@ -56,6 +62,7 @@ export interface LifecycleDef {
     namespace: string;
     name: string;
     phases: PhaseDef[];
+    orderingConstraints?: OrderingConstraintDef[];
 }
 
 export interface PhaseDef {
@@ -86,6 +93,7 @@ export interface GraphEnvelope {
     name: string;
     nodes: EnvelopeNode[];
     dependencies: DependencyDef[];
+    orderingConstraints?: OrderingConstraintDef[];
 }
 
 export interface EnvelopePhase {
@@ -100,4 +108,5 @@ export interface LifecycleEnvelope {
     namespace: string;
     name: string;
     phases: EnvelopePhase[];
+    orderingConstraints?: OrderingConstraintDef[];
 }

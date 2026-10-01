@@ -21,6 +21,8 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderingConstraint;
 import io.casehub.desiredstate.api.Phase;
 
 import java.util.ArrayList;
@@ -74,6 +76,14 @@ public final class TsGoalCompilerFactory {
                 new GraphInvariantEngine().validate(invView, typedInvariants);
             }
 
+            if (!descriptor.orderingConstraints().isEmpty()) {
+                Set<OrderingConstraint> ocs = new java.util.HashSet<>();
+                for (var ocd : descriptor.orderingConstraints()) {
+                    ocs.add(new OrderingConstraint(NodeType.of(ocd.beforeType()), NodeType.of(ocd.afterType())));
+                }
+                graph = graph.withOrderingConstraints(ocs);
+            }
+
             return CompilationResult.single(graph);
         };
     }
@@ -123,6 +133,14 @@ public final class TsGoalCompilerFactory {
                     @SuppressWarnings({"rawtypes", "unchecked"})
                     List phTypedInv = invariants;
                     new GraphInvariantEngine().validate(phInvView, phTypedInv);
+                }
+
+                if (!envelope.orderingConstraints().isEmpty()) {
+                    Set<OrderingConstraint> ocs = new java.util.HashSet<>();
+                    for (TsOrderingConstraint tc : envelope.orderingConstraints()) {
+                        ocs.add(new OrderingConstraint(NodeType.of(tc.before()), NodeType.of(tc.after())));
+                    }
+                    phaseGraph = phaseGraph.withOrderingConstraints(ocs);
                 }
 
                 CompletionCondition condition = resolveCompletionCondition(

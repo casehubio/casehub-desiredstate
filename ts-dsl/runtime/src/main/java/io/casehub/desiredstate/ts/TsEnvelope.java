@@ -11,10 +11,12 @@ public record TsEnvelope(
         String namespace,
         String name,
         List<TsEnvelopeNode> nodes,
-        List<DependencyDescriptor> dependencies) {
+        List<DependencyDescriptor> dependencies,
+        List<TsOrderingConstraint> orderingConstraints) {
 
     public TsEnvelope {
-        if (nodes == null) nodes = List.of();
-        if (dependencies == null) dependencies = List.of();
+        if (nodes == null) {nodes = List.of();}
+        if (dependencies == null) {dependencies = List.of();}
+        if (orderingConstraints == null) {orderingConstraints = List.of();}
     }
 }
