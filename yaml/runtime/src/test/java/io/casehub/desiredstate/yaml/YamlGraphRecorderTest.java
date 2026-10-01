@@ -224,5 +224,49 @@ class YamlGraphRecorderTest {
         assertThat(spec.uri()).isEqualTo("s3://prod/data");
     }
 
+    @Test
+    void orderingConstraints_resolvedToDesiredStateGraph() {
+        var descriptor = new GraphDescriptor(
+                "test", "ordered", null, null,
+                List.of(
+                        new NodeDescriptor.InlineNode("src", TestSourceSpec.class.getName(),
+                                                      Map.of("name", "my-source", "uri", "s3://data"),
+                                                      HumanGating.NONE),
+                        new NodeDescriptor.InlineNode("sink", TypedSourceSpec.class.getName(),
+                                                      Map.of("name", "my-sink", "batchSize", 100),
+                                                      HumanGating.NONE)
+                       ),
+                List.of(), List.of(), null, List.of(), List.of());
+
+        Map<String, String> typeRegistry = Map.of(
+                "test-source", TestSourceSpec.class.getName(),
+                "typed-source", TypedSourceSpec.class.getName());
+
+        var yamlGraph = new io.casehub.desiredstate.yaml.model.YamlGraph(
+                new io.casehub.desiredstate.yaml.model.YamlDesiredState("test", "ordered"),
+                Map.of(),
+                Map.of("src", new io.casehub.desiredstate.yaml.model.YamlNode("test-source",
+                                                                              Map.of("name", "my-source", "uri", "s3://data"),
+                                                                              List.of(), null, null, null, null, null),
+                       "sink", new io.casehub.desiredstate.yaml.model.YamlNode("typed-source",
+                                                                               Map.of("name", "my-sink", "batchSize", 100),
+                                                                               List.of(), null, null, null, null, null)),
+                List.of(), Map.of(), Map.of(), null, null, null, null,
+                List.of(new io.casehub.desiredstate.yaml.model.YamlOrderingConstraint("test-source", "typed-source")));
+
+        var recorder = new YamlGraphRecorder();
+        @SuppressWarnings("unchecked")
+        GoalCompiler<Void> compiler = recorder.createYamlGoalCompiler(
+                descriptor, typeRegistry, Map.of(), List.of(), yamlGraph).getValue();
+
+        CompilationResult result = compiler.compile(null, new DefaultDesiredStateGraphFactory());
+        DesiredStateGraph graph  = ((CompilationResult.SingleGraph) result).graph();
+
+        assertThat(graph.orderingConstraints()).hasSize(1);
+        var constraint = graph.orderingConstraints().iterator().next();
+        assertThat(constraint.before()).isEqualTo(NodeType.of("test-source"));
+        assertThat(constraint.after()).isEqualTo(NodeType.of("typed-source"));
+    }
+
 
 }

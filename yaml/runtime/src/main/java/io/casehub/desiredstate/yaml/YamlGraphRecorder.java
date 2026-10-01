@@ -246,6 +246,8 @@ public class YamlGraphRecorder {
                 new GraphInvariantEngine().validate(invView, typedInvariants);
             }
 
+            graph = YamlGoalCompilerFactory.applyOrderingConstraints(graph, yamlGraph);
+
             return CompilationResult.single(graph);
         });
     }
@@ -419,6 +421,7 @@ public class YamlGraphRecorder {
                             .validate(phInvView, phTypedInvariants);
                 }
 
+                phaseGraph = YamlGoalCompilerFactory.applyOrderingConstraints(phaseGraph, yamlGraph);
                 io.casehub.desiredstate.api.CompletionCondition cc =
                         resolveCompletionCondition(yamlPhase.completionCondition());
 

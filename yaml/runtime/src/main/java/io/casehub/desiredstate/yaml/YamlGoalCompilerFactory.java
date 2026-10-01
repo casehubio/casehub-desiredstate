@@ -23,10 +23,13 @@ import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.HookDescriptor;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderingConstraint;
 import io.casehub.desiredstate.api.Phase;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
 import io.casehub.desiredstate.yaml.model.YamlInvariant;
 import io.casehub.desiredstate.yaml.model.YamlNode;
+import io.casehub.desiredstate.yaml.model.YamlOrderingConstraint;
 import io.casehub.desiredstate.yaml.model.YamlPhase;
 import io.casehub.desiredstate.yaml.model.YamlRule;
 import io.casehub.desiredstate.yaml.registry.NodeSpecRegistry;
@@ -112,6 +115,7 @@ public final class YamlGoalCompilerFactory {
 
             graph = applyRules(graph, yamlGraph, promotedRules, crossSurfaceRuleDescriptors, resolver, registry);
             applyInvariants(graph, invariants, promotedInvariants, crossSurfaceInvariantDescriptors);
+            graph = applyOrderingConstraints(graph, yamlGraph);
 
             return CompilationResult.single(graph);
         };
@@ -247,6 +251,7 @@ public final class YamlGoalCompilerFactory {
                     new GraphInvariantEngine().validate(phInvView, phTypedInvariants);
                 }
 
+                phaseGraph = applyOrderingConstraints(phaseGraph, yamlGraph);
                 CompletionCondition cc = resolveCompletionCondition(yamlPhase.completionCondition());
                 phases.add(new Phase(yamlPhase.id(), phaseGraph, cc));
 
@@ -402,6 +407,18 @@ public final class YamlGoalCompilerFactory {
             new GraphInvariantEngine().validate(invView, typedInvariants);
         }
     }
+
+    static DesiredStateGraph applyOrderingConstraints(DesiredStateGraph graph, YamlGraph yamlGraph) {
+        if (yamlGraph == null || yamlGraph.orderingConstraints().isEmpty()) {
+            return graph;
+        }
+        Set<OrderingConstraint> constraints = new HashSet<>();
+        for (YamlOrderingConstraint yc : yamlGraph.orderingConstraints()) {
+            constraints.add(new OrderingConstraint(NodeType.of(yc.before()), NodeType.of(yc.after())));
+        }
+        return graph.withOrderingConstraints(constraints);
+    }
+
 
     static boolean isOptionalDependency(YamlGraph yamlGraph, String fromNodeId, String toNodeId) {
         YamlNode node = yamlGraph.nodes().get(fromNodeId);

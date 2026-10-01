@@ -112,4 +112,46 @@ class YamlGraphDeserializationTest {
 
         assertThat(graph.nodes().get("marker").spec()).isNotNull().isEmpty();
     }
+
+    @Test
+    void deserializesOrderingConstraints() throws Exception {
+        String yaml = """
+                      desiredState:
+                        namespace: test
+                        name: ordered
+                      nodes:
+                        source:
+                          type: data-source
+                          spec:
+                            name: src
+                      orderingConstraints:
+                        - before: data-source
+                          after: transformer
+                      """;
+
+        YamlGraph graph = mapper.readValue(yaml, YamlGraph.class);
+
+        assertThat(graph.orderingConstraints()).hasSize(1);
+        assertThat(graph.orderingConstraints().get(0).before()).isEqualTo("data-source");
+        assertThat(graph.orderingConstraints().get(0).after()).isEqualTo("transformer");
+    }
+
+    @Test
+    void orderingConstraintsDefaultToEmptyList() throws Exception {
+        String yaml = """
+                      desiredState:
+                        namespace: test
+                        name: simple
+                      nodes:
+                        my-node:
+                          type: data-source
+                          spec:
+                            name: test-source
+                      """;
+
+        YamlGraph graph = mapper.readValue(yaml, YamlGraph.class);
+
+        assertThat(graph.orderingConstraints()).isEmpty();
+    }
+
 }

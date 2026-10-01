@@ -879,7 +879,8 @@ public class YamlDesiredStateProcessor {
         if (!changed) return graph;
         return new YamlGraph(graph.desiredState(), graph.variables(), rewrittenNodes,
                 graph.faultPolicy(), graph.invariants(), graph.rules(),
-                graph.lifecycle(), graph.iterations(), graph.imports(), graph.data());
+                graph.lifecycle(), graph.iterations(), graph.imports(), graph.data(),
+                graph.orderingConstraints());
     }
 
     private static Map<String, Object> rewriteMap(Map<String, Object> map,
