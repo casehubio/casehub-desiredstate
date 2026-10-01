@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransitionPlannerTest {
@@ -488,8 +489,132 @@ class TransitionPlannerTest {
         assertEquals(NodeId.of("C"), plan.additions().get(1).get(0).node().id());
     }
 
+
+    @Test
+    void flatGraph_noEdgesNoConstraints_singleLayerPlan() {
+        DesiredNode a = new DesiredNode(NodeId.of("a"), new TestSpec("A"), HumanGating.NONE);
+        DesiredNode b = new DesiredNode(NodeId.of("b"), new TestSpec("B"), HumanGating.NONE);
+        DesiredNode c = new DesiredNode(NodeId.of("c"), new TestSpec("C"), HumanGating.NONE);
+
+        DesiredStateGraph desired = factory.of(List.of(a, b, c), List.of());
+        ActualState       actual  = new ActualState(Map.of());
+
+        TransitionPlan plan = planner.plan(desired, actual);
+
+        assertEquals(1, plan.additions().size(), "Should be single layer");
+        assertEquals(3, plan.additions().getFirst().size());
+    }
+
+    @Test
+    void orderingConstraints_enforcesTypeLevelOrdering() {
+        NodeType    typeBreaker = NodeType.of("breaker");
+        NodeType    typeEquip   = NodeType.of("equipment");
+        DesiredNode a1          = new DesiredNode(NodeId.of("a1"), new TypedSpec(typeBreaker, "a1"), HumanGating.NONE);
+        DesiredNode b1          = new DesiredNode(NodeId.of("b1"), new TypedSpec(typeEquip, "b1"), HumanGating.NONE);
+        DesiredNode b2          = new DesiredNode(NodeId.of("b2"), new TypedSpec(typeEquip, "b2"), HumanGating.NONE);
+
+        io.casehub.desiredstate.api.OrderingConstraint constraint =
+                new io.casehub.desiredstate.api.OrderingConstraint(typeBreaker, typeEquip);
+        DesiredStateGraph desired = factory.of(List.of(a1, b1, b2), List.of())
+                                           .withOrderingConstraints(java.util.Set.of(constraint));
+
+        ActualState    actual = new ActualState(Map.of());
+        TransitionPlan plan   = planner.plan(desired, actual);
+
+        List<NodeId> order = plan.flatAdditions().stream()
+                                 .map(s -> s.node().id()).toList();
+        int idxA1 = order.indexOf(NodeId.of("a1"));
+        int idxB1 = order.indexOf(NodeId.of("b1"));
+        int idxB2 = order.indexOf(NodeId.of("b2"));
+
+        assertTrue(idxA1 < idxB1, "breaker should come before equipment");
+        assertTrue(idxA1 < idxB2, "breaker should come before equipment");
+    }
+
+    @Test
+    void orderingConstraints_chainedConstraints() {
+        NodeType    typeFirst  = NodeType.of("first");
+        NodeType    typeSecond = NodeType.of("second");
+        NodeType    typeThird  = NodeType.of("third");
+        DesiredNode a          = new DesiredNode(NodeId.of("a"), new TypedSpec(typeFirst, "a"), HumanGating.NONE);
+        DesiredNode b          = new DesiredNode(NodeId.of("b"), new TypedSpec(typeSecond, "b"), HumanGating.NONE);
+        DesiredNode c          = new DesiredNode(NodeId.of("c"), new TypedSpec(typeThird, "c"), HumanGating.NONE);
+
+        DesiredStateGraph desired = factory.of(List.of(a, b, c), List.of())
+                                           .withOrderingConstraints(java.util.Set.of(
+                                                   new io.casehub.desiredstate.api.OrderingConstraint(typeFirst, typeSecond),
+                                                   new io.casehub.desiredstate.api.OrderingConstraint(typeSecond, typeThird)));
+
+        ActualState    actual = new ActualState(Map.of());
+        TransitionPlan plan   = planner.plan(desired, actual);
+
+        List<NodeId> order = plan.flatAdditions().stream()
+                                 .map(s -> s.node().id()).toList();
+        assertTrue(order.indexOf(NodeId.of("a")) < order.indexOf(NodeId.of("b")));
+        assertTrue(order.indexOf(NodeId.of("b")) < order.indexOf(NodeId.of("c")));
+    }
+
+    @Test
+    void orderingConstraints_conflictingThrowsCycleException() {
+        NodeType    typeA = NodeType.of("a-type");
+        NodeType    typeB = NodeType.of("b-type");
+        DesiredNode a     = new DesiredNode(NodeId.of("a"), new TypedSpec(typeA, "a"), HumanGating.NONE);
+        DesiredNode b     = new DesiredNode(NodeId.of("b"), new TypedSpec(typeB, "b"), HumanGating.NONE);
+
+        DesiredStateGraph desired = factory.of(List.of(a, b), List.of())
+                                           .withOrderingConstraints(java.util.Set.of(
+                                                   new io.casehub.desiredstate.api.OrderingConstraint(typeA, typeB),
+                                                   new io.casehub.desiredstate.api.OrderingConstraint(typeB, typeA)));
+
+        ActualState actual = new ActualState(Map.of());
+        assertThrows(IllegalStateException.class, () -> planner.plan(desired, actual));
+    }
+
+    @Test
+    void orderingConstraints_mixedWithRealEdges() {
+        NodeType    typeX = NodeType.of("x-type");
+        NodeType    typeY = NodeType.of("y-type");
+        DesiredNode x     = new DesiredNode(NodeId.of("x"), new TypedSpec(typeX, "x"), HumanGating.NONE);
+        DesiredNode y     = new DesiredNode(NodeId.of("y"), new TypedSpec(typeY, "y"), HumanGating.NONE);
+        DesiredNode z     = new DesiredNode(NodeId.of("z"), new TypedSpec(NodeType.of("z-type"), "z"), HumanGating.NONE);
+
+        DesiredStateGraph desired = factory.of(
+                                                   List.of(x, y, z),
+                                                   List.of(new Dependency(NodeId.of("z"), NodeId.of("y"))))
+                                           .withOrderingConstraints(java.util.Set.of(
+                                                   new io.casehub.desiredstate.api.OrderingConstraint(typeX, typeY)));
+
+        ActualState    actual = new ActualState(Map.of());
+        TransitionPlan plan   = planner.plan(desired, actual);
+
+        List<NodeId> order = plan.flatAdditions().stream()
+                                 .map(s -> s.node().id()).toList();
+        assertTrue(order.indexOf(NodeId.of("x")) < order.indexOf(NodeId.of("y")));
+        assertTrue(order.indexOf(NodeId.of("y")) < order.indexOf(NodeId.of("z")));
+    }
+
+    @Test
+    void flatGraph_withConstraints_notFastPath() {
+        NodeType    typeA = NodeType.of("a-type");
+        NodeType    typeB = NodeType.of("b-type");
+        DesiredNode a     = new DesiredNode(NodeId.of("a"), new TypedSpec(typeA, "a"), HumanGating.NONE);
+        DesiredNode b     = new DesiredNode(NodeId.of("b"), new TypedSpec(typeB, "b"), HumanGating.NONE);
+
+        DesiredStateGraph desired = factory.of(List.of(a, b), List.of())
+                                           .withOrderingConstraints(java.util.Set.of(
+                                                   new io.casehub.desiredstate.api.OrderingConstraint(typeA, typeB)));
+
+        ActualState    actual = new ActualState(Map.of());
+        TransitionPlan plan   = planner.plan(desired, actual);
+
+        assertEquals(2, plan.additions().size(), "Should be two layers due to constraint");
+    }
+
     // Helper test spec
     record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
+
+    record TypedSpec(NodeType nodeType, String value) implements NodeSpec {}
+
 
 // --- Suspend/Resume decision matrix tests ---
 

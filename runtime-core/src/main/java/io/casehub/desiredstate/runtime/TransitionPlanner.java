@@ -89,6 +89,25 @@ public class TransitionPlanner {
             }
         }
 
+        DesiredStateGraph before = previousDesired != null ? previousDesired : desired;
+
+        boolean hasEdges       = !desired.dependencies().isEmpty();
+        boolean hasConstraints = !desired.orderingConstraints().isEmpty();
+        if (!hasEdges && !hasConstraints) {
+            List<OrderedStep> addSteps = toAdd.stream()
+                                              .map(id -> new OrderedStep(desired.nodes().get(id), StepAction.PROVISION)).toList();
+            List<OrderedStep> suspendSteps = toSuspend.stream()
+                                                      .map(id -> new OrderedStep(desired.nodes().get(id), StepAction.SUSPEND)).toList();
+            List<OrderedStep> resumeSteps = toResume.stream()
+                                                    .map(id -> new OrderedStep(desired.nodes().get(id), StepAction.RESUME)).toList();
+            return new TransitionPlan(
+                    List.of(removals),
+                    suspendSteps.isEmpty() ? List.of() : List.of(suspendSteps),
+                    resumeSteps.isEmpty() ? List.of() : List.of(resumeSteps),
+                    addSteps.isEmpty() ? List.of() : List.of(addSteps),
+                    before, desired);
+        }
+
         List<List<OrderedStep>> additionLayers = toLayers(topologicalSort(desired, toAdd),
                                                           desired, StepAction.PROVISION);
         List<List<OrderedStep>> resumptionLayers = toLayers(topologicalSort(desired, toResume),
@@ -96,7 +115,6 @@ public class TransitionPlanner {
         List<List<OrderedStep>> suspensionLayers = toLayers(topologicalSortReverse(desired, toSuspend),
                                                             desired, StepAction.SUSPEND);
 
-        DesiredStateGraph before = previousDesired != null ? previousDesired : desired;
         return new TransitionPlan(List.of(removals), suspensionLayers, resumptionLayers,
                                   additionLayers, before, desired);
     }
@@ -150,6 +168,18 @@ public class TransitionPlanner {
             }
         }
 
+        Map<NodeId, Set<NodeId>> virtualReverse = new HashMap<>();
+        for (io.casehub.desiredstate.api.OrderingConstraint c : graph.orderingConstraints()) {
+            Set<NodeId> beforeNodes = nodesOfType(toSort, graph, c.before());
+            Set<NodeId> afterNodes  = nodesOfType(toSort, graph, c.after());
+            for (NodeId afterNode : afterNodes) {
+                inDegree.merge(afterNode, beforeNodes.size(), Integer::sum);
+            }
+            for (NodeId beforeNode : beforeNodes) {
+                virtualReverse.computeIfAbsent(beforeNode, k -> new HashSet<>()).addAll(afterNodes);
+            }
+        }
+
         Queue<NodeId> queue = new ArrayDeque<>();
         for (Map.Entry<NodeId, Integer> entry : inDegree.entrySet()) {
             if (entry.getValue() == 0) {
@@ -175,6 +205,15 @@ public class TransitionPlanner {
                         }
                     }
                 }
+                Set<NodeId> virtualDeps = virtualReverse.getOrDefault(current, Set.of());
+                for (NodeId dependent : virtualDeps) {
+                    if (toSort.contains(dependent)) {
+                        int newDegree = inDegree.merge(dependent, -1, Integer::sum);
+                        if (newDegree == 0) {
+                            queue.add(dependent);
+                        }
+                    }
+                }
             }
         }
 
@@ -189,6 +228,18 @@ public class TransitionPlanner {
         List<List<NodeId>> layers = topologicalSort(graph, toSort);
         java.util.Collections.reverse(layers);
         return layers;
+    }
+
+
+    private Set<NodeId> nodesOfType(Set<NodeId> candidates, DesiredStateGraph graph, io.casehub.desiredstate.api.NodeType type) {
+        Set<NodeId> result = new HashSet<>();
+        for (NodeId nodeId : candidates) {
+            DesiredNode node = graph.nodes().get(nodeId);
+            if (node != null && node.type().equals(type)) {
+                result.add(nodeId);
+            }
+        }
+        return result;
     }
 
     private static class UnknownSpec implements NodeSpec {
