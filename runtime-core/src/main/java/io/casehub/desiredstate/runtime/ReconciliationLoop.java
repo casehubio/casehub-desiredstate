@@ -4,13 +4,20 @@ import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DriftContext;
+import io.casehub.desiredstate.api.DriftDecision;
+import io.casehub.desiredstate.api.Exemption;
+import io.casehub.desiredstate.api.ExemptionSpec;
+import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.GraphMutation;
+import io.casehub.desiredstate.api.InMemoryExemptionStore;
 import io.casehub.desiredstate.api.InMemoryReconciliationStateStore;
 import io.casehub.desiredstate.api.MergedEventSource;
 import io.casehub.desiredstate.api.NodeAlreadyConvergedData;
+import io.casehub.desiredstate.api.NodeDriftExemptedData;
 import io.casehub.desiredstate.api.NodeDriftedData;
 import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeId;
@@ -22,6 +29,7 @@ import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.ReconciliationCompletedData;
 import io.casehub.desiredstate.api.ReconciliationListener;
 import io.casehub.desiredstate.api.ReconciliationStateStore;
+import io.casehub.desiredstate.api.RevertCondition;
 import io.casehub.desiredstate.api.StepAction;
 import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TargetStatus;
@@ -47,6 +55,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -106,6 +115,10 @@ public class ReconciliationLoop {
     private final CbrProposalTracker cbrTracker;
     private final List<GlobalReconciliationListener> globalListeners;
     private final ReconciliationStateStore reconciliationStateStore;
+    private final DriftPolicyEngine        driftPolicyEngine;
+    private final ExemptionStore           exemptionStore;
+
+
     private final int                      nodeOutcomesThreshold;
 
 
@@ -120,7 +133,7 @@ public class ReconciliationLoop {
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
-             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD);
+             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null);
     }
 
     public ReconciliationLoop(
@@ -136,7 +149,9 @@ public class ReconciliationLoop {
             CbrProposalTracker cbrTracker,
             List<GlobalReconciliationListener> globalListeners,
             ReconciliationStateStore reconciliationStateStore,
-            int nodeOutcomesThreshold) {
+            int nodeOutcomesThreshold,
+            DriftPolicyEngine driftPolicyEngine,
+            ExemptionStore exemptionStore) {
         this.planner                  = planner;
         this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
@@ -151,6 +166,8 @@ public class ReconciliationLoop {
         this.globalListeners          = globalListeners != null ? List.copyOf(globalListeners) : List.of();
         this.reconciliationStateStore = reconciliationStateStore != null ? reconciliationStateStore : new InMemoryReconciliationStateStore();
         this.nodeOutcomesThreshold    = nodeOutcomesThreshold;
+        this.driftPolicyEngine        = driftPolicyEngine != null ? driftPolicyEngine : new DriftPolicyEngine(List.of());
+        this.exemptionStore           = exemptionStore != null ? exemptionStore : new InMemoryExemptionStore();
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -366,6 +383,8 @@ public class ReconciliationLoop {
         private       List<GlobalReconciliationListener> globalListeners = List.of();
         private       ReconciliationStateStore           reconciliationStateStore;
         private       int                                nodeOutcomesThreshold = ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD;
+        private       DriftPolicyEngine                  driftPolicyEngine;
+        private       ExemptionStore                     exemptionStore;
 
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
@@ -420,11 +439,22 @@ public class ReconciliationLoop {
             return this;
         }
 
+        public Builder driftPolicyEngine(DriftPolicyEngine driftPolicyEngine) {
+            this.driftPolicyEngine = driftPolicyEngine;
+            return this;
+        }
+
+        public Builder exemptionStore(ExemptionStore exemptionStore) {
+            this.exemptionStore = exemptionStore;
+            return this;
+        }
+
         public ReconciliationLoop build() {
             return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
                                           faultPolicyEngine, mergedEventSource, router, debounceWindow,
                                           resyncInterval, cloudEventSink, cbrTracker, globalListeners,
-                                          reconciliationStateStore, nodeOutcomesThreshold);
+                                          reconciliationStateStore, nodeOutcomesThreshold,
+                                          driftPolicyEngine, exemptionStore);
         }
     }
 
@@ -607,15 +637,16 @@ public class ReconciliationLoop {
                 firePerTenantListener(desired, actual);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
-                desired = detectDrift(desired, actual, driftedNodes);
+                Set<NodeId> exemptNodes = new HashSet<>();
+                desired = detectDrift(desired, actual, driftedNodes, exemptNodes);
 
-                TransitionPlan plan = plan(desired, actual);
+                TransitionPlan plan = plan(desired, actual, exemptNodes);
                 if (plan.isEmpty()) {
                     TransitionResult emptyResult = new TransitionResult(Map.of());
                     List<CbrOutcomeData> cbrOutcomes = cbrTracker.matchOutcomes(
                         tenancyId, emptyResult, desired);
-                    if (!driftedNodes.isEmpty() || !activeProblems.isEmpty()) {
-                        emitCycleEvents(desired, plan, emptyResult, actual, driftedNodes);
+                    if (!driftedNodes.isEmpty() || !exemptNodes.isEmpty() || !activeProblems.isEmpty()) {
+                        emitCycleEvents(desired, plan, emptyResult, actual, driftedNodes, exemptNodes);
                     }
                     emitCbrOutcomeEvents(cbrOutcomes);
                     return;
@@ -628,7 +659,7 @@ public class ReconciliationLoop {
 
                 faultFeedback(desired, plan, result, actual);
 
-                emitCycleEvents(desired, plan, result, actual, driftedNodes);
+                emitCycleEvents(desired, plan, result, actual, driftedNodes, exemptNodes);
                 emitCbrOutcomeEvents(cbrOutcomes);
             } catch (Exception e) {
                 reconcileSpan.setStatus(StatusCode.ERROR, e.getMessage());
@@ -662,15 +693,14 @@ public class ReconciliationLoop {
                 ActualState actual = readActual(filteredDesired, tenancyId);
 
                 Set<NodeId> driftedNodes = new HashSet<>();
-                filteredDesired = detectDrift(filteredDesired, actual, driftedNodes);
+                Set<NodeId> exemptNodes = new HashSet<>();
+                filteredDesired = detectDrift(filteredDesired, actual, driftedNodes, exemptNodes);
 
-                TransitionPlan plan = plan(filteredDesired, actual);
+                TransitionPlan plan = plan(filteredDesired, actual, exemptNodes);
                 if (plan.isEmpty()) {
-                    // Type-filtered reconciliation checks global activeProblems — intentional,
-                    // cross-type recovery detection is correct (node recovery is independent of which type-filter cycle detects it)
-                    if (!driftedNodes.isEmpty() || !activeProblems.isEmpty()) {
+                    if (!driftedNodes.isEmpty() || !exemptNodes.isEmpty() || !activeProblems.isEmpty()) {
                         TransitionResult emptyResult = new TransitionResult(Map.of());
-                        emitCycleEvents(filteredDesired, plan, emptyResult, actual, driftedNodes);
+                        emitCycleEvents(filteredDesired, plan, emptyResult, actual, driftedNodes, exemptNodes);
                     }
                     return;
                 }
@@ -679,7 +709,7 @@ public class ReconciliationLoop {
 
                 faultFeedback(filteredDesired, plan, result, actual);
 
-                emitCycleEvents(filteredDesired, plan, result, actual, driftedNodes);
+                emitCycleEvents(filteredDesired, plan, result, actual, driftedNodes, exemptNodes);
             } catch (Exception e) {
                 reconcileSpan.setStatus(StatusCode.ERROR, e.getMessage());
                 reconcileSpan.recordException(e);
@@ -704,7 +734,7 @@ public class ReconciliationLoop {
         }
 
         private DesiredStateGraph detectDrift(DesiredStateGraph desired, ActualState actual,
-                                              Set<NodeId> driftedNodesOut) {
+                                              Set<NodeId> driftedNodesOut, Set<NodeId> exemptNodesOut) {
             boolean hasDrift = desired.nodes().entrySet().stream()
                     .anyMatch(e -> actual.statuses().getOrDefault(e.getKey(), NodeStatus.UNKNOWN) == NodeStatus.DRIFTED);
             if (!hasDrift) {
@@ -714,12 +744,40 @@ public class ReconciliationLoop {
             Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("detectDrift").startSpan();
             try (Scope ignored = span.makeCurrent()) {
                 int driftCount = 0;
+                int exemptCount = 0;
                 List<GraphMutation<DesiredNode>> mutations = new ArrayList<>();
                 DesiredStateGraph mutated = desired;
+                DriftContext driftContext = new DriftContext(tenancyId, desired, actual);
+                Instant now = Instant.now();
                 for (Map.Entry<NodeId, DesiredNode> entry : desired.nodes().entrySet()) {
                     NodeStatus status = actual.statuses().getOrDefault(entry.getKey(), NodeStatus.UNKNOWN);
                     if (status == NodeStatus.DRIFTED) {
                         driftCount++;
+
+                        Optional<Exemption> existingExemption = exemptionStore.get(tenancyId, entry.getKey());
+                        if (existingExemption.isPresent() && !existingExemption.get().shouldRevert(now, status)) {
+                            exemptNodesOut.add(entry.getKey());
+                            exemptCount++;
+                            continue;
+                        }
+                        if (existingExemption.isPresent()) {
+                            exemptionStore.revoke(tenancyId, entry.getKey());
+                        }
+
+                        DriftDecision decision = driftPolicyEngine.evaluate(
+                                entry.getKey(), status, entry.getValue(), driftContext);
+                        if (decision instanceof DriftDecision.Exempt exempt) {
+                            Instant expiresAt = null;
+                            if (exempt.spec().revertCondition() instanceof RevertCondition.OnDuration d) {
+                                expiresAt = now.plus(d.duration());
+                            }
+                            exemptionStore.grant(tenancyId, entry.getKey(),
+                                    new Exemption(entry.getKey(), exempt.spec(), now, expiresAt));
+                            exemptNodesOut.add(entry.getKey());
+                            exemptCount++;
+                            continue;
+                        }
+
                         driftedNodesOut.add(entry.getKey());
                         FaultEvent faultEvent = new FaultEvent(
                                 entry.getKey(), FaultType.NODE_DEGRADED, "Node drifted from desired spec");
@@ -731,6 +789,7 @@ public class ReconciliationLoop {
                     }
                 }
                 span.setAttribute(AttributeKey.longKey("desiredstate.drift.count"), driftCount);
+                span.setAttribute(AttributeKey.longKey("desiredstate.drift.exempt.count"), exemptCount);
                 if (!mutations.isEmpty()) {
                     casRetryMutations(mutations);
                 }
@@ -740,12 +799,13 @@ public class ReconciliationLoop {
             }
         }
 
-        private TransitionPlan plan(DesiredStateGraph desired, ActualState actual) {
+        private TransitionPlan plan(DesiredStateGraph desired, ActualState actual, Set<NodeId> exemptNodes) {
             Span span = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME).spanBuilder("plan").startSpan();
             try (Scope ignored = span.makeCurrent()) {
                 DesiredStateGraph previousDesired = reconciliationStateStore.load(tenancyId).orElse(null);
                 TransitionPlan plan = planner.plan(desired, actual, previousDesired,
-                                                   type -> router != null && router.supportsStatefulLifecycle(type));
+                                                   type -> router != null && router.supportsStatefulLifecycle(type),
+                                                   exemptNodes);
                 reconciliationStateStore.store(tenancyId, desired);
                 span.setAttribute(AttributeKey.longKey("desiredstate.additions"),
                                   plan.flatAdditions().size());
@@ -852,7 +912,7 @@ public class ReconciliationLoop {
          */
         private void emitCycleEvents(DesiredStateGraph desired, TransitionPlan plan,
                                      TransitionResult result, ActualState actual,
-                                     Set<NodeId> driftedNodes) {
+                                     Set<NodeId> driftedNodes, Set<NodeId> exemptNodes) {
             long             version = cycleCounter.incrementAndGet();
             List<CloudEvent> events  = new ArrayList<>();
 
@@ -900,6 +960,21 @@ public class ReconciliationLoop {
                             version, parentNodeId);
                     events.add(eventEmitter.nodeDrifted(data));
                     activeProblems.add(nodeId);
+                }
+            }
+
+            for (NodeId nodeId : exemptNodes) {
+                DesiredNode node = desired.nodes().get(nodeId);
+                if (node != null) {
+                    String parentNodeId = resolveParent(desired, nodeId);
+                    Optional<Exemption> exemption = exemptionStore.get(tenancyId, nodeId);
+                    String revertMode = exemption.map(e -> e.spec().revertCondition().mode().name()).orElse("UNKNOWN");
+                    String revertCondition = exemption.map(e -> e.spec().revertCondition().toString()).orElse("");
+                    NodeDriftExemptedData data = new NodeDriftExemptedData(
+                            tenancyId, nodeId.value(), node.type().value(),
+                            revertMode, revertCondition,
+                            version, parentNodeId);
+                    events.add(eventEmitter.nodeDriftExempted(data));
                 }
             }
 
@@ -962,7 +1037,7 @@ public class ReconciliationLoop {
                     tenancyId, version, desired.nodes().size(),
                     plan.flatAdditions().size(), plan.flatRemovals().size(),
                     plan.flatSuspensions().size(), plan.flatResumptions().size(),
-                    faultCount, nodeOutcomes, Instant.now());
+                    faultCount, exemptNodes.size(), nodeOutcomes, Instant.now());
             events.add(eventEmitter.reconciliationCompleted(completedData));
 
             events.forEach(cloudEventSink);

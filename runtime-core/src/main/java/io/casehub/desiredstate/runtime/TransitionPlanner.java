@@ -12,6 +12,7 @@ import io.casehub.desiredstate.api.OrderedStep;
 import io.casehub.desiredstate.api.StepAction;
 import io.casehub.desiredstate.api.TargetStatus;
 import io.casehub.desiredstate.api.TransitionPlan;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,16 +25,23 @@ import java.util.Set;
 public class TransitionPlanner {
 
     public TransitionPlan plan(DesiredStateGraph desired, ActualState actual) {
-        return plan(desired, actual, null, type -> false);
+        return plan(desired, actual, null, type -> false, Set.of());
     }
 
     public TransitionPlan plan(DesiredStateGraph desired, ActualState actual, DesiredStateGraph previousDesired) {
-        return plan(desired, actual, previousDesired, type -> false);
+        return plan(desired, actual, previousDesired, type -> false, Set.of());
     }
 
     public TransitionPlan plan(DesiredStateGraph desired, ActualState actual,
                                DesiredStateGraph previousDesired,
                                java.util.function.Predicate<NodeType> supportsStateful) {
+        return plan(desired, actual, previousDesired, supportsStateful, Set.of());
+    }
+
+    public TransitionPlan plan(DesiredStateGraph desired, ActualState actual,
+                               DesiredStateGraph previousDesired,
+                               java.util.function.Predicate<NodeType> supportsStateful,
+                               Set<NodeId> exemptNodes) {
         List<OrderedStep> removals = new ArrayList<>();
 
         for (Map.Entry<NodeId, NodeStatus> entry : actual.statuses().entrySet()) {
@@ -66,6 +74,7 @@ public class TransitionPlanner {
 
             StepAction action = decideAction(status, node.targetStatus());
             if (action == null) {continue;}
+            if (status == NodeStatus.DRIFTED && exemptNodes.contains(nodeId)) {continue;}
 
             if ((action == StepAction.SUSPEND || action == StepAction.RESUME)
                 && !supportsStateful.test(node.type())) {
@@ -91,6 +100,7 @@ public class TransitionPlanner {
         return new TransitionPlan(List.of(removals), suspensionLayers, resumptionLayers,
                                   additionLayers, before, desired);
     }
+
 
     private StepAction decideAction(NodeStatus actual, TargetStatus target) {
         return switch (target) {

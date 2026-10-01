@@ -6,6 +6,7 @@ import io.casehub.desiredstate.api.DesiredStateEventTypes;
 import io.casehub.desiredstate.api.LifecycleStateEnteredData;
 import io.casehub.desiredstate.api.LifecycleStateExitedData;
 import io.casehub.desiredstate.api.NodeAlreadyConvergedData;
+import io.casehub.desiredstate.api.NodeDriftExemptedData;
 import io.casehub.desiredstate.api.NodeDriftedData;
 import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeRecoveredData;
@@ -60,6 +61,13 @@ public class ReconciliationEventEmitter {
             .withData("application/json", serialize(data))
             .build();
     }
+
+    public CloudEvent nodeDriftExempted(NodeDriftExemptedData data) {
+        return base(DesiredStateEventTypes.NODE_DRIFT_EXEMPTED)
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
 
     public CloudEvent nodeRecovered(NodeRecoveredData data) {
         return base(DesiredStateEventTypes.NODE_RECOVERED)
