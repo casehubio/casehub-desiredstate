@@ -9,5 +9,8 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface DesiredState {
     String namespace() default "";
+
     String name() default "";
+
+    OrderBefore[] orderBefore() default {};
 }

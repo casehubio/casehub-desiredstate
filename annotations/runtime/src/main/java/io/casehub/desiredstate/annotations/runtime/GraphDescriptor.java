@@ -12,4 +12,16 @@ public record GraphDescriptor(
         List<FaultPolicyDescriptor> faultPolicies,
         GoalMethodDescriptor goalMethod,
         List<GraphRuleDescriptor> graphRules,
-        List<GraphInvariantDescriptor> graphInvariants) {}
+        List<GraphInvariantDescriptor> graphInvariants,
+        List<OrderingConstraintDescriptor> orderingConstraints) {
+
+    public GraphDescriptor(
+            String namespace, String name,
+            String interfaceName, String implClassName,
+            List<NodeDescriptor> nodes, List<DependencyDescriptor> dependencies,
+            List<FaultPolicyDescriptor> faultPolicies, GoalMethodDescriptor goalMethod,
+            List<GraphRuleDescriptor> graphRules, List<GraphInvariantDescriptor> graphInvariants) {
+        this(namespace, name, interfaceName, implClassName, nodes, dependencies,
+             faultPolicies, goalMethod, graphRules, graphInvariants, List.of());
+    }
+}

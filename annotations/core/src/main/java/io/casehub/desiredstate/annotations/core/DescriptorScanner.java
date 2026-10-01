@@ -8,6 +8,7 @@ import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphInvariantDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
+import io.casehub.desiredstate.annotations.runtime.OrderingConstraintDescriptor;
 import io.casehub.desiredstate.annotations.runtime.PatternKind;
 import io.casehub.desiredstate.annotations.runtime.PatternParameterDescriptor;
 import io.casehub.desiredstate.annotations.runtime.TierDescriptor;
@@ -67,6 +68,10 @@ public final class DescriptorScanner {
             "io.casehub.desiredstate.annotations.NotExists");
     private static final DotName GRAPH_INVARIANT             = DotName.createSimple(
             "io.casehub.desiredstate.annotations.GraphInvariant");
+    private static final DotName ORDER_BEFORE                = DotName.createSimple(
+            "io.casehub.desiredstate.annotations.OrderBefore");
+    private static final DotName NODE_TYPE_ID                = DotName.createSimple(
+            "io.casehub.desiredstate.api.NodeTypeId");
 
     // --- Top-level scanning entry points ---
 
@@ -289,9 +294,19 @@ public final class DescriptorScanner {
             }
         }
 
+        List<OrderingConstraintDescriptor> orderingConstraints = new ArrayList<>();
+        AnnotationValue orderBeforeValue = dsAnn.value("orderBefore");
+        if (orderBeforeValue != null) {
+            for (AnnotationInstance ob : orderBeforeValue.asNestedArray()) {
+                String beforeType = resolveNodeTypeId(ob.value().asClass().name(), index);
+                String afterType = resolveNodeTypeId(ob.value("after").asClass().name(), index);
+                orderingConstraints.add(new OrderingConstraintDescriptor(beforeType, afterType));
+            }
+        }
+
         return new GraphDescriptor(namespace, name, dsClass.name().toString(),
                                    implClassName, nodes, deps, faultPolicies, goalMethod,
-                                   graphRules, graphInvariants);
+                                   graphRules, graphInvariants, orderingConstraints);
     }
 
     public static FaultPolicyDescriptor buildFaultPolicyDescriptor(
@@ -463,4 +478,18 @@ public final class DescriptorScanner {
         String s = value.asString();
         return s != null ? s : defaultValue;
     }
+
+    private static String resolveNodeTypeId(DotName className, IndexView index) {
+        ClassInfo classInfo = index.getClassByName(className);
+        if (classInfo == null) {
+            throw new IllegalStateException("Class not found in Jandex index: " + className);
+        }
+        AnnotationInstance nodeTypeIdAnn = classInfo.declaredAnnotation(NODE_TYPE_ID);
+        if (nodeTypeIdAnn != null && nodeTypeIdAnn.value() != null) {
+            return nodeTypeIdAnn.value().asString();
+        }
+        throw new IllegalStateException("@OrderBefore references " + className
+                                        + " which has no @NodeTypeId annotation");
+    }
+
 }

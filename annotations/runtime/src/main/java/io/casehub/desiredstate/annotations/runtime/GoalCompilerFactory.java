@@ -12,6 +12,8 @@ import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.GraphMutation;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderingConstraint;
 import io.casehub.desiredstate.api.Phase;
 
 import java.lang.reflect.InvocationTargetException;
@@ -19,6 +21,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Logger;
@@ -113,6 +116,19 @@ public final class GoalCompilerFactory {
                         validateInvariantsOnResult(inner.compile(goals, factory), resolvedInvariants, invariantEngine);
             }
 
+            if (!descriptor.orderingConstraints().isEmpty()) {
+                Set<OrderingConstraint> constraints = new java.util.HashSet<>();
+                for (OrderingConstraintDescriptor ocd : descriptor.orderingConstraints()) {
+                    constraints.add(new OrderingConstraint(
+                            NodeType.of(ocd.beforeType()), NodeType.of(ocd.afterType())));
+                }
+                Set<OrderingConstraint> capturedConstraints = Set.copyOf(constraints);
+                @SuppressWarnings("rawtypes")
+                GoalCompiler inner = compiler;
+                compiler = (GoalCompiler) (goals, factory) ->
+                        applyOrderingConstraintsToResult(inner.compile(goals, factory), capturedConstraints);
+            }
+
             return compiler;
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize annotated desired-state graph: "
@@ -159,6 +175,22 @@ public final class GoalCompilerFactory {
         }
         return result;
     }
+
+    static CompilationResult applyOrderingConstraintsToResult(
+            CompilationResult result, Set<OrderingConstraint> constraints) {
+        return switch (result) {
+            case CompilationResult.SingleGraph sg -> CompilationResult.single(sg.graph().withOrderingConstraints(constraints));
+            case CompilationResult.Lifecycle lc -> {
+                List<Phase> updated = lc.phases().stream()
+                                        .map(p -> new Phase(p.id(),
+                                                            p.graph().withOrderingConstraints(constraints),
+                                                            p.completionCondition()))
+                                        .toList();
+                yield CompilationResult.lifecycle(updated);
+            }
+        };
+    }
+
 
     static List<ResolvedInvariant<DesiredNode>> resolveInvariants(List<GraphInvariantDescriptor> descriptors) {
         List<ResolvedInvariant<DesiredNode>> invariants = new ArrayList<>();
