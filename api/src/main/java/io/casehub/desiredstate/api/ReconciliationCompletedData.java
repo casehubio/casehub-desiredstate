@@ -8,7 +8,8 @@ public record ReconciliationCompletedData(
         String tenancyId, long graphVersion,
         int nodeCount, int additionsCount, int removalsCount,
         int suspensionsCount, int resumptionsCount,
-        int faultCount, Map<String, String> nodeOutcomes, Instant timestamp) {
+        int faultCount, int exemptedCount,
+        Map<String, String> nodeOutcomes, Instant timestamp) {
 
     public static final int NODE_OUTCOMES_THRESHOLD = 1000;
 
@@ -16,7 +17,7 @@ public record ReconciliationCompletedData(
                                        int nodeCount, int additionsCount, int removalsCount,
                                        int faultCount, Instant timestamp) {
         this(tenancyId, graphVersion, nodeCount, additionsCount, removalsCount,
-             0, 0, faultCount, Map.of(), timestamp);
+             0, 0, faultCount, 0, Map.of(), timestamp);
     }
 
     public ReconciliationCompletedData(String tenancyId, long graphVersion,
@@ -24,7 +25,16 @@ public record ReconciliationCompletedData(
                                        int suspensionsCount, int resumptionsCount,
                                        int faultCount, Instant timestamp) {
         this(tenancyId, graphVersion, nodeCount, additionsCount, removalsCount,
-             suspensionsCount, resumptionsCount, faultCount, Map.of(), timestamp);
+             suspensionsCount, resumptionsCount, faultCount, 0, Map.of(), timestamp);
+    }
+
+    public ReconciliationCompletedData(String tenancyId, long graphVersion,
+                                       int nodeCount, int additionsCount, int removalsCount,
+                                       int suspensionsCount, int resumptionsCount,
+                                       int faultCount, Map<String, String> nodeOutcomes,
+                                       Instant timestamp) {
+        this(tenancyId, graphVersion, nodeCount, additionsCount, removalsCount,
+             suspensionsCount, resumptionsCount, faultCount, 0, nodeOutcomes, timestamp);
     }
 
     public ReconciliationCompletedData {
@@ -33,7 +43,8 @@ public record ReconciliationCompletedData(
         Objects.requireNonNull(nodeOutcomes, "nodeOutcomes");
         nodeOutcomes = Map.copyOf(nodeOutcomes);
         if (nodeCount < 0 || additionsCount < 0 || removalsCount < 0
-            || suspensionsCount < 0 || resumptionsCount < 0 || faultCount < 0) {
+            || suspensionsCount < 0 || resumptionsCount < 0 || faultCount < 0
+            || exemptedCount < 0) {
             throw new IllegalArgumentException("counts must be non-negative");
         }
     }

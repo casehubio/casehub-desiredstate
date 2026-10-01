@@ -9,6 +9,8 @@ public final class DesiredStateEventTypes {
         "io.casehub.desiredstate.node.faulted";
     public static final String NODE_DRIFTED =
         "io.casehub.desiredstate.node.drifted";
+    public static final String NODE_DRIFT_EXEMPTED = "io.casehub.desiredstate.node.drift.exempted";
+
     public static final String NODE_RECOVERED =
         "io.casehub.desiredstate.node.recovered";
     public static final String NODE_ALREADY_CONVERGED =
