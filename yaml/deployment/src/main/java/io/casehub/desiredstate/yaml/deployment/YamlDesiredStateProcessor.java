@@ -1,7 +1,7 @@
 package io.casehub.desiredstate.yaml.deployment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.casehub.yaml.jackson.YamlMappers;
 import io.casehub.desiredstate.annotations.DesiredStateQualifier;
 import io.casehub.desiredstate.annotations.deployment.DesiredStateGraphBuildItem;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
@@ -63,9 +63,7 @@ public class YamlDesiredStateProcessor {
             return;
         }
 
-        ObjectMapper yamlMapper = new ObjectMapper(YAMLFactory.builder()
-                .enable(com.fasterxml.jackson.dataformat.yaml.YAMLParser.Feature.PARSE_BOOLEAN_LIKE_WORDS_AS_STRINGS)
-                .build());
+        ObjectMapper yamlMapper = YamlMappers.create();
         List<NamedYamlGraph> yamlGraphs = discoverYamlFiles(yamlMapper);
         Map<String, io.casehub.yaml.core.module.YamlModule> availableModules =
                 discoverModules(yamlMapper);

@@ -2,7 +2,7 @@ package io.casehub.desiredstate.plugin.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.casehub.yaml.jackson.YamlMappers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +19,7 @@ import io.casehub.yaml.step.catalog.ResolvedStep;
 
 public class PluginParser {
 
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
+    private static final ObjectMapper YAML_MAPPER = YamlMappers.create();
 
     private static final Set<String> DECORATOR_KEYS =
             Set.of("result", "when", "on-error", "retry", "loop", "deadline");

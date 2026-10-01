@@ -1,8 +1,7 @@
 package io.casehub.desiredstate.yaml.spring;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import io.casehub.yaml.jackson.YamlMappers;
 import io.casehub.desiredstate.api.BeanRegistration;
 import io.casehub.desiredstate.runtime.spring.SpringJandexSupport;
 import io.casehub.desiredstate.yaml.YamlDiscovery;
@@ -45,8 +44,7 @@ public class DesiredStateYamlAutoConfiguration implements SmartInitializingSingl
                 return;
             }
 
-            ObjectMapper yamlMapper = new ObjectMapper(YAMLFactory.builder()
-                                                                  .enable(YAMLParser.Feature.PARSE_BOOLEAN_LIKE_WORDS_AS_STRINGS).build());
+            ObjectMapper yamlMapper = YamlMappers.create();
             List<YamlGraph>         graphs  = discoverYamlGraphs(yamlMapper);
             Map<String, YamlModule> modules = discoverModules(yamlMapper);
 
