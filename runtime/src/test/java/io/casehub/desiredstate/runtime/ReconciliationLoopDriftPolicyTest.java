@@ -31,7 +31,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReconciliationLoopDriftPolicyTest {
 
@@ -70,11 +71,13 @@ class ReconciliationLoopDriftPolicyTest {
     private ReconciliationLoop buildLoop(DriftPolicy... policies) {
         var driftEngine = new DriftPolicyEngine(List.of(policies));
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
+        var evictionListener = new ExemptionEvictionListener(exemptionStore);
         return ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
             .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC)
             .cloudEventSink(emittedEvents::add)
             .driftPolicyEngine(driftEngine)
             .exemptionStore(exemptionStore)
+            .globalListeners(List.of(evictionListener))
             .build();
     }
 
@@ -138,6 +141,110 @@ class ReconciliationLoopDriftPolicyTest {
             .anyMatch(e -> e.getType().equals(DesiredStateEventTypes.NODE_DRIFT_EXEMPTED)));
         assertTrue(testExecutor.executedPlans.isEmpty() ||
             testExecutor.executedPlans.stream().allMatch(TransitionPlan::isEmpty));
+    }
+
+
+    @Test
+    void durationExemption_reconciledAfterExpiry() {
+        java.util.concurrent.atomic.AtomicBoolean shouldExempt = new java.util.concurrent.atomic.AtomicBoolean(true);
+        DriftPolicy exempt = (id, s, n, c) -> shouldExempt.get()
+            ? DriftDecision.exempt(new ExemptionSpec(new RevertCondition.OnDuration(Duration.ofMillis(100)), Map.of()))
+            : DriftDecision.reconcile();
+        loop = buildLoop(exempt);
+        DesiredNode a = node("a");
+        var graph = factory.of(List.of(a), List.of());
+        actualAdapter.setStatus(NodeId.of("a"), NodeStatus.DRIFTED);
+        loop.start("t1", graph);
+        await().atMost(AWAIT).until(() -> emittedEvents.stream()
+            .anyMatch(e -> e.getType().equals(DesiredStateEventTypes.NODE_DRIFT_EXEMPTED)));
+        emittedEvents.clear();
+        testExecutor.executedPlans.clear();
+        shouldExempt.set(false);
+        try { Thread.sleep(200); } catch (InterruptedException ignored) {}
+        loop.requestReconciliation("t1");
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
+        assertFalse(testExecutor.executedPlans.get(0).flatAdditions().isEmpty());
+    }
+
+    @Test
+    void onStatusChange_revokesExemptionWhenStatusMatches() {
+        exemptionStore.grant("t1", NodeId.of("a"), new Exemption(
+            NodeId.of("a"), new ExemptionSpec(
+                new RevertCondition.OnStatusChange(Set.of(NodeStatus.DRIFTED)), Map.of()),
+            Instant.now(), null));
+        loop = buildLoop();
+        DesiredNode a = node("a");
+        var graph = factory.of(List.of(a), List.of());
+        actualAdapter.setStatus(NodeId.of("a"), NodeStatus.DRIFTED);
+        loop.start("t1", graph);
+        await().atMost(AWAIT).until(() -> !testExecutor.executedPlans.isEmpty());
+        assertTrue(exemptionStore.get("t1", NodeId.of("a")).isEmpty());
+    }
+
+    @Test
+    void retriggering_policyReGrantsEachCycle() {
+        DriftPolicy exempt = (id, s, n, c) ->
+                                     DriftDecision.exempt(new ExemptionSpec(
+                                             new RevertCondition.OnDuration(Duration.ofMinutes(30)), Map.of()));
+        loop = buildLoop(exempt);
+        DesiredNode a     = node("a");
+        var         graph = factory.of(List.of(a), List.of());
+        actualAdapter.setStatus(NodeId.of("a"), NodeStatus.DRIFTED);
+        loop.start("t1", graph);
+        await().atMost(AWAIT).until(() -> emittedEvents.stream()
+                                                       .anyMatch(e -> e.getType().equals(DesiredStateEventTypes.NODE_DRIFT_EXEMPTED)));
+        assertTrue(exemptionStore.get("t1", NodeId.of("a")).isPresent());
+        emittedEvents.clear();
+        loop.requestReconciliation("t1");
+        await().atMost(AWAIT).until(() -> emittedEvents.stream()
+                                                       .anyMatch(e -> e.getType().equals(DesiredStateEventTypes.NODE_DRIFT_EXEMPTED)));
+        assertTrue(exemptionStore.get("t1", NodeId.of("a")).isPresent());
+    }
+
+    @Test
+    void reconciliationCompletedData_includesExemptedCount() {
+        DriftPolicy exempt = (id, s, n, c) ->
+                                     DriftDecision.exempt(new ExemptionSpec(new RevertCondition.Never(), Map.of()));
+        loop = buildLoop(exempt);
+        DesiredNode a     = node("a");
+        var         graph = factory.of(List.of(a), List.of());
+        actualAdapter.setStatus(NodeId.of("a"), NodeStatus.DRIFTED);
+        loop.start("t1", graph);
+        await().atMost(AWAIT).until(() -> emittedEvents.stream()
+                                                       .anyMatch(e -> e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED)));
+        var completedEvent = emittedEvents.stream()
+                                          .filter(e -> e.getType().equals(DesiredStateEventTypes.RECONCILIATION_COMPLETED))
+                                          .findFirst().orElseThrow();
+        String json = new String(completedEvent.getData().toBytes());
+        assertTrue(json.contains("\"exemptedCount\":1"));
+    }
+
+    @Test
+    void eviction_removedExemptNodesEvictedFromStore() {
+        ExemptionEvictionListener evictionListener = new ExemptionEvictionListener(exemptionStore);
+        exemptionStore.grant("t1", NodeId.of("a"), new Exemption(
+            NodeId.of("a"), new ExemptionSpec(new RevertCondition.Never(), Map.of()),
+            Instant.now(), null));
+        assertTrue(exemptionStore.get("t1", NodeId.of("a")).isPresent());
+        DesiredNode b = node("b");
+        var graph = factory.of(List.of(b), List.of());
+        evictionListener.onReconciliationCycleCompleted("t1", graph,
+            new ActualState(Map.of(NodeId.of("b"), NodeStatus.PRESENT)));
+        assertTrue(exemptionStore.get("t1", NodeId.of("a")).isEmpty());
+    }
+
+    @Test
+    void eviction_tenantStopClearsAllExemptions() {
+        ExemptionEvictionListener evictionListener = new ExemptionEvictionListener(exemptionStore);
+        exemptionStore.grant("t1", NodeId.of("a"), new Exemption(
+            NodeId.of("a"), new ExemptionSpec(new RevertCondition.Never(), Map.of()),
+            Instant.now(), null));
+        exemptionStore.grant("t1", NodeId.of("b"), new Exemption(
+            NodeId.of("b"), new ExemptionSpec(new RevertCondition.Never(), Map.of()),
+            Instant.now(), null));
+        evictionListener.onTenantStopped("t1");
+        assertTrue(exemptionStore.get("t1", NodeId.of("a")).isEmpty());
+        assertTrue(exemptionStore.get("t1", NodeId.of("b")).isEmpty());
     }
 
     private static class TestSpec implements NodeSpec {
