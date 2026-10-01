@@ -26,4 +26,13 @@ public final class DesiredStateEventTypes {
     public static final String LIFECYCLE_STATE_EXITED =
             "io.casehub.desiredstate.lifecycle.state-exited";
 
+
+    public static final String PLAN_AWAITING_APPROVAL =
+            "io.casehub.desiredstate.plan.awaiting-approval";
+    public static final String PLAN_APPROVED          =
+            "io.casehub.desiredstate.plan.approved";
+    public static final String PLAN_REJECTED          =
+            "io.casehub.desiredstate.plan.rejected";
+    public static final String PLAN_INVALIDATED       =
+            "io.casehub.desiredstate.plan.invalidated";
 }
