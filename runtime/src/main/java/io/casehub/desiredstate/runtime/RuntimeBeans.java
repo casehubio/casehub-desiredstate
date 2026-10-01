@@ -3,6 +3,8 @@ package io.casehub.desiredstate.runtime;
 import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
+import io.casehub.desiredstate.api.DriftPolicy;
+import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultCountStore;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
@@ -80,6 +82,30 @@ public class RuntimeBeans {
         return new FaultCountEvictionListener(store);
     }
 
+    @Produces
+    @ApplicationScoped
+    public DriftPolicyEngine driftPolicyEngine(Instance<DriftPolicy> policies) {
+        return new DriftPolicyEngine(policies.stream()
+                                             .sorted(java.util.Comparator.comparingInt(p -> {
+                                                 var priority = p.getClass().getAnnotation(jakarta.annotation.Priority.class);
+                                                 return priority != null ? -priority.value() : 0;
+                                             }))
+                                             .toList());
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public DefaultExemptionStore defaultExemptionStore() {
+        return new DefaultExemptionStore();
+    }
+
+    @Produces
+    @ApplicationScoped
+    public ExemptionEvictionListener exemptionEvictionListener(ExemptionStore store) {
+        return new ExemptionEvictionListener(store);
+    }
+
 
     @Produces
     @DefaultBean
@@ -123,13 +149,16 @@ public class RuntimeBeans {
             Event<CloudEvent> cloudEventSink,
             Instance<GlobalReconciliationListener> listeners,
             CbrProposalTracker cbrTracker,
-            ReconciliationStateStore stateStore) {
+            ReconciliationStateStore stateStore,
+            DriftPolicyEngine driftPolicyEngine,
+            ExemptionStore exemptionStore) {
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
                                       cloudEventSink::fire, cbrTracker,
                                       listeners.stream().toList(), stateStore,
-                                      ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD);
+                                      ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
+                                      driftPolicyEngine, exemptionStore);
     }
 
     @Produces
