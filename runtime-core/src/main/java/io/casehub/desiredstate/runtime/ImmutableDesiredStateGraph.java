@@ -35,24 +35,35 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
      */
     private final Map<NodeId, Set<NodeId>> reverseEdges;
     private final int                      version;
+    private final Set<io.casehub.desiredstate.api.OrderingConstraint> orderingConstraints;
+
 
     ImmutableDesiredStateGraph(
             Map<NodeId, DesiredNode> nodes,
             Map<NodeId, Set<NodeId>> forwardEdges,
             Map<NodeId, Set<NodeId>> reverseEdges,
             int version) {
-        this.nodes        = Map.copyOf(nodes);
-        this.forwardEdges = deepCopyEdges(forwardEdges);
-        this.reverseEdges = deepCopyEdges(reverseEdges);
-        this.version      = version;
+        this(nodes, forwardEdges, reverseEdges, version, Set.of());
     }
+
+    ImmutableDesiredStateGraph(
+            Map<NodeId, DesiredNode> nodes,
+            Map<NodeId, Set<NodeId>> forwardEdges,
+            Map<NodeId, Set<NodeId>> reverseEdges,
+            int version,
+            Set<io.casehub.desiredstate.api.OrderingConstraint> orderingConstraints) {
+        this.nodes               = Map.copyOf(nodes);
+        this.forwardEdges        = deepCopyEdges(forwardEdges);
+        this.reverseEdges        = deepCopyEdges(reverseEdges);
+        this.version             = version;
+        this.orderingConstraints = orderingConstraints != null ? Set.copyOf(orderingConstraints) : Set.of();
+    }
+
 
     /**
      * Empty graph at version 0.
      */
-    static ImmutableDesiredStateGraph empty() {
-        return new ImmutableDesiredStateGraph(Map.of(), Map.of(), Map.of(), 0);
-    }
+    static ImmutableDesiredStateGraph empty() {return new ImmutableDesiredStateGraph(Map.of(), Map.of(), Map.of(), 0, Set.of());}
 
     // --- DesiredStateGraph interface ---
 
@@ -133,16 +144,43 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
         return version;
     }
 
+
+    @Override
+    public Set<io.casehub.desiredstate.api.OrderingConstraint> orderingConstraints() {
+        return orderingConstraints;
+    }
+
+    @Override
+    public DesiredStateGraph withOrderingConstraints(Set<io.casehub.desiredstate.api.OrderingConstraint> constraints) {
+        return new ImmutableDesiredStateGraph(nodes, forwardEdges, reverseEdges, version + 1, constraints);
+    }
+
     @Override
     public boolean isEmpty() {
         return nodes.isEmpty();
+    }
+
+
+    @Override
+    public DesiredStateGraph filterByTypes(Set<io.casehub.desiredstate.api.NodeType> types) {
+        DesiredStateGraph result = DesiredStateGraph.super.filterByTypes(types);
+        if (orderingConstraints.isEmpty()) {
+            return result;
+        }
+        var filtered = orderingConstraints.stream()
+                                          .filter(c -> types.contains(c.before()) && types.contains(c.after()))
+                                          .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (!filtered.equals(result.orderingConstraints())) {
+            result = result.withOrderingConstraints(filtered);
+        }
+        return result;
     }
 
     @Override
     public DesiredStateGraph withNode(DesiredNode node) {
         var newNodes = new LinkedHashMap<>(nodes);
         newNodes.put(node.id(), node);
-        return new ImmutableDesiredStateGraph(newNodes, forwardEdges, reverseEdges, version + 1);
+        return new ImmutableDesiredStateGraph(newNodes, forwardEdges, reverseEdges, version + 1, orderingConstraints);
     }
 
     @Override
@@ -153,7 +191,6 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
         var newForward = mutableEdges(forwardEdges);
         var newReverse = mutableEdges(reverseEdges);
 
-        // Remove forward edges from this node
         Set<NodeId> deps = newForward.remove(id);
         if (deps != null) {
             for (NodeId dep : deps) {
@@ -165,7 +202,6 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             }
         }
 
-        // Remove reverse edges to this node (i.e., other nodes that depended on this node)
         Set<NodeId> dependents = newReverse.remove(id);
         if (dependents != null) {
             for (NodeId dependent : dependents) {
@@ -177,7 +213,7 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             }
         }
 
-        return new ImmutableDesiredStateGraph(newNodes, newForward, newReverse, version + 1);
+        return new ImmutableDesiredStateGraph(newNodes, newForward, newReverse, version + 1, orderingConstraints);
     }
 
     @Override
@@ -189,12 +225,10 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             return this;
         }
 
-        // Self-loop check
         if (from.equals(to)) {
             throw new CyclicDependencyException(List.of(from, to));
         }
 
-        // Build tentative forward edges and check for cycles
         var newForward = mutableEdges(forwardEdges);
         newForward.computeIfAbsent(from, k -> new LinkedHashSet<>()).add(to);
 
@@ -203,7 +237,7 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
         var newReverse = mutableEdges(reverseEdges);
         newReverse.computeIfAbsent(to, k -> new LinkedHashSet<>()).add(from);
 
-        return new ImmutableDesiredStateGraph(nodes, newForward, newReverse, version + 1);
+        return new ImmutableDesiredStateGraph(nodes, newForward, newReverse, version + 1, orderingConstraints);
     }
 
     @Override
@@ -226,7 +260,7 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             if (revSet.isEmpty()) {newReverse.remove(to);}
         }
 
-        return new ImmutableDesiredStateGraph(nodes, newForward, newReverse, version + 1);
+        return new ImmutableDesiredStateGraph(nodes, newForward, newReverse, version + 1, orderingConstraints);
     }
 
     @Override
@@ -261,7 +295,6 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             }
         }
 
-        // Add nodes from other
         DesiredStateGraph result = this;
         for (DesiredNode node : other.nodes().values()) {
             if (!result.nodes().containsKey(node.id())) {
@@ -269,11 +302,16 @@ final class ImmutableDesiredStateGraph implements DesiredStateGraph {
             }
         }
 
-        // Add edges from other — withDependency() handles cycle detection per edge
         for (Dependency dep : other.dependencies()) {
             if (!result.dependencies().contains(dep)) {
                 result = result.withDependency(dep);
             }
+        }
+
+        var merged = new java.util.LinkedHashSet<>(result.orderingConstraints());
+        merged.addAll(other.orderingConstraints());
+        if (!merged.equals(result.orderingConstraints())) {
+            result = result.withOrderingConstraints(Set.copyOf(merged));
         }
 
         return result;

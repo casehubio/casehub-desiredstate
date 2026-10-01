@@ -595,4 +595,71 @@ class ImmutableDesiredStateGraphTest {
         assertThat(filtered.nodes()).hasSize(2);
         assertThat(filtered.dependencies()).hasSize(1);
     }
+
+    @Test
+    void orderingConstraints_defaultEmpty() {
+        var graph = ImmutableDesiredStateGraph.empty();
+        assertThat(graph.orderingConstraints()).isEmpty();
+    }
+
+    @Test
+    void withOrderingConstraints_returnsNewGraphWithConstraints() {
+        var graph = ImmutableDesiredStateGraph.empty();
+        var constraint = new io.casehub.desiredstate.api.OrderingConstraint(
+                NodeType.of("breaker"), NodeType.of("equipment"));
+        var constrained = graph.withOrderingConstraints(Set.of(constraint));
+        assertThat(constrained.orderingConstraints()).containsExactly(constraint);
+        assertThat(graph.orderingConstraints()).isEmpty();
+    }
+
+    @Test
+    void withNode_preservesOrderingConstraints() {
+        var constraint = new io.casehub.desiredstate.api.OrderingConstraint(
+                NodeType.of("breaker"), NodeType.of("equipment"));
+        var graph = ImmutableDesiredStateGraph.empty()
+                                              .withOrderingConstraints(Set.of(constraint));
+        var updated = graph.withNode(node("n1"));
+        assertThat(updated.orderingConstraints()).containsExactly(constraint);
+    }
+
+    @Test
+    void withoutNode_preservesOrderingConstraints() {
+        var constraint = new io.casehub.desiredstate.api.OrderingConstraint(
+                NodeType.of("breaker"), NodeType.of("equipment"));
+        var graph = ImmutableDesiredStateGraph.empty()
+                                              .withNode(node("n1"))
+                                              .withOrderingConstraints(Set.of(constraint));
+        var updated = graph.withoutNode(NodeId.of("n1"));
+        assertThat(updated.orderingConstraints()).containsExactly(constraint);
+    }
+
+    @Test
+    void overlay_mergesOrderingConstraints() {
+        var c1     = new io.casehub.desiredstate.api.OrderingConstraint(NodeType.of("a"), NodeType.of("b"));
+        var c2     = new io.casehub.desiredstate.api.OrderingConstraint(NodeType.of("c"), NodeType.of("d"));
+        var g1     = ImmutableDesiredStateGraph.empty().withOrderingConstraints(Set.of(c1));
+        var g2     = ImmutableDesiredStateGraph.empty().withOrderingConstraints(Set.of(c2));
+        var merged = g1.overlay(g2);
+        assertThat(merged.orderingConstraints()).containsExactlyInAnyOrder(c1, c2);
+    }
+
+    @Test
+    void filterByTypes_filtersConstraintsToMatchingTypes() {
+        var kept    = new io.casehub.desiredstate.api.OrderingConstraint(ROOM, CREATURE);
+        var removed = new io.casehub.desiredstate.api.OrderingConstraint(ROOM, ITEM);
+        var graph = ImmutableDesiredStateGraph.empty()
+                                              .withNode(node("r1", ROOM))
+                                              .withNode(node("c1", CREATURE))
+                                              .withNode(node("i1", ITEM))
+                                              .withOrderingConstraints(Set.of(kept, removed));
+        var filtered = graph.filterByTypes(Set.of(ROOM, CREATURE));
+        assertThat(filtered.orderingConstraints()).containsExactly(kept);
+    }
+
+    @Test
+    void orderingConstraint_rejectsSelfReferencing() {
+        assertThatThrownBy(() -> new io.casehub.desiredstate.api.OrderingConstraint(
+                NodeType.of("a"), NodeType.of("a")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

@@ -21,6 +21,15 @@ public interface DesiredStateGraph {
     DesiredStateGraph overlay(DesiredStateGraph other);
     DesiredStateGraph connect(DesiredStateGraph other);
 
+
+    default Set<OrderingConstraint> orderingConstraints() {
+        return Set.of();
+    }
+
+    default DesiredStateGraph withOrderingConstraints(Set<OrderingConstraint> constraints) {
+        throw new UnsupportedOperationException("withOrderingConstraints not supported by this implementation");
+    }
+
     default DesiredStateGraph filterByTypes(Set<NodeType> types) {
         DesiredStateGraph result = this;
         for (Map.Entry<NodeId, DesiredNode> entry : nodes().entrySet()) {
