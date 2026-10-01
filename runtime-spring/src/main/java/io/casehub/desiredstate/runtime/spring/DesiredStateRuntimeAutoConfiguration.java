@@ -4,8 +4,11 @@ import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.DriftPolicy;
+import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultCountStore;
 import io.casehub.desiredstate.api.FaultPolicy;
+import io.casehub.desiredstate.api.InMemoryExemptionStore;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.LifecycleStepExecutor;
@@ -22,6 +25,8 @@ import io.casehub.desiredstate.runtime.CbrSituationRecompiler;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.DefaultFaultCountStore;
 import io.casehub.desiredstate.runtime.DefaultReconciliationStateStore;
+import io.casehub.desiredstate.runtime.DriftPolicyEngine;
+import io.casehub.desiredstate.runtime.ExemptionEvictionListener;
 import io.casehub.desiredstate.runtime.FaultCountEvictionListener;
 import io.casehub.desiredstate.runtime.FaultPolicyEngine;
 import io.casehub.desiredstate.runtime.NodeStepExecutor;
@@ -96,6 +101,24 @@ public class DesiredStateRuntimeAutoConfiguration {
         return new FaultCountEvictionListener(store);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public DriftPolicyEngine driftPolicyEngine(List<DriftPolicy> policies) {
+        policies.sort(org.springframework.core.annotation.AnnotationAwareOrderComparator.INSTANCE);
+        return new DriftPolicyEngine(policies);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ExemptionStore.class)
+    public ExemptionStore exemptionStore() {
+        return new InMemoryExemptionStore();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ExemptionEvictionListener exemptionEvictionListener(ExemptionStore store) {
+        return new ExemptionEvictionListener(store);
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -137,13 +160,16 @@ public class DesiredStateRuntimeAutoConfiguration {
             ApplicationEventPublisher eventPublisher,
             List<GlobalReconciliationListener> listeners,
             CbrProposalTracker cbrTracker,
-            ReconciliationStateStore stateStore) {
+            ReconciliationStateStore stateStore,
+            DriftPolicyEngine driftPolicyEngine,
+            ExemptionStore exemptionStore) {
         Consumer<CloudEvent> cloudEventSink = event -> eventPublisher.publishEvent(event);
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
                                       cloudEventSink, cbrTracker, listeners, stateStore,
-                                      ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD);
+                                      ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
+                                      driftPolicyEngine, exemptionStore);
     }
 
     @Bean
