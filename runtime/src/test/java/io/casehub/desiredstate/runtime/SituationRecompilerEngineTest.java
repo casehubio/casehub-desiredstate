@@ -107,6 +107,126 @@ class SituationRecompilerEngineTest {
         assertThat(sg.graph().nodes()).containsKey(NodeId.of("low"));
     }
 
+
+    @Test
+    void situationResolved_emptyList_shouldReturnEmpty() {
+        SituationRecompilerEngine   engine = new SituationRecompilerEngine(List.of());
+        Optional<CompilationResult> result = engine.situationResolved("tenant-1", "sit-1", graph, actual, null);
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void situationResolved_singleRecompiler_returnsResult() {
+        DesiredStateGraph newGraph = graph.withNode(
+                new DesiredNode(NodeId.of("n1"), new TestSpec("v1"), HumanGating.NONE));
+        SituationRecompiler recompiler = new SituationRecompiler() {
+            @Override
+            public Optional<CompilationResult> recompile(String tid, DesiredStateGraph c, ActualState a,
+                                                         ActiveSituation s, DesiredStateGraphFactory f) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<CompilationResult> situationResolved(String tid, String sitId,
+                                                                 DesiredStateGraph c, ActualState a, DesiredStateGraphFactory f) {
+                return Optional.of(CompilationResult.single(newGraph));
+            }
+        };
+
+        SituationRecompilerEngine   engine = new SituationRecompilerEngine(List.of(recompiler));
+        Optional<CompilationResult> result = engine.situationResolved("tenant-1", "sit-1", graph, actual, null);
+
+        assertThat(result).isPresent();
+    }
+
+    @Test
+    void situationResolved_firstMatchWins() {
+        List<String> callOrder = new ArrayList<>();
+
+        SituationRecompiler first = new SituationRecompiler() {
+            @Override
+            public Optional<CompilationResult> recompile(String tid, DesiredStateGraph c, ActualState a,
+                                                         ActiveSituation s, DesiredStateGraphFactory f) {return Optional.empty();}
+
+            @Override
+            public Optional<CompilationResult> situationResolved(String tid, String sitId,
+                                                                 DesiredStateGraph c, ActualState a, DesiredStateGraphFactory f) {
+                callOrder.add("first");
+                return Optional.of(CompilationResult.single(graph));
+            }
+        };
+        SituationRecompiler second = new SituationRecompiler() {
+            @Override
+            public Optional<CompilationResult> recompile(String tid, DesiredStateGraph c, ActualState a,
+                                                         ActiveSituation s, DesiredStateGraphFactory f) {return Optional.empty();}
+
+            @Override
+            public Optional<CompilationResult> situationResolved(String tid, String sitId,
+                                                                 DesiredStateGraph c, ActualState a, DesiredStateGraphFactory f) {
+                callOrder.add("second");
+                return Optional.of(CompilationResult.single(graph));
+            }
+        };
+
+        SituationRecompilerEngine engine = new SituationRecompilerEngine(List.of(first, second));
+        engine.situationResolved("tenant-1", "sit-1", graph, actual, null);
+
+        assertThat(callOrder).containsExactly("first");
+    }
+
+    @Test
+    void situationResolved_defaultImpl_returnsEmpty() {
+        SituationRecompiler recompiler = (tid, c, a, s, f) -> Optional.of(CompilationResult.single(graph));
+
+        SituationRecompilerEngine   engine = new SituationRecompilerEngine(List.of(recompiler));
+        Optional<CompilationResult> result = engine.situationResolved("tenant-1", "sit-1", graph, actual, null);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void situationResolved_respectsPriorityOrdering() {
+        DesiredStateGraph lowGraph = graph.withNode(
+                new DesiredNode(NodeId.of("low"), new TestSpec("low"), HumanGating.NONE));
+
+        SituationRecompiler lowPriority = new SituationRecompiler() {
+            @Override
+            public Optional<CompilationResult> recompile(String tid, DesiredStateGraph c, ActualState a,
+                                                         ActiveSituation s, DesiredStateGraphFactory f) {return Optional.empty();}
+
+            @Override
+            public Optional<CompilationResult> situationResolved(String tid, String sitId,
+                                                                 DesiredStateGraph c, ActualState a, DesiredStateGraphFactory f) {
+                return Optional.of(CompilationResult.single(lowGraph));
+            }
+
+            @Override
+            public int priority() {return 0;}
+        };
+
+        SituationRecompiler highPriority = new SituationRecompiler() {
+            @Override
+            public Optional<CompilationResult> recompile(String tid, DesiredStateGraph c, ActualState a,
+                                                         ActiveSituation s, DesiredStateGraphFactory f) {return Optional.empty();}
+
+            @Override
+            public Optional<CompilationResult> situationResolved(String tid, String sitId,
+                                                                 DesiredStateGraph c, ActualState a, DesiredStateGraphFactory f) {
+                return Optional.of(CompilationResult.single(graph));
+            }
+
+            @Override
+            public int priority() {return Integer.MAX_VALUE;}
+        };
+
+        SituationRecompilerEngine   engine = new SituationRecompilerEngine(List.of(highPriority, lowPriority));
+        Optional<CompilationResult> result = engine.situationResolved("tenant-1", "sit-1", graph, actual, null);
+
+        assertThat(result).isPresent();
+        CompilationResult.SingleGraph sg = (CompilationResult.SingleGraph) result.get();
+        assertThat(sg.graph().nodes()).containsKey(NodeId.of("low"));
+    }
+
     @Test
     void firstMatchWins_shouldNotCallSubsequentRecompilers() {
         List<String> callOrder = new ArrayList<>();
