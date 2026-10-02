@@ -85,6 +85,22 @@ public class ReconciliationEventEmitter {
                        .build();
     }
 
+    public CloudEvent nodeSuspended(io.casehub.desiredstate.api.NodeSuspendedData data) {
+        return base(DesiredStateEventTypes.NODE_SUSPENDED)
+                       .withSubject(data.nodeId())
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
+    public CloudEvent nodeResumed(io.casehub.desiredstate.api.NodeResumedData data) {
+        return base(DesiredStateEventTypes.NODE_RESUMED)
+                       .withSubject(data.nodeId())
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
 
     public CloudEvent cbrOutcome(CbrOutcomeData data) {
         return base(CbrEventTypes.CBR_OUTCOME)
@@ -129,6 +145,14 @@ public class ReconciliationEventEmitter {
                        .withData("application/json", serialize(data))
                        .build();
     }
+
+    public CloudEvent planApproved(io.casehub.desiredstate.api.PlanApprovedData data) {
+        return base(DesiredStateEventTypes.PLAN_APPROVED)
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
 
     public CloudEvent planRejected(io.casehub.desiredstate.api.PlanRejectedData data) {
         return base(DesiredStateEventTypes.PLAN_REJECTED)
