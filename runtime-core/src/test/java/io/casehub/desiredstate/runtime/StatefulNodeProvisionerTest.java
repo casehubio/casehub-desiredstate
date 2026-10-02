@@ -226,4 +226,165 @@ class StatefulNodeProvisionerTest {
         var fullProvisioner = new StatefulNodeProvisioner(delegate, fullLifecycle(), actionHandler);
         assertThat(fullProvisioner.supportsStatefulLifecycle()).isTrue();
     }
+
+    private NodeLifecycleDefinition fullLifecycleWithRecovery() {
+        return new NodeLifecycleDefinition(TEST_TYPE,
+                                           Set.of(
+                                                   new Transition(ABSENT, PROVISIONING),
+                                                   new Transition(PROVISIONING, PRESENT),
+                                                   new Transition(PROVISIONING, DRIFTED),
+                                                   new Transition(PRESENT, DEPROVISIONING),
+                                                   new Transition(DEPROVISIONING, ABSENT),
+                                                   new Transition(PRESENT, SUSPENDING),
+                                                   new Transition(SUSPENDING, SUSPENDED),
+                                                   new Transition(SUSPENDING, PRESENT),
+                                                   new Transition(SUSPENDED, RESUMING),
+                                                   new Transition(RESUMING, PRESENT),
+                                                   new Transition(RESUMING, SUSPENDED)
+                                                 ), Map.of(), Map.of());
+    }
+
+    @Test
+    void suspend_failure_rollsBackToPresentState() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.Success());
+        when(delegate.suspend(any(), any())).thenReturn(new SuspendResult.Failed("resource busy"));
+
+        var provisioner = new StatefulNodeProvisioner(delegate, fullLifecycleWithRecovery(), actionHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+
+        provisioner.provision(node, new ProvisionContext("t1", graph));
+        var suspendResult = provisioner.suspend(node, new SuspendContext("t1", graph));
+
+        assertInstanceOf(SuspendResult.Failed.class, suspendResult);
+
+        // State rolled back to PRESENT — suspend again should be allowed
+        when(delegate.suspend(any(), any())).thenReturn(new SuspendResult.Success());
+        var retryResult = provisioner.suspend(node, new SuspendContext("t1", graph));
+        assertInstanceOf(SuspendResult.Success.class, retryResult);
+    }
+
+    @Test
+    void resume_failure_rollsBackToSuspendedState() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.Success());
+        when(delegate.suspend(any(), any())).thenReturn(new SuspendResult.Success());
+        when(delegate.resume(any(), any())).thenReturn(new ResumeResult.Failed("not ready"));
+
+        var provisioner = new StatefulNodeProvisioner(delegate, fullLifecycleWithRecovery(), actionHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+
+        provisioner.provision(node, new ProvisionContext("t1", graph));
+        provisioner.suspend(node, new SuspendContext("t1", graph));
+        var resumeResult = provisioner.resume(node, new ResumeContext("t1", graph));
+
+        assertInstanceOf(ResumeResult.Failed.class, resumeResult);
+
+        // State rolled back to SUSPENDED — resume again should be allowed
+        when(delegate.resume(any(), any())).thenReturn(new ResumeResult.Success());
+        var retryResult = provisioner.resume(node, new ResumeContext("t1", graph));
+        assertInstanceOf(ResumeResult.Success.class, retryResult);
+    }
+
+    @Test
+    void deprovision_failure_leavesStateInDeprovisioning() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.Success());
+        when(delegate.deprovision(any(), any())).thenReturn(new DeprovisionResult.Failed("locked"));
+
+        var provisioner = new StatefulNodeProvisioner(delegate, standardLifecycle(), actionHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+
+        provisioner.provision(node, new ProvisionContext("t1", graph));
+        var result = provisioner.deprovision(node, new DeprovisionContext("t1", graph));
+
+        assertInstanceOf(DeprovisionResult.Failed.class, result);
+
+        // State is stuck in DEPROVISIONING — another deprovision attempt should fail
+        var retryResult = provisioner.deprovision(node, new DeprovisionContext("t1", graph));
+        assertInstanceOf(DeprovisionResult.Failed.class, retryResult);
+        assertThat(((DeprovisionResult.Failed) retryResult).reason()).contains("lifecycle");
+    }
+
+    @Test
+    void onExitAction_emitsEvent() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.Success());
+        when(delegate.deprovision(any(), any())).thenReturn(new DeprovisionResult.Success());
+
+        var lifecycle = new NodeLifecycleDefinition(TEST_TYPE,
+                                                    Set.of(
+                                                            new Transition(ABSENT, PROVISIONING),
+                                                            new Transition(PROVISIONING, PRESENT),
+                                                            new Transition(PROVISIONING, DRIFTED),
+                                                            new Transition(PRESENT, DEPROVISIONING),
+                                                            new Transition(DEPROVISIONING, ABSENT)
+                                                          ),
+                                                    Map.of(),
+                                                    Map.of(PRESENT, List.of(new TransitionAction.EmitEvent("node.leaving"))));
+
+        var provisioner = new StatefulNodeProvisioner(delegate, lifecycle, actionHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+
+        provisioner.provision(node, new ProvisionContext("t1", graph));
+        emittedActions.clear();
+        provisioner.deprovision(node, new DeprovisionContext("t1", graph));
+
+        assertThat(emittedActions).anySatisfy(action -> {
+            assertThat(action).isInstanceOf(TransitionAction.EmitEvent.class);
+            assertThat(((TransitionAction.EmitEvent) action).eventType()).isEqualTo("node.leaving");
+        });
+    }
+
+    @Test
+    void onEnterAction_failure_doesNotBlockTransition() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.Success());
+
+        TransitionActionHandler failingHandler = (action, nodeId, state, tenancyId) -> {
+            throw new RuntimeException("action handler blew up");
+        };
+
+        var lifecycle = new NodeLifecycleDefinition(TEST_TYPE,
+                                                    Set.of(
+                                                            new Transition(ABSENT, PROVISIONING),
+                                                            new Transition(PROVISIONING, PRESENT),
+                                                            new Transition(PROVISIONING, DRIFTED),
+                                                            new Transition(PRESENT, DEPROVISIONING),
+                                                            new Transition(DEPROVISIONING, ABSENT)
+                                                          ),
+                                                    Map.of(PRESENT, List.of(new TransitionAction.EmitEvent("node.ready"))),
+                                                    Map.of());
+
+        var provisioner = new StatefulNodeProvisioner(delegate, lifecycle, failingHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+        var result      = provisioner.provision(node, new ProvisionContext("t1", graph));
+
+        assertInstanceOf(ProvisionResult.Success.class, result);
+    }
+
+    @Test
+    void onExitAction_failure_doesNotBlockTransition() {
+        when(delegate.provision(any(), any())).thenReturn(new ProvisionResult.Success());
+        when(delegate.deprovision(any(), any())).thenReturn(new DeprovisionResult.Success());
+
+        TransitionActionHandler failingHandler = (action, nodeId, state, tenancyId) -> {
+            throw new RuntimeException("exit action failed");
+        };
+
+        var lifecycle = new NodeLifecycleDefinition(TEST_TYPE,
+                                                    Set.of(
+                                                            new Transition(ABSENT, PROVISIONING),
+                                                            new Transition(PROVISIONING, PRESENT),
+                                                            new Transition(PROVISIONING, DRIFTED),
+                                                            new Transition(PRESENT, DEPROVISIONING),
+                                                            new Transition(DEPROVISIONING, ABSENT)
+                                                          ),
+                                                    Map.of(),
+                                                    Map.of(PRESENT, List.of(new TransitionAction.EmitEvent("node.leaving"))));
+
+        var provisioner = new StatefulNodeProvisioner(delegate, lifecycle, failingHandler);
+        var node        = new DesiredNode(NodeId.of("n1"), TEST_SPEC, HumanGating.NONE);
+
+        provisioner.provision(node, new ProvisionContext("t1", graph));
+        var result = provisioner.deprovision(node, new DeprovisionContext("t1", graph));
+
+        assertInstanceOf(DeprovisionResult.Success.class, result);
+    }
+
 }
