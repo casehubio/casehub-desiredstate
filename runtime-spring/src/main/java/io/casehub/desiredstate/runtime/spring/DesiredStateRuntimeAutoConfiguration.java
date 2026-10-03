@@ -275,6 +275,33 @@ public class DesiredStateRuntimeAutoConfiguration {
         return new io.casehub.desiredstate.runtime.LifecycleManager(reconciliationLoop);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public io.casehub.desiredstate.runtime.SituationRecompilerDispatchCore situationRecompilerDispatchCore(
+            io.casehub.desiredstate.runtime.SituationRecompilerEngine engine,
+            io.casehub.desiredstate.runtime.LifecycleManager lifecycleManager,
+            io.casehub.desiredstate.runtime.ReconciliationLoop reconciliationLoop,
+            ActualStateAdapterRouter actualStateRouter,
+            io.casehub.desiredstate.api.DesiredStateGraphFactory graphFactory,
+            io.casehub.ras.api.SituationSource situationSource) {
+        return new io.casehub.desiredstate.runtime.SituationRecompilerDispatchCore(
+                engine, lifecycleManager, reconciliationLoop,
+                actualStateRouter, graphFactory, situationSource);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.ras.api.SituationSource.class)
+    public io.casehub.ras.api.SituationSource situationSource() {
+        return new io.casehub.desiredstate.runtime.NoOpSituationSource();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SpringSituationRecompilerDispatch springSituationRecompilerDispatch(
+            io.casehub.desiredstate.runtime.SituationRecompilerDispatchCore core) {
+        return new SpringSituationRecompilerDispatch(core);
+    }
+
 
     @Bean
     @ConditionalOnMissingBean(io.casehub.desiredstate.runtime.TransitionActionHandler.class)

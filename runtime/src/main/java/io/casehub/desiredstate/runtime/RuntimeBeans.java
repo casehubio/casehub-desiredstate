@@ -269,5 +269,18 @@ public class RuntimeBeans {
         return new LifecycleManager(loop);
     }
 
+    @Produces
+    @ApplicationScoped
+    public SituationRecompilerDispatchCore situationRecompilerDispatchCore(
+            SituationRecompilerEngine engine,
+            LifecycleManager lifecycleManager,
+            ReconciliationLoop reconciliationLoop,
+            io.casehub.desiredstate.api.ActualStateAdapterRouter actualStateRouter,
+            io.casehub.desiredstate.api.DesiredStateGraphFactory graphFactory,
+            io.casehub.ras.api.SituationSource situationSource) {
+        return new SituationRecompilerDispatchCore(engine, lifecycleManager,
+                                                   reconciliationLoop, actualStateRouter, graphFactory, situationSource);
+    }
+
 
 }

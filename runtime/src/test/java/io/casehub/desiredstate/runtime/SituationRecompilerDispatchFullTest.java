@@ -23,7 +23,6 @@ import io.smallrye.mutiny.Multi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +39,7 @@ class SituationRecompilerDispatchFullTest {
         public NodeType nodeType() { return NodeType.of("test"); }
     }
 
-    private SituationRecompilerDispatch dispatch;
+    private SituationRecompilerDispatchCore dispatch;
     private ReconciliationLoop loop;
     private LifecycleManager lifecycleManager;
     private List<String> recompileCalls;
@@ -52,7 +51,7 @@ class SituationRecompilerDispatchFullTest {
     private List<ActiveSituation> activeSituations;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         recompileCalls = new ArrayList<>();
         resolvedCalls = new ArrayList<>();
         recompilerReturnsResult = true;
@@ -109,29 +108,18 @@ class SituationRecompilerDispatchFullTest {
 
         DesiredStateGraphFactory graphFactory = new DefaultDesiredStateGraphFactory();
 
-        dispatch = new SituationRecompilerDispatch();
-        setField(dispatch, "engine", engine);
-        setField(dispatch, "lifecycleManager", lifecycleManager);
-        setField(dispatch, "reconciliationLoop", loop);
-        setField(dispatch, "actualStateRouter", actualRouter);
-        setField(dispatch, "graphFactory", graphFactory);
-        setField(dispatch, "situationSource", situationSource);
+        dispatch = new SituationRecompilerDispatchCore(engine, lifecycleManager,
+                loop, actualRouter, graphFactory, situationSource);
     }
 
-    private static void setField(Object target, String name, Object value) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
-    }
-
-    // --- onSituationChange: TRIGGERED ---
+    // --- handleSituationChange: TRIGGERED ---
 
     @Test
     void triggered_callsRecompileAndUpdatesGraph() {
         loop.start("t1", baseGraph);
 
         SituationChangeEvent event = triggeredEvent("t1", "sit-1");
-        dispatch.onSituationChange(event);
+        dispatch.handleSituationChange(event);
 
         assertThat(recompileCalls).containsExactly("t1:sit-1");
         assertThat(loop.getDesired("t1").nodes()).containsKey(NodeId.of("adapted"));
@@ -143,7 +131,7 @@ class SituationRecompilerDispatchFullTest {
         recompilerReturnsResult = false;
 
         SituationChangeEvent event = triggeredEvent("t1", "sit-1");
-        dispatch.onSituationChange(event);
+        dispatch.handleSituationChange(event);
 
         assertThat(recompileCalls).containsExactly("t1:sit-1");
         assertThat(loop.getDesired("t1").nodes()).doesNotContainKey(NodeId.of("adapted"));
@@ -152,7 +140,7 @@ class SituationRecompilerDispatchFullTest {
     @Test
     void triggered_unknownTenant_isIgnored() {
         SituationChangeEvent event = triggeredEvent("unknown-tenant", "sit-1");
-        dispatch.onSituationChange(event);
+        dispatch.handleSituationChange(event);
 
         assertThat(recompileCalls).isEmpty();
     }
@@ -164,7 +152,7 @@ class SituationRecompilerDispatchFullTest {
         loop.start("t1", recompiledGraph);
 
         SituationChangeEvent event = resolvedEvent("t1", "sit-1");
-        dispatch.onSituationChange(event);
+        dispatch.handleSituationChange(event);
 
         assertThat(resolvedCalls).containsExactly("t1:sit-1");
         assertThat(loop.getDesired("t1")).isEqualTo(baseGraph);
@@ -176,7 +164,7 @@ class SituationRecompilerDispatchFullTest {
         resolvedReturnsResult = false;
 
         SituationChangeEvent event = resolvedEvent("t1", "sit-1");
-        dispatch.onSituationChange(event);
+        dispatch.handleSituationChange(event);
 
         assertThat(resolvedCalls).containsExactly("t1:sit-1");
         assertThat(loop.getDesired("t1").nodes()).containsKey(NodeId.of("adapted"));
@@ -185,7 +173,7 @@ class SituationRecompilerDispatchFullTest {
     @Test
     void resolved_unknownTenant_isIgnored() {
         SituationChangeEvent event = resolvedEvent("unknown-tenant", "sit-1");
-        dispatch.onSituationChange(event);
+        dispatch.handleSituationChange(event);
 
         assertThat(resolvedCalls).isEmpty();
     }
@@ -198,7 +186,7 @@ class SituationRecompilerDispatchFullTest {
         activeSituations.add(new ActiveSituation("sit-1", "key-1", "t1", 0.9,
                 Map.of(), Instant.now().minusSeconds(60), Instant.now(), 3));
 
-        dispatch.onColdStart(null);
+        dispatch.handleColdStart();
 
         assertThat(recompileCalls).containsExactly("t1:sit-1");
         assertThat(loop.getDesired("t1").nodes()).containsKey(NodeId.of("adapted"));
@@ -208,14 +196,14 @@ class SituationRecompilerDispatchFullTest {
     void coldStart_noActiveSituations_doesNothing() {
         loop.start("t1", baseGraph);
 
-        dispatch.onColdStart(null);
+        dispatch.handleColdStart();
 
         assertThat(recompileCalls).isEmpty();
     }
 
     @Test
     void coldStart_noTenants_doesNothing() {
-        dispatch.onColdStart(null);
+        dispatch.handleColdStart();
         assertThat(recompileCalls).isEmpty();
     }
 
@@ -227,7 +215,7 @@ class SituationRecompilerDispatchFullTest {
         activeSituations.add(new ActiveSituation("sit-2", "key-2", "t1", 0.8,
                 Map.of(), Instant.now().minusSeconds(60), Instant.now(), 2));
 
-        dispatch.onColdStart(null);
+        dispatch.handleColdStart();
 
         assertThat(recompileCalls).containsExactly("t1:sit-1", "t1:sit-2");
     }
@@ -239,7 +227,7 @@ class SituationRecompilerDispatchFullTest {
         activeSituations.add(new ActiveSituation("sit-1", "key-1", "t1", 0.9,
                 Map.of(), Instant.now().minusSeconds(60), Instant.now(), 3));
 
-        dispatch.onColdStart(null);
+        dispatch.handleColdStart();
 
         assertThat(recompileCalls).containsExactly("t1:sit-1");
         assertThat(loop.getDesired("t1").nodes()).doesNotContainKey(NodeId.of("adapted"));
@@ -253,7 +241,7 @@ class SituationRecompilerDispatchFullTest {
         var event = new SituationChangeEvent("t1", "sit-1", "key-1",
                 SituationChangeEvent.ChangeType.TRIGGERED, ctx, Map.of("env", "prod", "zone", "us-east"));
 
-        var result = SituationRecompilerDispatch.toActiveSituation(event);
+        var result = SituationRecompilerDispatchCore.toActiveSituation(event);
 
         assertThat(result.evidence()).containsEntry("env", "prod").containsEntry("zone", "us-east");
     }
@@ -267,7 +255,7 @@ class SituationRecompilerDispatchFullTest {
         var event = new SituationChangeEvent("t1", "sit-1", "key-1",
                 SituationChangeEvent.ChangeType.TRIGGERED, enriched);
 
-        var result = SituationRecompilerDispatch.toActiveSituation(event);
+        var result = SituationRecompilerDispatchCore.toActiveSituation(event);
 
         assertThat(result.triggerCount()).isEqualTo(enriched.triggerCount());
     }

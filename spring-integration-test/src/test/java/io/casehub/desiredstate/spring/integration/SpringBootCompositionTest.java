@@ -109,6 +109,18 @@ class SpringBootCompositionTest {
     }
 
     @Test
+    void situationRecompilerDispatch() {
+        assertThat(context.getBean(io.casehub.desiredstate.runtime.SituationRecompilerDispatchCore.class)).isNotNull();
+        assertThat(context.getBean(io.casehub.desiredstate.runtime.spring.SpringSituationRecompilerDispatch.class)).isNotNull();
+    }
+
+    @Test
+    void situationSourceFallback() {
+        assertThat(context.getBean(io.casehub.ras.api.SituationSource.class))
+                .isInstanceOf(io.casehub.desiredstate.runtime.NoOpSituationSource.class);
+    }
+
+    @Test
     void healthCheckReturnsUp() throws Exception {
         var client = HttpClient.newHttpClient();
         var request =

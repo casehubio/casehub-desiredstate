@@ -18,7 +18,7 @@ class SituationRecompilerDispatchTest {
         var event = new SituationChangeEvent("t1", "sit-1", "key-1",
                 SituationChangeEvent.ChangeType.TRIGGERED, ctx, Map.of("k", "v"));
 
-        var result = SituationRecompilerDispatch.toActiveSituation(event);
+        var result = SituationRecompilerDispatchCore.toActiveSituation(event);
 
         assertThat(result.situationId()).isEqualTo("sit-1");
         assertThat(result.correlationKey()).isEqualTo("key-1");
@@ -35,7 +35,7 @@ class SituationRecompilerDispatchTest {
         var event = new SituationChangeEvent("t1", "sit-1", "key-1",
                 SituationChangeEvent.ChangeType.TRIGGERED, ctx);
 
-        var result = SituationRecompilerDispatch.toActiveSituation(event);
+        var result = SituationRecompilerDispatchCore.toActiveSituation(event);
 
         assertThat(result.confidence()).isEqualTo(0.5);
     }
@@ -48,7 +48,7 @@ class SituationRecompilerDispatchTest {
         var event = new SituationChangeEvent("t1", "sit-1", "key-1",
                 SituationChangeEvent.ChangeType.TRIGGERED, ctx);
 
-        var result = SituationRecompilerDispatch.toActiveSituation(event);
+        var result = SituationRecompilerDispatchCore.toActiveSituation(event);
 
         assertThat(result.confidence()).isEqualTo(0.95);
     }
