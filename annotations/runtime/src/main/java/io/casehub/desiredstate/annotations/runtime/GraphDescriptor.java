@@ -1,5 +1,7 @@
 package io.casehub.desiredstate.annotations.runtime;
 
+import io.quarkus.runtime.annotations.RecordableConstructor;
+
 import java.util.List;
 
 public record GraphDescriptor(
@@ -14,6 +16,9 @@ public record GraphDescriptor(
         List<GraphRuleDescriptor> graphRules,
         List<GraphInvariantDescriptor> graphInvariants,
         List<OrderingConstraintDescriptor> orderingConstraints) {
+
+    @RecordableConstructor
+    public GraphDescriptor {}
 
     public GraphDescriptor(
             String namespace, String name,
