@@ -152,22 +152,13 @@ public class DesiredStateRuntimeAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(io.casehub.desiredstate.api.PlanApprovalPolicy.class)
     public io.casehub.desiredstate.api.PlanApprovalPolicy planApprovalPolicy() {
-        return (plan, tenancyId) -> new io.casehub.desiredstate.api.PlanApprovalDecision.AutoApprove();
+        return new io.casehub.desiredstate.runtime.NoOpPlanApprovalPolicy();
     }
 
     @Bean
     @ConditionalOnMissingBean(io.casehub.desiredstate.api.PlanApprovalHandler.class)
     public io.casehub.desiredstate.api.PlanApprovalHandler planApprovalHandler() {
-        return new io.casehub.desiredstate.api.PlanApprovalHandler() {
-            @Override
-            public String submit(io.casehub.desiredstate.api.TransitionPlan plan, String tenancyId, String reason) {return "noop";}
-
-            @Override
-            public io.casehub.desiredstate.api.ApprovalCheckResult check(String ref, String tenancyId)             {return new io.casehub.desiredstate.api.ApprovalCheckResult.None();}
-
-            @Override
-            public void cancel(String ref, String tenancyId)                                                       {}
-        };
+        return new io.casehub.desiredstate.runtime.NoOpPlanApprovalHandler();
     }
 
     @Bean
@@ -228,6 +219,64 @@ public class DesiredStateRuntimeAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(MergedEventSource.class)
+    public MergedEventSource mergedEventSource(List<io.casehub.desiredstate.api.EventSource> sources) {
+        return new io.casehub.desiredstate.runtime.DefaultMergedEventSource(sources);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ActualStateAdapterRouter.class)
+    public ActualStateAdapterRouter actualStateAdapterRouter(
+            List<io.casehub.desiredstate.api.ActualStateAdapter> adapters) {
+        return new io.casehub.desiredstate.runtime.DefaultActualStateAdapterRouter(adapters);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(HumanNodeHandler.class)
+    public HumanNodeHandler humanNodeHandler() {
+        return new io.casehub.desiredstate.runtime.NoOpHumanNodeHandler();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PendingApprovalHandler.class)
+    public PendingApprovalHandler pendingApprovalHandler() {
+        return new io.casehub.desiredstate.runtime.NoOpPendingApprovalHandler();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.NotificationSink.class)
+    public io.casehub.desiredstate.api.NotificationSink notificationSink() {
+        return new io.casehub.desiredstate.runtime.LoggingNotificationSink();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(LifecycleStepExecutor.class)
+    public LifecycleStepExecutor lifecycleStepExecutor(
+            io.casehub.desiredstate.api.NotificationSink notificationSink) {
+        return new io.casehub.desiredstate.runtime.DefaultLifecycleStepExecutor(notificationSink);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.ConfigurationRetriever.class)
+    public io.casehub.desiredstate.api.ConfigurationRetriever configurationRetriever() {
+        return new io.casehub.desiredstate.runtime.NoOpConfigurationRetriever();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.ConfigurationAdapter.class)
+    public io.casehub.desiredstate.api.ConfigurationAdapter configurationAdapter() {
+        return new io.casehub.desiredstate.runtime.NoOpConfigurationAdapter();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public io.casehub.desiredstate.runtime.LifecycleManager lifecycleManager(
+            io.casehub.desiredstate.runtime.ReconciliationLoop reconciliationLoop) {
+        return new io.casehub.desiredstate.runtime.LifecycleManager(reconciliationLoop);
+    }
+
+
+    @Bean
     @ConditionalOnMissingBean(io.casehub.desiredstate.runtime.TransitionActionHandler.class)
     public io.casehub.desiredstate.runtime.TransitionActionHandler transitionActionHandler(
             io.casehub.desiredstate.runtime.ReconciliationEventEmitter emitter,
@@ -247,7 +296,8 @@ public class DesiredStateRuntimeAutoConfiguration {
     public io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter nodeProvisionerRouter(
             List<io.casehub.desiredstate.api.NodeProvisioner> provisioners,
             List<io.casehub.desiredstate.api.NodeLifecycleDefinition> lifecycles,
-            io.casehub.desiredstate.runtime.TransitionActionHandler actionHandler) {
+            io.casehub.desiredstate.runtime.TransitionActionHandler actionHandler,
+            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
         java.util.Map<io.casehub.desiredstate.api.NodeType, io.casehub.desiredstate.api.NodeLifecycleDefinition> lifecycleMap = new java.util.HashMap<>();
         for (var lifecycle : lifecycles) {
             lifecycleMap.put(lifecycle.nodeType(), lifecycle);
@@ -265,7 +315,7 @@ public class DesiredStateRuntimeAutoConfiguration {
                 wrapped.add(prov);
             }
         }
-        return new io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter(wrapped);
+        return new io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter(wrapped, preferenceProvider);
     }
 
 }

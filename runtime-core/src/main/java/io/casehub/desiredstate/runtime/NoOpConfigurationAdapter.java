@@ -1,13 +1,12 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
-import io.quarkus.arc.DefaultBean;
-import jakarta.enterprise.context.ApplicationScoped;
+import io.casehub.desiredstate.api.AdaptedConfiguration;
+import io.casehub.desiredstate.api.ConfigurationAdapter;
+import io.casehub.desiredstate.api.RetrievalContext;
+import io.casehub.desiredstate.api.RetrievedConfiguration;
 
 import java.util.Optional;
 
-@DefaultBean
-@ApplicationScoped
 public class NoOpConfigurationAdapter implements ConfigurationAdapter {
     @Override
     public Optional<AdaptedConfiguration> adapt(RetrievedConfiguration retrieved, RetrievalContext context) {

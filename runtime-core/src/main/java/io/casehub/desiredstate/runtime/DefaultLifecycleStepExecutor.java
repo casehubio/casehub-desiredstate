@@ -4,21 +4,17 @@ import io.casehub.desiredstate.api.LifecycleStep;
 import io.casehub.desiredstate.api.LifecycleStepExecutor;
 import io.casehub.desiredstate.api.NotificationSink;
 import io.casehub.desiredstate.api.StepOutcome;
-import io.quarkus.arc.DefaultBean;
-import jakarta.enterprise.context.ApplicationScoped;
-import org.jboss.logging.Logger;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.logging.Logger;
 
-@DefaultBean
-@ApplicationScoped
 public class DefaultLifecycleStepExecutor implements LifecycleStepExecutor {
 
-    private static final Logger LOG = Logger.getLogger(DefaultLifecycleStepExecutor.class);
+    private static final Logger LOG = Logger.getLogger(DefaultLifecycleStepExecutor.class.getName());
 
     private final NotificationSink notificationSink;
 

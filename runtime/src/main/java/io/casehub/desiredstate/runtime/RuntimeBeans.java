@@ -198,4 +198,76 @@ public class RuntimeBeans {
         return new ReconciliationEventEmitter();
     }
 
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpHumanNodeHandler noOpHumanNodeHandler() {
+        return new NoOpHumanNodeHandler();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpPendingApprovalHandler noOpPendingApprovalHandler() {
+        return new NoOpPendingApprovalHandler();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpConfigurationRetriever noOpConfigurationRetriever() {
+        return new NoOpConfigurationRetriever();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpConfigurationAdapter noOpConfigurationAdapter() {
+        return new NoOpConfigurationAdapter();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public LoggingNotificationSink loggingNotificationSink() {
+        return new LoggingNotificationSink();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public DefaultLifecycleStepExecutor defaultLifecycleStepExecutor(
+            io.casehub.desiredstate.api.NotificationSink notificationSink) {
+        return new DefaultLifecycleStepExecutor(notificationSink);
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpPlanApprovalPolicy noOpPlanApprovalPolicy() {
+        return new NoOpPlanApprovalPolicy();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpPlanApprovalHandler noOpPlanApprovalHandler() {
+        return new NoOpPlanApprovalHandler();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public NoOpSituationSource noOpSituationSource() {
+        return new NoOpSituationSource();
+    }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public LifecycleManager lifecycleManager(ReconciliationLoop loop) {
+        return new LifecycleManager(loop);
+    }
+
+
 }

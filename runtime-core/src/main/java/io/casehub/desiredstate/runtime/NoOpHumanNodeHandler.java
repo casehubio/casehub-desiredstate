@@ -5,11 +5,7 @@ import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.StepOutcome;
-import io.quarkus.arc.DefaultBean;
-import jakarta.enterprise.context.ApplicationScoped;
 
-@DefaultBean
-@ApplicationScoped
 public class NoOpHumanNodeHandler implements HumanNodeHandler {
     @Override
     public StepOutcome onProvision(DesiredNode node, ProvisionContext context) {

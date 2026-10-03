@@ -1,14 +1,15 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.Phase;
+import io.casehub.desiredstate.api.ReconciliationListener;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-@ApplicationScoped
 public class LifecycleManager {
 
     private static final Logger LOG = Logger.getLogger(LifecycleManager.class.getName());
@@ -16,7 +17,6 @@ public class LifecycleManager {
     private final ReconciliationLoop loop;
     private final ConcurrentHashMap<String, TenantLifecycle> lifecycles = new ConcurrentHashMap<>();
 
-    @Inject
     public LifecycleManager(ReconciliationLoop loop) {
         this.loop = loop;
     }

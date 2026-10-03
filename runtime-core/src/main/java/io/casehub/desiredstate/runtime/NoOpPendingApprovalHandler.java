@@ -1,17 +1,11 @@
 package io.casehub.desiredstate.runtime;
 
-import io.casehub.desiredstate.api.*;
-import io.quarkus.arc.DefaultBean;
-import jakarta.enterprise.context.ApplicationScoped;
+import io.casehub.desiredstate.api.ApprovalCheckResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.PendingApprovalHandler;
+import io.casehub.desiredstate.api.StepAction;
+import io.casehub.desiredstate.api.StepOutcome;
 
-/**
- * Default no-op handler for PendingApproval results.
- * Returns {@link ApprovalCheckResult.None} on check (no prior approval state),
- * and {@link StepOutcome.Failed} on recordPending (no handler configured to
- * create a WorkItem or other approval mechanism).
- */
-@DefaultBean
-@ApplicationScoped
 public class NoOpPendingApprovalHandler implements PendingApprovalHandler {
 
     @Override
@@ -28,6 +22,5 @@ public class NoOpPendingApprovalHandler implements PendingApprovalHandler {
 
     @Override
     public void acknowledgeRejection(DesiredNode node, StepAction action, String tenancyId) {
-        // No-op — nothing to acknowledge when no handler is configured
     }
 }
