@@ -1,14 +1,14 @@
 package io.casehub.desiredstate.yaml.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.casehub.yaml.jackson.YamlMappers;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class YamlModuleDeserializationTest {
 
-    private final ObjectMapper mapper = new ObjectMapper(new YAMLFactory())
+    private final ObjectMapper mapper = YamlMappers.create()
                                                 .findAndRegisterModules()
                                                 .registerModule(new io.casehub.yaml.jackson.YamlCoreJacksonModule());
 

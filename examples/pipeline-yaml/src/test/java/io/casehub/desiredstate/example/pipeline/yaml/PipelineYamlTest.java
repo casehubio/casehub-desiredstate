@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.example.pipeline.yaml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphDescriptor;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
@@ -22,6 +21,7 @@ import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.yaml.YamlGraphRecorder;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
 import io.casehub.desiredstate.yaml.model.YamlNode;
+import io.casehub.yaml.jackson.YamlMappers;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +57,7 @@ class PipelineYamlTest {
     @BeforeAll
     @SuppressWarnings("unchecked")
     static void buildFromYaml() throws Exception {
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = YamlMappers.create();
 
         try (InputStream is = PipelineYamlTest.class.getClassLoader()
                 .getResourceAsStream("META-INF/desiredstate/medallion-pipeline.yaml")) {

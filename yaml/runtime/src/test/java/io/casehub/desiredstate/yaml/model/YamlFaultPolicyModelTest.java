@@ -1,8 +1,8 @@
 package io.casehub.desiredstate.yaml.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.yaml.jackson.YamlMappers;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class YamlFaultPolicyModelTest {
 
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper yamlMapper = YamlMappers.create();
 
     @Test
     void pipelineEscalation_deserializesAllFields() throws Exception {

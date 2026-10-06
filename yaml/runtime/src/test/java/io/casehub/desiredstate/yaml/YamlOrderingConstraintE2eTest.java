@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.yaml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.DesiredStateGraph;
@@ -14,6 +13,7 @@ import io.casehub.desiredstate.api.TransitionPlan;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.TransitionPlanner;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
+import io.casehub.yaml.jackson.YamlMappers;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -53,7 +53,7 @@ class YamlOrderingConstraintE2eTest {
                     after: silver
                 """;
 
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = YamlMappers.create();
         YamlGraph yamlGraph = yamlMapper.readValue(yaml, YamlGraph.class);
 
         Map<String, String> typeRegistry = Map.of(

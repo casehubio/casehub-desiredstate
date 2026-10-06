@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.example.pipeline.yaml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GoalCompiler;
@@ -13,6 +12,7 @@ import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.yaml.YamlGraphRecorder;
 import io.casehub.desiredstate.yaml.YamlInvariantConverter;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
+import io.casehub.yaml.jackson.YamlMappers;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -45,7 +45,7 @@ class LifecyclePipelineTest {
     @BeforeAll
     @SuppressWarnings("unchecked")
     static void buildFromYaml() throws Exception {
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = YamlMappers.create();
         try (InputStream is = LifecyclePipelineTest.class.getClassLoader()
                 .getResourceAsStream("META-INF/desiredstate/lifecycle-pipeline.yaml")) {
             assertThat(is).as("Lifecycle YAML must be on classpath").isNotNull();

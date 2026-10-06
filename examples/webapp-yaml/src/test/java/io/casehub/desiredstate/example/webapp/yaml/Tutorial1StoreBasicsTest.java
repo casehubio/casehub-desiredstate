@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.example.webapp.yaml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.GoalCompiler;
@@ -13,6 +12,7 @@ import io.casehub.desiredstate.example.webapp.StoreNodeTypes;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.yaml.YamlGraphRecorder;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
+import io.casehub.yaml.jackson.YamlMappers;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +37,7 @@ class Tutorial1StoreBasicsTest {
     @BeforeAll
     @SuppressWarnings("unchecked")
     static void loadYaml() throws Exception {
-        ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper yamlMapper = YamlMappers.create();
         try (InputStream is = Tutorial1StoreBasicsTest.class.getClassLoader()
                 .getResourceAsStream("META-INF/desiredstate/tutorial-1-store-basics.yaml")) {
             assertThat(is).as("Tutorial 1 YAML must be on classpath").isNotNull();
