@@ -5,8 +5,6 @@ import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginHeader;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.yaml.plugin.api.Definition;
-import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +40,7 @@ class PluginValidatorTest {
     @Test
     void unknownPrimitiveSuggestsSimilar() {
         var step = new ResolvedStep.PluginStep("rest-cll",
-            Definition.of("rest-cll").execute((p, s) -> Result.of(Map.of())).build(), Map.of(), Map.of());
+            "rest-cll", Map.of(), Map.of());
         var spec = new PluginSpecSchema(Map.of());
         var plugin = createPlugin("typo", spec,
             List.of(step), List.of(), List.of(step));
@@ -56,7 +54,7 @@ class PluginValidatorTest {
     @Test
     void actualStateMissingCompareStateThrows() {
         var step = new ResolvedStep.PluginStep("assert",
-            Definition.of("assert").execute((p, s) -> Result.of(Map.of())).build(),
+            "assert",
             Map.of("condition", "true"), Map.of());
         var spec = new PluginSpecSchema(Map.of(
             "name", new PluginFieldDef("string", true, null, null, null, null,
@@ -98,12 +96,12 @@ class PluginValidatorTest {
     @Test
     void actualStateWithApprovalGateThrows() {
         var approvalStep = new ResolvedStep.PluginStep("approval-gate",
-            Definition.of("approval-gate").execute((p, s) -> Result.of(Map.of())).build(), Map.of(), Map.of());
+            "approval-gate", Map.of(), Map.of());
         var compareStep = new ResolvedStep.PluginStep("compare-state",
-            Definition.of("compare-state").execute((p, s) -> Result.of(Map.of())).build(),
+            "compare-state",
             Map.of("present-when", "true"), Map.of());
         var assertStep = new ResolvedStep.PluginStep("assert",
-            Definition.of("assert").execute((p, s) -> Result.of(Map.of())).build(),
+            "assert",
             Map.of("condition", "true"), Map.of());
         var spec = new PluginSpecSchema(Map.of(
             "name", new PluginFieldDef("string", true, null, null, null, null,
@@ -126,10 +124,10 @@ class PluginValidatorTest {
 
     private static PluginModel createPlugin(String type, PluginSpecSchema spec) {
         var compareStep = new ResolvedStep.PluginStep("compare-state",
-            Definition.of("compare-state").execute((p, s) -> Result.of(Map.of())).build(),
+            "compare-state",
             Map.of("present-when", "true"), Map.of());
         var assertStep = new ResolvedStep.PluginStep("assert",
-            Definition.of("assert").execute((p, s) -> Result.of(Map.of())).build(),
+            "assert",
             Map.of("condition", "true"), Map.of());
         return createPlugin(type, spec,
             List.of(compareStep), List.of(assertStep), List.of(assertStep));

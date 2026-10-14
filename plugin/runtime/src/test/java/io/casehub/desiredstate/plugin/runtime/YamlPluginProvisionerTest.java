@@ -13,8 +13,6 @@ import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
 import io.casehub.yaml.plugin.api.Result;
-import io.casehub.yaml.plugin.api.Definition;
-import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
@@ -183,7 +181,7 @@ class YamlPluginProvisionerTest {
 
     private static ResolvedStep pluginStep(String name, Map<String, Object> params) {
         return new ResolvedStep.PluginStep(name,
-                                           Definition.of(name).execute((p, s) -> Result.of(Map.of())).build(), params, Map.of());
+                                           name, params, Map.of());
     }
 
     private static DesiredNode createNode(String id, Map<String, Object> specFields) {

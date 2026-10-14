@@ -7,8 +7,6 @@ import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginRasDef;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
-import io.casehub.yaml.plugin.api.Definition;
-import io.casehub.yaml.plugin.api.Result;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import org.junit.jupiter.api.Test;
 
@@ -285,7 +283,7 @@ class YamlPluginProcessorTest {
         Map<String, Object> decorators = result != null
                                          ? Map.of("result", result) : Map.of();
         return new ResolvedStep.PluginStep(primitive,
-                                           Definition.of(primitive).execute((p, s) -> Result.of(Map.of())).build(),
+                                           primitive,
                                            params, decorators);
     }
 
