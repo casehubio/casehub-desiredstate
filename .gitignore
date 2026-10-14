@@ -5,7 +5,6 @@ target/
 *.iml
 .claude/
 wksp
-package-lock.json
 .idea
 .claude
 proj
