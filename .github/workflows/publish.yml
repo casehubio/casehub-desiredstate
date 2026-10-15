@@ -35,7 +35,14 @@ jobs:
 
       - name: Publish to GitHub Packages
         if: github.event_name != 'pull_request'
-        run: mvn --batch-mode deploy -DskipTests
+        run: |
+          mvn --batch-mode deploy -DskipTests 2>&1 | tee /tmp/deploy.log
+          rc=${PIPESTATUS[0]}
+          if [ $rc -ne 0 ] && grep -q 'HTTP Status: 409' /tmp/deploy.log; then
+            echo "Version already published — skipping (409 is expected)"
+            exit 0
+          fi
+          exit $rc
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
