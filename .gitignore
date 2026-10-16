@@ -17,3 +17,5 @@ tsj/
 .mvn/slot-settings.xml
 .worktrees
 .worktrees/
+
+.flattened-pom.xml
