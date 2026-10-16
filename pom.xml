@@ -11,7 +11,7 @@
     </parent>
 
     <artifactId>casehub-desiredstate-parent</artifactId>
-    <version>${revision}</version>
+    <version>0.4-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>CaseHub Desired State :: Parent</name>
@@ -51,7 +51,6 @@
     </modules>
 
     <properties>
-    <revision>0.4-SNAPSHOT</revision>
         <jandex-maven-plugin.version>3.3.1</jandex-maven-plugin.version>
         <jackson-jq.version>1.6.2</jackson-jq.version>
         <spring-boot.version>4.1.1</spring-boot.version>
@@ -280,29 +279,4 @@
     </scm>
 
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>flatten-maven-plugin</artifactId>
-        <version>1.7.0</version>
-        <configuration>
-          <updatePomFile>true</updatePomFile>
-          <flattenMode>resolveCiFriendliesOnly</flattenMode>
-        </configuration>
-        <executions>
-          <execution>
-            <id>flatten</id>
-            <phase>validate</phase>
-            <goals><goal>flatten</goal></goals>
-          </execution>
-          <execution>
-            <id>flatten.clean</id>
-            <phase>clean</phase>
-            <goals><goal>clean</goal></goals>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
 </project>
