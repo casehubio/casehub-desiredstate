@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class GraphDiff {
+public final class GraphDiff {
 
     private GraphDiff() {}
 
-    static List<GraphMutation<DesiredNode>> computeMutations(DesiredStateGraph current, DesiredStateGraph adapted) {
+    public static List<GraphMutation<DesiredNode>> computeMutations(DesiredStateGraph current, DesiredStateGraph adapted) {
         List<GraphMutation<DesiredNode>> mutations = new ArrayList<>();
 
         Set<NodeType> adaptedTypes = new HashSet<>();

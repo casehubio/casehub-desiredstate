@@ -209,7 +209,7 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `CbrFaultPolicy` | `@ApplicationScoped` FaultPolicy — CBR retrieve → adapt → diff chain for per-node mutations |
 | `CbrSituationRecompiler` | `@ApplicationScoped` SituationRecompiler — CBR retrieve → adapt → CompilationResult for whole-graph replacement. `priority() = Integer.MAX_VALUE` (fallback) |
 | `SituationRecompilerEngine` | `@ApplicationScoped` — chain-of-responsibility aggregation of SituationRecompiler beans by priority |
-| `GraphDiff` | Package-private utility — diffs adapted graph fragment against current to produce `List<GraphMutation>`. `targetNodeId()` delegates to `GraphMutation.targetNodeId()`. Scope by NodeType |
+| `GraphDiff` | Public utility — diffs adapted graph fragment against current to produce `List<GraphMutation>`. `targetNodeId()` delegates to `GraphMutation.targetNodeId()`. Scope by NodeType |
 | `CbrProposal` | Record — `sourceId`, `path` (FAULT/SITUATION), `affectedNodeIds`, `timestamp`. Tracks what CBR proposed |
 | `CbrPath` | Enum — `FAULT`, `SITUATION`. Distinguishes CBR entry path |
 | `CbrOutcomeData` | CloudEvent data — CBR outcome with per-node results, success rate, timestamps |
