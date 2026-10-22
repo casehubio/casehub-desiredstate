@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 **Issue:** casehubio/casehub-desiredstate#102
-**Epic:** casehubio/blocks#115 (annotation-driven agent programming model)
+**Epic:** casehubio/agency#115 (annotation-driven agent programming model)
 **Status:** Draft
 
 ## Motivation

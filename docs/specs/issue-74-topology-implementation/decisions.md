@@ -14,7 +14,7 @@
 
 ## D2: Bridge module location — new module in blocks
 
-**Choice:** CloudEvent↔Summarisation bridge adapters live in a new module in casehub-blocks.
+**Choice:** CloudEvent↔Summarisation bridge adapters live in a new module in casehub-agency.
 **Alternatives:**
 - New module in desiredstate — keeps it close to the reconciliation consumer, but creates a Foundation→Foundation-adjacent dependency edge (desiredstate→blocks). Violates the natural dependency flow.
 - New standalone repo — maximum decoupling but repo management overhead for a small utility.
@@ -63,7 +63,7 @@
 
 ## D6: Example lives in blocks
 
-**Choice:** The logistics example lives in casehub-blocks as a new example module (e.g. `examples/logistics/`).
+**Choice:** The logistics example lives in casehub-agency as a new example module (e.g. `examples/logistics/`).
 **Alternatives:**
 - Example in desiredstate — keeps desiredstate examples together but creates an upstream→downstream dependency edge (desiredstate→blocks).
 - Separate integration repo — avoids new edges between existing repos but adds repo management overhead.
@@ -90,11 +90,11 @@
 
 ## D8: Summarisation types extracted to blocks API module
 
-**Choice:** Extract summarisation types (Summariser, LevelEvent, EventStreamBus, WindowPolicy, EventAccumulator, Compactor, EventLevel, SummarisationRunner) to a new `casehub-blocks-summarisation-api` module before building the bridge and YAML surface on top.
+**Choice:** Extract summarisation types (Summariser, LevelEvent, EventStreamBus, WindowPolicy, EventAccumulator, Compactor, EventLevel, SummarisationRunner) to a new `casehub-agency-summarisation-api` module before building the bridge and YAML surface on top.
 **Alternatives:**
 - Keep monolithic blocks jar — simpler module structure but consumers of the bridge take a transitive dependency on ALL of blocks (qhorus-api, work-api, engine-api, eidos-api, worker-api, and all provided-scope deps).
 - Full blocks api/ extraction — more comprehensive (extract ALL blocks API types) but larger scope than needed for this issue. Can be done later.
-**Rationale:** The module-tier-structure protocol (PP-20260512-module-tiers) requires foundation-tier modules to separate API contracts from runtime implementations. The summarisation types are already pure Java — no CDI annotations, no Quarkus dependencies. Extraction is mechanical: move the `io.casehub.blocks.summarisation` package to a new module. Bridge consumers (D2) and YAML surface consumers (D7) depend on the lightweight API jar, not the full blocks jar. This is a prerequisite for the bridge module (D2) to avoid pulling blocks' full dependency tree.
+**Rationale:** The module-tier-structure protocol (PP-20260512-module-tiers) requires foundation-tier modules to separate API contracts from runtime implementations. The summarisation types are already pure Java — no CDI annotations, no Quarkus dependencies. Extraction is mechanical: move the `io.casehub.agency.summarisation` package to a new module. Bridge consumers (D2) and YAML surface consumers (D7) depend on the lightweight API jar, not the full blocks jar. This is a prerequisite for the bridge module (D2) to avoid pulling blocks' full dependency tree.
 **Trade-offs:** New module adds build management overhead. Acceptable — the alternative (every bridge consumer transitively depends on qhorus-api, work-api, engine-api, eidos-api) is a clear module-tier-structure protocol violation.
 **Sources:** module-tier-structure protocol (PP-20260512-module-tiers), blocks pom.xml (compile deps: qhorus-api, work-api, engine-api, eidos-api, worker-api)
 **Exploration:** surfaced by adversarial review (R1-08)
@@ -102,7 +102,7 @@
 
 ## D9: Standard CloudEvent type URIs for built-in summariser output
 
-**Choice:** Built-in summariser types (D7 Tier 1) emit CloudEvents with standardised type URIs following the pattern `io.casehub.blocks.summarisation.<level>.<builtin-type>` (e.g., `io.casehub.blocks.summarisation.L2.threshold-classify`). Custom domain summarisers use domain-specific type URIs (e.g., `io.casehub.logistics.phase.congestion`).
+**Choice:** Built-in summariser types (D7 Tier 1) emit CloudEvents with standardised type URIs following the pattern `io.casehub.agency.summarisation.<level>.<builtin-type>` (e.g., `io.casehub.agency.summarisation.L2.threshold-classify`). Custom domain summarisers use domain-specific type URIs (e.g., `io.casehub.logistics.phase.congestion`).
 **Alternatives:**
 - All domain-specific URIs — each domain defines its own type URIs for all summarised events, including output from built-in summariser types. Prevents cross-domain generic Ganglia (D4) from consuming standardised output without per-domain configuration.
 - All standardised URIs — imposes a uniform URI scheme on custom domain summarisers. Too constraining — custom summarisers produce domain-shaped output that doesn't fit a standard schema.

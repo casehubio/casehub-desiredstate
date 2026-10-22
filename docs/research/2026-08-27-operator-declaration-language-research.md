@@ -534,7 +534,7 @@ YAML, TypeScript, or Java annotations.
 
 The four differentiators in §4 describe what desiredstate brings on its own. But
 desiredstate doesn't operate in isolation — it's one module in a platform that includes
-casehub-engine, casehub-ledger, casehub-work, casehub-blocks, casehub-qhorus, and
+casehub-engine, casehub-ledger, casehub-work, casehub-agency, casehub-qhorus, and
 casehub-platform. The full platform provides capabilities that no standalone
 infrastructure tool can match.
 
@@ -573,9 +573,9 @@ No infrastructure tool has native human-task integration. PagerDuty, OpsGenie, a
 ServiceNow are external systems bolted on via webhooks. CaseHub's work management is
 native — the same system that manages the graph manages the human response.
 
-### 9.4 casehub-blocks — Event Summarisation for Operational Intelligence
+### 9.4 casehub-agency — Event Summarisation for Operational Intelligence
 
-casehub-blocks provides layered event summarisation (L1 raw → L2 classified → L3 phases
+casehub-agency provides layered event summarisation (L1 raw → L2 classified → L3 phases
 → L4 narrative). Applied to infrastructure operations, this means the reconciliation
 loop's CloudEvents don't just fire alerts — they're summarised into operational phases.
 

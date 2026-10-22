@@ -10,7 +10,7 @@
 
 The platform has two complementary capabilities that don't yet connect:
 
-- **casehub-blocks summarisation** — layered event summarisation (L1 raw → L2 classified → L3 phases) with windowed batching and pluggable summariser logic
+- **casehub-agency summarisation** — layered event summarisation (L1 raw → L2 classified → L3 phases) with windowed batching and pluggable summariser logic
 - **casehub-ras** — situational awareness via Ganglia (event detection), situation definitions (pattern correlation), and case triggers (automated response)
 
 Today, RAS Ganglia operate directly on raw L1 CloudEvents (e.g., `NodeFaultGanglion` counts `NODE_FAULTED` events). Summarisation could give RAS *altitude* — detecting phase transitions like "east-region entered degraded phase" instead of counting individual faults. This is a qualitatively different signal.
@@ -49,7 +49,7 @@ RAS Ganglia (expression-based or domain-specific)
 
 ### 3.1 Summarisation API Extraction (D8)
 
-Extract pure-Java summarisation types from the monolithic `casehub-blocks` jar into `casehub-blocks-summarisation-api`:
+Extract pure-Java summarisation types from the monolithic `casehub-agency` jar into `casehub-agency-summarisation-api`:
 
 | Type | Current location | Extracted to |
 |------|-----------------|--------------|
@@ -66,7 +66,7 @@ Extract pure-Java summarisation types from the monolithic `casehub-blocks` jar i
 
 These types are already pure Java — no CDI annotations, no Quarkus dependencies. Extraction is mechanical. This prevents bridge consumers from transitively depending on blocks' full dependency tree (qhorus-api, work-api, engine-api, eidos-api).
 
-**Types NOT extracted (remain in `casehub-blocks`):**
+**Types NOT extracted (remain in `casehub-agency`):**
 
 | Type family | Reason |
 |-------------|--------|
@@ -75,11 +75,11 @@ These types are already pure Java — no CDI annotations, no Quarkus dependencie
 | `observation.*` package (`ObservationAccumulator`, `ObservationRenderer`, `TieredObservationRenderer`, `ObservationTier`, `ObservationContext`, `ObservationChunk`, `ObservationResult`) | Terminal consumer of the pipeline — separate concern from pipeline primitives. Uses `LevelEvent` (which moves to the API module) but blocks depends on its own API module, so no breakage |
 | `observation.affordance.*` package (`AffordanceRenderer`, `ObservableEntity`, `Affordance`, `ObservationSection`, etc.) | Grounded rendering — agent-facing concern, not pipeline plumbing |
 
-The extraction creates a deliberate package split: `io.casehub.blocks.summarisation` spans two modules. This is architecturally intentional — the API module holds pipeline primitives; blocks holds domain-integrated types that compose those primitives with qhorus, agent, and observation concerns.
+The extraction creates a deliberate package split: `io.casehub.agency.summarisation` spans two modules. This is architecturally intentional — the API module holds pipeline primitives; blocks holds domain-integrated types that compose those primitives with qhorus, agent, and observation concerns.
 
-### 3.2 Bridge Module — `casehub-blocks-cloudevents`
+### 3.2 Bridge Module — `casehub-agency-cloudevents`
 
-New module in casehub-blocks. Dependencies: `casehub-blocks-summarisation-api`, `cloudevents-api`, `quarkus-arc`.
+New module in casehub-agency. Dependencies: `casehub-agency-summarisation-api`, `cloudevents-api`, `quarkus-arc`.
 
 Two adapters (plain Java utilities, not CDI beans — instantiated by domain wiring code):
 
@@ -130,9 +130,9 @@ This design is consistent with how RAS handles multi-tenancy: `SituationEvaluato
 
 **Explicit wiring:** Domains construct their own `SummarisationRunner` chains in a `@Produces` method, connecting ingestion adapter → runner(s) → emitter. The wiring method receives `Event<CloudEvent>` via CDI injection and passes it to the `CloudEventEmitter` constructor. ~30 lines of CDI setup per domain. No auto-discovery.
 
-### 3.3 YAML Surface — `casehub-blocks-summarisation-yaml`
+### 3.3 YAML Surface — `casehub-agency-summarisation-yaml`
 
-New module in casehub-blocks. Dependencies: `casehub-blocks-summarisation-api`, `casehub-blocks-cloudevents`, `casehub-platform-expression` (MVEL3 + JQ), Jackson YAML.
+New module in casehub-agency. Dependencies: `casehub-agency-summarisation-api`, `casehub-agency-cloudevents`, `casehub-platform-expression` (MVEL3 + JQ), Jackson YAML.
 
 #### 3.3.1 Composable Runtime Model
 
@@ -252,10 +252,10 @@ The `threshold-classify` and `keyed.keyExpression` contexts use the same map str
 
 Built-in summariser output uses standardised type URIs. The default pattern uses the level's ordinal (not its domain-specific name) for cross-domain consistency:
 ```
-io.casehub.blocks.summarisation.L<ordinal>.<builtin-type>
+io.casehub.agency.summarisation.L<ordinal>.<builtin-type>
 ```
 
-Example: A level at ordinal 2 using `threshold-classify` → `io.casehub.blocks.summarisation.L2.threshold-classify`
+Example: A level at ordinal 2 using `threshold-classify` → `io.casehub.agency.summarisation.L2.threshold-classify`
 
 The YAML `output.cloudEvent` field overrides this default — **in practice, domain pipelines should always specify an override** with a domain-specific URI (e.g., `io.casehub.logistics.anomaly`). The default pattern exists as a fallback for pipelines that don't specify output URIs, ensuring every emitted CloudEvent has a deterministic type.
 
@@ -289,7 +289,7 @@ summariser:
 
 ### 3.4 Build-time Processing
 
-Quarkus build extension (`casehub-blocks-summarisation-yaml-deployment`):
+Quarkus build extension (`casehub-agency-summarisation-yaml-deployment`):
 
 1. Classpath scan for `META-INF/summarisation/*.yaml` pipeline definitions
 2. `@SummariserTypeId` registry scan via Jandex
@@ -376,7 +376,7 @@ If a domain requires cross-event correlation at the classification level, it pro
 ```xml
 <dependency>
     <groupId>io.casehub</groupId>
-    <artifactId>casehub-blocks-summarisation-yaml</artifactId>
+    <artifactId>casehub-agency-summarisation-yaml</artifactId>
 </dependency>
 <dependency>
     <groupId>io.casehub</groupId>
@@ -398,10 +398,10 @@ The genuine desiredstate + summarisation use case: adding summarisation between 
 
 | Deliverable | Repo | Issue |
 |-------------|------|-------|
-| Summarisation API extraction | casehub-blocks | Child issue to file |
-| CloudEvent bridge module | casehub-blocks | Child issue to file |
-| Summarisation YAML surface + built-in types | casehub-blocks | Child issue to file |
-| Logistics example (YAML-first) | casehub-blocks | Child issue to file |
+| Summarisation API extraction | casehub-agency | Child issue to file |
+| CloudEvent bridge module | casehub-agency | Child issue to file |
+| Summarisation YAML surface + built-in types | casehub-agency | Child issue to file |
+| Logistics example (YAML-first) | casehub-agency | Child issue to file |
 | Ops deployment + summarisation enhancement | casehub-ops | Child issue to file |
 | Close #74 with scope decision | casehub-desiredstate | This issue |
 
@@ -427,6 +427,6 @@ The genuine desiredstate + summarisation use case: adding summarisation between 
 - GE-20260629-e8b16d — EventStreamBus.clear() lifecycle gotcha (argues for explicit wiring)
 - GE-20260817-ce1de5 — CloudEventExpressionContext map structure for expression rules
 - GE-20260616-02d0a7 — CaseHub entities are independently creatable (flat graph)
-- `parent/docs/platform/capability-ownership.md` — "Temporal event summarisation" owned by casehub-blocks
+- `parent/docs/platform/capability-ownership.md` — "Temporal event summarisation" owned by casehub-agency
 - `parent/docs/platform/boundary-rules.md` — "Do not add domain logic to foundation repos"
 - `parent/docs/platform/overview.md` — tier architecture and dependency order

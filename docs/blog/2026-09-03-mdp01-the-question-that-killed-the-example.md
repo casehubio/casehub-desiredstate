@@ -4,7 +4,7 @@ title: "The Question That Killed the Example"
 date: 2026-09-03
 entry_type: note
 subtype: diary
-projects: [casehubio/casehub-desiredstate, casehubio/blocks]
+projects: [casehubio/casehub-desiredstate, casehubio/agency]
 tags: [desiredstate, blocks, summarisation, ras, yaml, design]
 series: issue-74-topology-implementation
 ---
@@ -33,6 +33,6 @@ The spec review caught things I'd missed. Tenant partitioning in the accumulator
 
 ## What shipped
 
-I implemented the foundation layer in blocks: extracted 10 pure-Java summarisation types into `casehub-blocks-summarisation-api`, added `tenancyId` to `LevelEvent` with pipeline propagation, built the CloudEvent bridge module (`CloudEventIngestionAdapter`, `CloudEventEmitter`, `PipelineTickScheduler`), and rewrote `EventAccumulator` with tenant partitioning. All existing tests green.
+I implemented the foundation layer in blocks: extracted 10 pure-Java summarisation types into `casehub-agency-summarisation-api`, added `tenancyId` to `LevelEvent` with pipeline propagation, built the CloudEvent bridge module (`CloudEventIngestionAdapter`, `CloudEventEmitter`, `PipelineTickScheduler`), and rewrote `EventAccumulator` with tenant partitioning. All existing tests green.
 
 The YAML surface and logistics example are next. They're the validation — if the logistics example can be expressed primarily in YAML with built-in types, the composable runtime works. If it can't, the built-in types need extension. Either outcome is useful information.
