@@ -10,21 +10,22 @@ import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
+import io.casehub.desiredstate.plugin.runtime.DesiredStatePrimitiveRegistrar;
 import io.casehub.desiredstate.plugin.runtime.PluginDescriptor;
 import io.casehub.desiredstate.plugin.runtime.YamlPluginActualStateAdapter;
-import io.casehub.yaml.step.testing.FaultInjectingStepRunner;
-import io.casehub.yaml.step.testing.TestCredentialResolver;
 import io.casehub.desiredstate.plugin.runtime.YamlPluginProvisioner;
-import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.platform.api.credentials.CredentialResolver;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
 import io.casehub.yaml.plugin.api.MapServiceRegistry;
-import io.casehub.yaml.plugin.api.Result;
-import io.casehub.yaml.step.catalog.ResolvedStep;
+import io.casehub.yaml.step.catalog.CompositePluginRegistry;
+import io.casehub.yaml.step.eval.CatalogStepRunner;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
+import io.casehub.yaml.step.testing.FaultInjectingStepRunner;
+import io.casehub.yaml.step.testing.TestCredentialResolver;
 
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -109,25 +110,11 @@ public class PluginTestRunner {
     }
 
     private StepRunner createRunner() {
-        var comparePrimitive = new CompareStatePrimitive(conditionEvaluator);
-        return (step, resolver) -> {
-            if (step instanceof ResolvedStep.PluginStep ps) {
-                Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
-                return switch (ps.name()) {
-                    case "assert" -> {
-                        String condition = (String) resolved.get("condition");
-                        if (conditionEvaluator.evaluate(condition)) {
-                            yield Result.of(Map.of());
-                        }
-                        throw new RuntimeException("Assertion failed: " + condition);
-                    }
-                    case "compare-state" -> comparePrimitive.execute(resolved,
-                        new MapServiceRegistry());
-                    default -> Result.failed("unknown step: " + ps.name());
-                };
-            }
-            return Result.failed("unsupported step type");
-        };
+        var registry = new CompositePluginRegistry();
+        new DesiredStatePrimitiveRegistrar(conditionEvaluator,
+                new com.fasterxml.jackson.databind.ObjectMapper(), new StringWriter())
+                .registerAll(registry);
+        return new CatalogStepRunner(registry, new MapServiceRegistry());
     }
 
     private static String resolveInfraVarsInString(String template,

@@ -12,12 +12,11 @@ import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
-import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
 import io.casehub.yaml.plugin.api.MapServiceRegistry;
-import io.casehub.yaml.plugin.api.Result;
-import io.casehub.yaml.step.catalog.ResolvedStep;
+import io.casehub.yaml.step.catalog.CompositePluginRegistry;
+import io.casehub.yaml.step.eval.CatalogStepRunner;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
 import org.junit.jupiter.api.BeforeAll;
@@ -185,25 +184,11 @@ class PluginIntegrationTest {
     }
 
     private StepRunner createRunner(ConditionEvaluator condEval) {
-        var comparePrimitive = new CompareStatePrimitive(condEval);
-        return (step, resolver) -> {
-            if (step instanceof ResolvedStep.PluginStep ps) {
-                Map<String, Object> resolved = resolver.resolveMap(ps.params(), "step");
-                return switch (ps.name()) {
-                    case "assert" -> {
-                        String condition = (String) resolved.get("condition");
-                        if (condEval.evaluate(condition)) {
-                            yield Result.of(Map.of());
-                        }
-                        throw new RuntimeException("Assertion failed: " + condition);
-                    }
-                    case "compare-state" -> comparePrimitive.execute(resolved,
-                                                                     new MapServiceRegistry());
-                    default -> Result.failed("unknown step: " + ps.name());
-                };
-            }
-            return Result.failed("unsupported step type");
-        };
+        var registry = new CompositePluginRegistry();
+        new DesiredStatePrimitiveRegistrar(condEval,
+                new com.fasterxml.jackson.databind.ObjectMapper(), new java.io.StringWriter())
+                .registerAll(registry);
+        return new CatalogStepRunner(registry, new MapServiceRegistry());
     }
 
     private static PluginDescriptor toDescriptor(PluginModel model) {
