@@ -46,6 +46,7 @@
         <module>examples/webapp-annotated</module>
         <module>examples/webapp-yaml</module>
         <module>examples/pipeline-ts</module>
+        <module>examples/plugin-yaml</module>
         <module>eidos</module>
         <module>spring-integration-test</module>
     </modules>

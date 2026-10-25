@@ -1,0 +1,128 @@
+plugin:
+  type: monitoring-endpoint
+  version: 1
+  resyncInterval: 60s
+  auth:
+    monitoring-api:
+      credentialRef: monitoring-api-credentials
+
+spec:
+  fields:
+    url:
+      type: string
+      required: true
+    name:
+      type: string
+      required: true
+    interval:
+      type: integer
+      default: 30
+      min: 5
+      max: 300
+    severity:
+      type: enum
+      values: [critical, warning, info]
+      default: warning
+    tags:
+      type: list
+      item-type: string
+
+actual-state:
+  steps:
+    - rest-call:
+        method: GET
+        url: "${auth.monitoring-api.endpoint}/endpoints/${spec.name}"
+        auth: monitoring-api
+        result: lookup
+    - compare-state:
+        present-when: "${result.lookup.status} == 200"
+        drifted-when: "${result.lookup.status} == 206"
+        absent-when: "${result.lookup.status} == 404"
+
+provisioner:
+  provision:
+    steps:
+      - rest-call:
+          method: PUT
+          url: "${auth.monitoring-api.endpoint}/endpoints/${spec.name}"
+          auth: monitoring-api
+          headers:
+            Content-Type: application/json
+          body:
+            url: "${spec.url}"
+            name: "${spec.name}"
+            interval: ${spec.interval}
+            severity: "${spec.severity}"
+          result: create
+      - assert:
+          condition: "${result.create.status} in [200, 201]"
+          message: "Provision failed: HTTP ${result.create.status}"
+  deprovision:
+    steps:
+      - rest-call:
+          method: DELETE
+          url: "${auth.monitoring-api.endpoint}/endpoints/${spec.name}"
+          auth: monitoring-api
+          result: delete
+      - assert:
+          condition: "${result.delete.status} in [200, 404]"
+          message: "Deprovision failed: HTTP ${result.delete.status}"
+  suspend:
+    steps:
+      - rest-call:
+          method: POST
+          url: "${auth.monitoring-api.endpoint}/endpoints/${spec.name}/suspend"
+          auth: monitoring-api
+          result: pause
+      - assert:
+          condition: "${result.pause.status} in [200, 202]"
+          message: "Suspend failed: HTTP ${result.pause.status}"
+  resume:
+    steps:
+      - rest-call:
+          method: POST
+          url: "${auth.monitoring-api.endpoint}/endpoints/${spec.name}/resume"
+          auth: monitoring-api
+          result: activate
+      - assert:
+          condition: "${result.activate.status} in [200, 202]"
+          message: "Resume failed: HTTP ${result.activate.status}"
+
+fault-policy:
+  - faultTypes:
+      - PROVISION_FAILED
+    nodeTypes:
+      - monitoring-endpoint
+    namespace: monitoring-escalation
+    tiers:
+      - threshold: 3
+        reviewNode:
+          type: human-review
+          humanGating: ALL
+          spec:
+            target: "${fault.nodeId}"
+            detail: "${fault.detail}"
+
+cbr:
+  features:
+    - name: severity
+      source: spec.severity
+      similarity: categorical
+    - name: interval
+      source: spec.interval
+      similarity: numeric
+  outcome-signals:
+    success: "${result.lookup.status} == 200"
+
+ras:
+  situations:
+    - name: endpoint-flapping
+      events:
+        - NODE_FAULTED
+        - NODE_RECOVERED
+      correlation-window: 15m
+      chain-mode:
+        streak: 3
+      trigger: create-case
+      trigger-mode: fire-once
+      correlation-key: "${spec.name}"

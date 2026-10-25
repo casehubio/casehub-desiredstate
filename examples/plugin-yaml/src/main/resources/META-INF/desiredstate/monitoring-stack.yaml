@@ -1,0 +1,38 @@
+name: monitoring-stack
+nodes:
+  - id: api-health
+    type: monitoring-endpoint
+    spec:
+      url: https://api.example.com/health
+      name: api-health
+      interval: 15
+      severity: critical
+      tags:
+        - production
+        - api
+
+  - id: auth-health
+    type: monitoring-endpoint
+    spec:
+      url: https://auth.example.com/health
+      name: auth-health
+      interval: 30
+      severity: critical
+      tags:
+        - production
+        - auth
+
+  - id: docs-health
+    type: monitoring-endpoint
+    spec:
+      url: https://docs.example.com/health
+      name: docs-health
+      interval: 60
+      severity: info
+      tags:
+        - production
+        - docs
+
+dependencies:
+  - from: auth-health
+    to: api-health
