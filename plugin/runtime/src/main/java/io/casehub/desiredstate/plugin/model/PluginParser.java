@@ -3,6 +3,7 @@ package io.casehub.desiredstate.plugin.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.casehub.yaml.jackson.YamlMappers;
+import io.casehub.yaml.step.catalog.ResolvedStep;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,8 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import io.casehub.yaml.step.catalog.ResolvedStep;
 
 public class PluginParser {
 
@@ -161,7 +160,9 @@ public class PluginParser {
     private static PluginProvisionerDef parseProvisioner(JsonNode node) {
         return new PluginProvisionerDef(
                 parseSteps(node.path("provision").path("steps")),
-                parseSteps(node.path("deprovision").path("steps"))
+                parseSteps(node.path("deprovision").path("steps")),
+                parseSteps(node.path("suspend").path("steps")),
+                parseSteps(node.path("resume").path("steps"))
         );
     }
 

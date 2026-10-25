@@ -179,7 +179,7 @@ class YamlPluginProcessorTest {
         var plugin = new PluginModel(
             new PluginHeader("no-compare", 1, null, Map.of()),
             spec, actualSteps,
-            new PluginProvisionerDef(provisionSteps, provisionSteps),
+            new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
 
         assertThatThrownBy(() ->
@@ -199,7 +199,7 @@ class YamlPluginProcessorTest {
         var plugin = new PluginModel(
             new PluginHeader("bad-gate", 1, null, Map.of()),
             spec, actualSteps,
-            new PluginProvisionerDef(provisionSteps, provisionSteps),
+            new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
 
         assertThatThrownBy(() ->
@@ -245,7 +245,7 @@ class YamlPluginProcessorTest {
         return new PluginModel(
             new PluginHeader("test-resource", 1, "30s", Map.of()),
             spec, actualSteps,
-            new PluginProvisionerDef(provisionSteps, provisionSteps),
+            new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
     }
 
@@ -257,7 +257,7 @@ class YamlPluginProcessorTest {
         return new PluginModel(
             new PluginHeader(type, 1, null, Map.of()),
             spec, actualSteps,
-            new PluginProvisionerDef(provisionSteps, provisionSteps),
+            new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
     }
 
@@ -268,7 +268,7 @@ class YamlPluginProcessorTest {
         return new PluginModel(
                 new PluginHeader(type, 1, null, Map.of()),
                 spec, actualSteps,
-                new PluginProvisionerDef(provisionSteps, provisionSteps),
+                new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
                 List.of(), emptyCbr(), emptyRas());
     }
 

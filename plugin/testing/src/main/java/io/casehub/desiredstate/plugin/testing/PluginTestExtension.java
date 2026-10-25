@@ -1,8 +1,8 @@
 package io.casehub.desiredstate.plugin.testing;
 
+import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.ProvisionResult;
-import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginParser;
 import io.casehub.desiredstate.plugin.runtime.PluginDescriptor;
@@ -212,14 +212,16 @@ public class PluginTestExtension implements BeforeAllCallback, AfterAllCallback 
             model.header().auth().forEach((k, v) -> authRefs.put(k, v.credentialRef()));
         }
         return new PluginDescriptor(
-            model.header().type(), model.header().version(),
-            model.header().resyncInterval() != null
+                model.header().type(), model.header().version(),
+                model.header().resyncInterval() != null
                 ? Duration.parse("PT" + model.header().resyncInterval().toUpperCase())
                 : Duration.ofMinutes(5),
-            authRefs, model.spec(),
-            model.actualStateSteps(),
-            model.provisioner().provisionSteps(),
-            model.provisioner().deprovisionSteps(),
-            model.faultPolicies(), model.cbr(), model.ras());
+                authRefs, model.spec(),
+                model.actualStateSteps(),
+                model.provisioner().provisionSteps(),
+                model.provisioner().deprovisionSteps(),
+                model.provisioner().suspendSteps(),
+                model.provisioner().resumeSteps(),
+                model.faultPolicies(), model.cbr(), model.ras());
     }
 }

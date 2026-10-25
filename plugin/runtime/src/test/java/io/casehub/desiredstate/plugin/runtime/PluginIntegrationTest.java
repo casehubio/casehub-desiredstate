@@ -205,6 +205,8 @@ class PluginIntegrationTest {
                 model.actualStateSteps(),
                 model.provisioner().provisionSteps(),
                 model.provisioner().deprovisionSteps(),
+                model.provisioner().suspendSteps(),
+                model.provisioner().resumeSteps(),
                 model.faultPolicies(),
                 model.cbr(),
                 model.ras());

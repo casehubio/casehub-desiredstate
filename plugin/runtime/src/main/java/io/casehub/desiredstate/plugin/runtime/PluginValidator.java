@@ -28,22 +28,26 @@ public final class PluginValidator {
     private PluginValidator() {}
 
     public static void validatePlugin(PluginModel plugin, Map<String, String> typeRegistry,
-                                       Set<String> knownPrimitives) {
+                                      Set<String> knownPrimitives) {
         String type = plugin.header().type();
 
         if (typeRegistry.containsKey(type)) {
             throw new PluginValidationException(type,
-                "Type conflict — Java @NodeTypeId(\"" + type + "\") already declares this type via "
-                    + typeRegistry.get(type));
+                                                "Type conflict — Java @NodeTypeId(\"" + type + "\") already declares this type via "
+                                                + typeRegistry.get(type));
         }
 
         validateSpecSchema(type, plugin.spec());
         validateSteps(type, "actual-state", plugin.actualStateSteps(),
-            plugin.spec(), knownPrimitives);
+                      plugin.spec(), knownPrimitives);
         validateSteps(type, "provisioner.provision", plugin.provisioner().provisionSteps(),
-            plugin.spec(), knownPrimitives);
+                      plugin.spec(), knownPrimitives);
         validateSteps(type, "provisioner.deprovision", plugin.provisioner().deprovisionSteps(),
-            plugin.spec(), knownPrimitives);
+                      plugin.spec(), knownPrimitives);
+        validateSteps(type, "provisioner.suspend", plugin.provisioner().suspendSteps(),
+                      plugin.spec(), knownPrimitives);
+        validateSteps(type, "provisioner.resume", plugin.provisioner().resumeSteps(),
+                      plugin.spec(), knownPrimitives);
         validateActualStateHasCompareState(type, plugin.actualStateSteps());
         validateActualStateNoApprovalGate(type, plugin.actualStateSteps());
     }

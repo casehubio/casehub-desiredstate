@@ -6,5 +6,7 @@ import java.util.List;
 
 public record PluginProvisionerDef(
         List<ResolvedStep> provisionSteps,
-        List<ResolvedStep> deprovisionSteps
+        List<ResolvedStep> deprovisionSteps,
+        List<ResolvedStep> suspendSteps,
+        List<ResolvedStep> resumeSteps
 ) {}

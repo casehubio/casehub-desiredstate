@@ -84,11 +84,13 @@ class PluginTestRunnerTest {
 
     private static PluginDescriptor toDescriptor(PluginModel model) {
         return new PluginDescriptor(
-            model.header().type(), model.header().version(),
-            Duration.ofSeconds(30), Map.of(), model.spec(),
-            model.actualStateSteps(),
-            model.provisioner().provisionSteps(),
-            model.provisioner().deprovisionSteps(),
-            model.faultPolicies(), model.cbr(), model.ras());
+                model.header().type(), model.header().version(),
+                Duration.ofSeconds(30), Map.of(), model.spec(),
+                model.actualStateSteps(),
+                model.provisioner().provisionSteps(),
+                model.provisioner().deprovisionSteps(),
+                model.provisioner().suspendSteps(),
+                model.provisioner().resumeSteps(),
+                model.faultPolicies(), model.cbr(), model.ras());
     }
 }

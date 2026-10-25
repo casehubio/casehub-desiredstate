@@ -69,7 +69,7 @@ class YamlPluginActualStateAdapterTest {
         var descriptor = new PluginDescriptor(
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(compareStep),
-                List.of(), List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
         var adapter = createAdapter(descriptor);
         var node    = createNode("n1", Map.of("status", 1));
@@ -89,7 +89,7 @@ class YamlPluginActualStateAdapterTest {
         var descriptor = new PluginDescriptor(
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(compareStep),
-                List.of(), List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
         var adapter = createAdapter(descriptor);
         var node    = createNode("n1", Map.of("status", 0));
@@ -108,7 +108,7 @@ class YamlPluginActualStateAdapterTest {
         var descriptor = new PluginDescriptor(
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(compareStep),
-                List.of(), List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
         var adapter = createAdapter(descriptor);
 
@@ -133,7 +133,7 @@ class YamlPluginActualStateAdapterTest {
         var descriptor = new PluginDescriptor(
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
-                List.of(), List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
         var adapter = createAdapter(descriptor);
         assertThat(adapter.handledTypes()).containsExactly(TEST_TYPE);

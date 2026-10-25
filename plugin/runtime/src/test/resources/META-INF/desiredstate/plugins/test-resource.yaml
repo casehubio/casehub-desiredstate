@@ -68,6 +68,26 @@ provisioner:
       - assert:
           condition: "${result.response.status} in [200, 404]"
           message: "Deprovision failed: HTTP ${result.response.status}"
+  suspend:
+    steps:
+      - rest-call:
+          method: POST
+          url: "https://${auth.test-api.endpoint}/resources/${spec.name}/suspend"
+          auth: test-api
+          result: response
+      - assert:
+          condition: "${result.response.status} in [200, 202]"
+          message: "Suspend failed: HTTP ${result.response.status}"
+  resume:
+    steps:
+      - rest-call:
+          method: POST
+          url: "https://${auth.test-api.endpoint}/resources/${spec.name}/resume"
+          auth: test-api
+          result: response
+      - assert:
+          condition: "${result.response.status} in [200, 202]"
+          message: "Resume failed: HTTP ${result.response.status}"
 
 fault-policy:
   - faultTypes:

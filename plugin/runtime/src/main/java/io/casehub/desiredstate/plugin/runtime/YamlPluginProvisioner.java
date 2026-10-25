@@ -7,6 +7,10 @@ import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.ResumeContext;
+import io.casehub.desiredstate.api.ResumeResult;
+import io.casehub.desiredstate.api.SuspendContext;
+import io.casehub.desiredstate.api.SuspendResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.platform.api.credentials.CredentialResolver;
 import io.casehub.yaml.core.resolver.VariableResolver;
@@ -85,6 +89,59 @@ public class YamlPluginProvisioner implements NodeProvisioner {
             return new DeprovisionResult.Failed(e.getMessage());
         }
     }
+
+    @Override
+    public SuspendResult suspend(DesiredNode node, SuspendContext context) {
+        PluginDescriptor plugin = plugins.get(node.type());
+        if (plugin == null) {
+            return new SuspendResult.Failed(
+                    "No plugin registered for type: " + node.type());
+        }
+        if (plugin.suspendSteps().isEmpty()) {
+            return new SuspendResult.Failed(
+                    "Plugin '" + plugin.type() + "' does not define suspend steps");
+        }
+        try {
+            Map<String, Object> specFields = extractSpecFields(node);
+            PluginSpecValidator.validate(plugin.type(), specFields, plugin.specSchema());
+            VariableResolver resolver = buildResolver(node, plugin);
+            ResolvedStep     block    = new ResolvedStep.BlockStep(null, plugin.suspendSteps(), Map.of());
+            evaluator.evaluate(block, resolver, runner);
+            return new SuspendResult.Success();
+        } catch (RuntimeException e) {
+            return new SuspendResult.Failed(e.getMessage());
+        }
+    }
+
+    @Override
+    public ResumeResult resume(DesiredNode node, ResumeContext context) {
+        PluginDescriptor plugin = plugins.get(node.type());
+        if (plugin == null) {
+            return new ResumeResult.Failed(
+                    "No plugin registered for type: " + node.type());
+        }
+        if (plugin.resumeSteps().isEmpty()) {
+            return new ResumeResult.Failed(
+                    "Plugin '" + plugin.type() + "' does not define resume steps");
+        }
+        try {
+            Map<String, Object> specFields = extractSpecFields(node);
+            PluginSpecValidator.validate(plugin.type(), specFields, plugin.specSchema());
+            VariableResolver resolver = buildResolver(node, plugin);
+            ResolvedStep     block    = new ResolvedStep.BlockStep(null, plugin.resumeSteps(), Map.of());
+            evaluator.evaluate(block, resolver, runner);
+            return new ResumeResult.Success();
+        } catch (RuntimeException e) {
+            return new ResumeResult.Failed(e.getMessage());
+        }
+    }
+
+    @Override
+    public boolean supportsStatefulLifecycle() {
+        return plugins.values().stream()
+                      .anyMatch(p -> !p.suspendSteps().isEmpty() || !p.resumeSteps().isEmpty());
+    }
+
 
     private VariableResolver buildResolver(DesiredNode node, PluginDescriptor plugin) {
         Map<String, Object>              specFields = extractSpecFields(node);

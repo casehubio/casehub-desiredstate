@@ -20,6 +20,8 @@ public record PluginDescriptor(
         List<ResolvedStep> actualStateSteps,
         List<ResolvedStep> provisionSteps,
         List<ResolvedStep> deprovisionSteps,
+        List<ResolvedStep> suspendSteps,
+        List<ResolvedStep> resumeSteps,
         List<PluginFaultPolicyDef> faultPolicies,
         PluginCbrDef cbr,
         PluginRasDef ras

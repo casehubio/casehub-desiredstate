@@ -8,6 +8,10 @@ import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.ResumeContext;
+import io.casehub.desiredstate.api.ResumeResult;
+import io.casehub.desiredstate.api.SuspendContext;
+import io.casehub.desiredstate.api.SuspendResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
@@ -61,6 +65,98 @@ class YamlPluginProvisionerTest {
     }
 
     @Test
+    void suspendDelegatesToStepPipeline() {
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                new PluginSpecSchema(Map.of()), List.of(),
+                List.of(), List.of(),
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(), List.of(), null, null);
+        var provisioner = createProvisioner(descriptor);
+
+        var node  = createNode("n1", Map.of("name", "x"));
+        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var result = provisioner.suspend(node,
+                                         new SuspendContext("tenant1", graph));
+
+        assertThat(result).isInstanceOf(SuspendResult.Success.class);
+    }
+
+    @Test
+    void resumeDelegatesToStepPipeline() {
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                new PluginSpecSchema(Map.of()), List.of(),
+                List.of(), List.of(), List.of(),
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(), null, null);
+        var provisioner = createProvisioner(descriptor);
+
+        var node  = createNode("n1", Map.of("name", "x"));
+        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var result = provisioner.resume(node,
+                                        new ResumeContext("tenant1", graph));
+
+        assertThat(result).isInstanceOf(ResumeResult.Success.class);
+    }
+
+    @Test
+    void suspendFailsWhenNoStepsDefined() {
+        var descriptor = createDescriptor(
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of());
+        var provisioner = createProvisioner(descriptor);
+
+        var node  = createNode("n1", Map.of("name", "x"));
+        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var result = provisioner.suspend(node,
+                                         new SuspendContext("tenant1", graph));
+
+        assertThat(result).isInstanceOf(SuspendResult.Failed.class);
+        assertThat(((SuspendResult.Failed) result).reason()).contains("suspend steps");
+    }
+
+    @Test
+    void resumeFailsWhenNoStepsDefined() {
+        var descriptor = createDescriptor(
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of());
+        var provisioner = createProvisioner(descriptor);
+
+        var node  = createNode("n1", Map.of("name", "x"));
+        var graph = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var result = provisioner.resume(node,
+                                        new ResumeContext("tenant1", graph));
+
+        assertThat(result).isInstanceOf(ResumeResult.Failed.class);
+        assertThat(((ResumeResult.Failed) result).reason()).contains("resume steps");
+    }
+
+    @Test
+    void supportsStatefulLifecycleWhenSuspendStepsDefined() {
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                new PluginSpecSchema(Map.of()), List.of(),
+                List.of(), List.of(),
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(), List.of(), null, null);
+        var provisioner = createProvisioner(descriptor);
+
+        assertThat(provisioner.supportsStatefulLifecycle()).isTrue();
+    }
+
+    @Test
+    void doesNotSupportStatefulLifecycleWhenNoSuspendResumeSteps() {
+        var descriptor = createDescriptor(
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of());
+        var provisioner = createProvisioner(descriptor);
+
+        assertThat(provisioner.supportsStatefulLifecycle()).isFalse();
+    }
+
+
+    @Test
     void failedStepReturnsFailedResult() {
         var descriptor = createDescriptor(
                 List.of(pluginStep("assert", Map.of("condition", "false"))),
@@ -89,7 +185,7 @@ class YamlPluginProvisionerTest {
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(pluginStep("spec-check", Map.of("expected", "${spec.name}"))),
-                List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), null, null);
 
         StepRunner runner = (step, resolver) -> {
             if (step instanceof ResolvedStep.PluginStep ps) {
@@ -121,7 +217,7 @@ class YamlPluginProvisionerTest {
                 Map.of("api", "api-credentials"),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(pluginStep("auth-check", Map.of("token", "${auth.api.token}"))),
-                List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), null, null);
 
         StepRunner runner = (step, resolver) -> {
             if (step instanceof ResolvedStep.PluginStep ps) {
@@ -157,7 +253,7 @@ class YamlPluginProvisionerTest {
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 schema, List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
-                List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), null, null);
         var provisioner = createProvisioner(descriptor);
 
         var node   = createNode("n1", Map.of());
@@ -178,7 +274,7 @@ class YamlPluginProvisionerTest {
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 schema, List.of(), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
-                List.of(), null, null);
+                List.of(), List.of(), List.of(), null, null);
         var provisioner = createProvisioner(descriptor);
 
         var node   = createNode("n1", Map.of("region", "mars"));
@@ -211,7 +307,7 @@ class YamlPluginProvisionerTest {
         return new PluginDescriptor(
                 "test-resource", 1, Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
-                provisionSteps, deprovisionSteps, List.of(), null, null);
+                provisionSteps, deprovisionSteps, List.of(), List.of(), List.of(), null, null);
     }
 
     private static PluginDescriptor createDescriptorWithInterval(Duration interval) {
@@ -219,7 +315,7 @@ class YamlPluginProvisionerTest {
                 "test-resource", 1, interval, Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
-                List.of(), List.of(), null, null);
+                List.of(), List.of(), List.of(), List.of(), null, null);
     }
 
     private static ResolvedStep pluginStep(String name, Map<String, Object> params) {

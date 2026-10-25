@@ -73,17 +73,19 @@ public class PluginDiscovery {
     private static PluginDescriptor toDescriptor(PluginModel plugin) {
         String type = plugin.header().type();
         Map<String, String> authRefs = plugin.header().auth() != null
-            ? plugin.header().auth().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().credentialRef()))
-            : Map.of();
+                                       ? plugin.header().auth().entrySet().stream()
+                                               .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().credentialRef()))
+                                       : Map.of();
         Duration resync = plugin.header().resyncInterval() != null
-            ? Duration.parse("PT" + plugin.header().resyncInterval())
-            : Duration.ofMinutes(5);
+                          ? Duration.parse("PT" + plugin.header().resyncInterval())
+                          : Duration.ofMinutes(5);
         return new PluginDescriptor(
-            type, plugin.header().version(), resync, authRefs,
-            plugin.spec(), plugin.actualStateSteps(),
-            plugin.provisioner().provisionSteps(),
-            plugin.provisioner().deprovisionSteps(),
-            plugin.faultPolicies(), plugin.cbr(), plugin.ras());
+                type, plugin.header().version(), resync, authRefs,
+                plugin.spec(), plugin.actualStateSteps(),
+                plugin.provisioner().provisionSteps(),
+                plugin.provisioner().deprovisionSteps(),
+                plugin.provisioner().suspendSteps(),
+                plugin.provisioner().resumeSteps(),
+                plugin.faultPolicies(), plugin.cbr(), plugin.ras());
     }
 }
