@@ -8,11 +8,11 @@ import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.ProvisionContext;
 import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
+import io.casehub.platform.api.credentials.CredentialResolver;
 import io.casehub.yaml.core.resolver.VariableResolver;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 import io.casehub.yaml.step.eval.StepRunner;
 import io.casehub.yaml.step.eval.StructuralStepEvaluator;
-import io.casehub.platform.api.credentials.CredentialResolver;
 
 import java.time.Duration;
 import java.util.Map;
@@ -56,6 +56,8 @@ public class YamlPluginProvisioner implements NodeProvisioner {
                     "No plugin registered for type: " + node.type());
         }
         try {
+            Map<String, Object> specFields = extractSpecFields(node);
+            PluginSpecValidator.validate(plugin.type(), specFields, plugin.specSchema());
             VariableResolver resolver = buildResolver(node, plugin);
             ResolvedStep     block    = new ResolvedStep.BlockStep(null, plugin.provisionSteps(), Map.of());
             evaluator.evaluate(block, resolver, runner);
@@ -73,6 +75,8 @@ public class YamlPluginProvisioner implements NodeProvisioner {
                     "No plugin registered for type: " + node.type());
         }
         try {
+            Map<String, Object> specFields = extractSpecFields(node);
+            PluginSpecValidator.validate(plugin.type(), specFields, plugin.specSchema());
             VariableResolver resolver = buildResolver(node, plugin);
             ResolvedStep     block    = new ResolvedStep.BlockStep(null, plugin.deprovisionSteps(), Map.of());
             evaluator.evaluate(block, resolver, runner);

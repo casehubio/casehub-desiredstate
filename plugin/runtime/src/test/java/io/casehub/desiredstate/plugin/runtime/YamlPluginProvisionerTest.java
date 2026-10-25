@@ -147,6 +147,49 @@ class YamlPluginProvisionerTest {
         assertThat(result).isInstanceOf(ProvisionResult.Success.class);
     }
 
+    @Test
+    void provisionRejectsInvalidSpec() {
+        var schema = new PluginSpecSchema(Map.of(
+                "name", new io.casehub.desiredstate.plugin.model.PluginFieldDef(
+                        "string", true, null, null, null, null,
+                        null, null, null, null, null, null, null)));
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                schema, List.of(),
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(), List.of(), null, null);
+        var provisioner = createProvisioner(descriptor);
+
+        var node   = createNode("n1", Map.of());
+        var graph  = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var result = provisioner.provision(node, new ProvisionContext("tenant1", graph));
+
+        assertThat(result).isInstanceOf(ProvisionResult.Failed.class);
+        assertThat(((ProvisionResult.Failed) result).reason()).contains("name");
+    }
+
+    @Test
+    void deprovisionRejectsInvalidSpec() {
+        var schema = new PluginSpecSchema(Map.of(
+                "region", new io.casehub.desiredstate.plugin.model.PluginFieldDef(
+                        "enum", true, null, null, null, null,
+                        null, null, List.of("us-east", "eu-west"), null, null, null, null)));
+        var descriptor = new PluginDescriptor(
+                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                schema, List.of(), List.of(),
+                List.of(pluginStep("assert", Map.of("condition", "true"))),
+                List.of(), null, null);
+        var provisioner = createProvisioner(descriptor);
+
+        var node   = createNode("n1", Map.of("region", "mars"));
+        var graph  = new DefaultDesiredStateGraphFactory().empty().withNode(node);
+        var result = provisioner.deprovision(node, new DeprovisionContext("tenant1", graph));
+
+        assertThat(result).isInstanceOf(DeprovisionResult.Failed.class);
+        assertThat(((DeprovisionResult.Failed) result).reason()).contains("mars");
+    }
+
+
     private YamlPluginProvisioner createProvisioner(PluginDescriptor descriptor) {
         StepRunner runner = (step, resolver) -> {
             if (step instanceof ResolvedStep.PluginStep ps && "assert".equals(ps.name())) {
