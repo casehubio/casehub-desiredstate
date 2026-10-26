@@ -4,13 +4,13 @@ import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
-import io.casehub.desiredstate.api.DriftPolicyEvaluator;
-import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.DriftContext;
 import io.casehub.desiredstate.api.DriftDecision;
+import io.casehub.desiredstate.api.DriftPolicyEvaluator;
 import io.casehub.desiredstate.api.Exemption;
 import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultEvent;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.FaultType;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.GraphMutation;
@@ -119,6 +119,8 @@ public class ReconciliationLoop {
     private final DriftPolicyEvaluator     driftPolicyEngine;
     private final ExemptionStore           exemptionStore;
     private final PlanApprovalGate         approvalGate;
+    private final io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore;
+    private final io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller;
 
 
     private final int                      nodeOutcomesThreshold;
@@ -135,7 +137,7 @@ public class ReconciliationLoop {
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
-             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null);
+             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null, null, null);
     }
 
     public ReconciliationLoop(
@@ -154,7 +156,9 @@ public class ReconciliationLoop {
             int nodeOutcomesThreshold,
             DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
-            PlanApprovalGate approvalGate) {
+            PlanApprovalGate approvalGate,
+            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore,
+            io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller) {
         this.planner                  = planner;
         this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
@@ -172,6 +176,8 @@ public class ReconciliationLoop {
         this.driftPolicyEngine        = driftPolicyEngine != null ? driftPolicyEngine : new DriftPolicyEngine(List.of());
         this.exemptionStore           = exemptionStore != null ? exemptionStore : new InMemoryExemptionStore();
         this.approvalGate             = approvalGate;
+        this.historyStore             = historyStore;
+        this.lifecycleCanceller       = lifecycleCanceller;
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -390,6 +396,8 @@ public class ReconciliationLoop {
         private       DriftPolicyEvaluator               driftPolicyEngine;
         private       ExemptionStore                     exemptionStore;
         private       PlanApprovalGate                   approvalGate;
+        private       io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore;
+        private       io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller;
 
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
@@ -460,12 +468,24 @@ public class ReconciliationLoop {
             return this;
         }
 
+        public Builder historyStore(io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore) {
+            this.historyStore = historyStore;
+            return this;
+        }
+
+        public Builder lifecycleCanceller(io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller) {
+            this.lifecycleCanceller = lifecycleCanceller;
+            return this;
+        }
+
+
         public ReconciliationLoop build() {
             return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
                                           faultPolicyEngine, mergedEventSource, router, debounceWindow,
                                           resyncInterval, cloudEventSink, cbrTracker, globalListeners,
                                           reconciliationStateStore, nodeOutcomesThreshold,
-                                          driftPolicyEngine, exemptionStore, approvalGate);
+                                          driftPolicyEngine, exemptionStore, approvalGate,
+                                          historyStore, lifecycleCanceller);
         }
     }
 
@@ -570,7 +590,19 @@ public class ReconciliationLoop {
         }
 
         void updateDesired(DesiredStateGraph newDesired) {
+            updateDesiredInternal(newDesired, "updateDesired", null, true);
+        }
+
+        void updateDesiredInternal(DesiredStateGraph newDesired, String source,
+                                    String initiatedBy, boolean shouldPrune) {
             DesiredStateGraph old = desiredRef.getAndSet(newDesired);
+
+            if (historyStore != null) {
+                historyStore.record(tenancyId, newDesired, source, initiatedBy);
+                if (shouldPrune) {
+                    historyStore.prune(tenancyId, 10);
+                }
+            }
 
             // Recompute interval groups if using router-driven scheduling and types changed
             if (resyncOverride == null && router != null) {

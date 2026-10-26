@@ -1,8 +1,8 @@
 package io.casehub.desiredstate.runtime;
 
+import io.casehub.platform.api.preferences.BooleanPreference;
 import io.casehub.platform.api.preferences.DoublePreference;
 import io.casehub.platform.api.preferences.DurationPreference;
-import io.casehub.platform.api.preferences.BooleanPreference;
 import io.casehub.platform.api.preferences.IntPreference;
 import io.casehub.platform.api.preferences.PreferenceKey;
 
@@ -32,5 +32,9 @@ public final class DesiredStatePreferenceKeys {
             new PreferenceKey<>("desiredstate", "parallel-execution",
                                 new BooleanPreference(false),
                                 s -> new BooleanPreference(Boolean.parseBoolean(s)));
+    public static final PreferenceKey<IntPreference>     HISTORY_MAX_DEPTH  =
+            new PreferenceKey<>("desiredstate", "history.maxDepth",
+                                new IntPreference(10), IntPreference::parse);
+
 
 }

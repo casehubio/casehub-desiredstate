@@ -4,11 +4,11 @@ import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DriftPolicy;
-import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.DriftPolicyEvaluator;
+import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultCountStore;
-import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.FaultPolicy;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.LifecycleStepExecutor;
@@ -162,14 +162,16 @@ public class RuntimeBeans {
             ReconciliationStateStore stateStore,
             DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
-            PlanApprovalGate approvalGate) {
+            PlanApprovalGate approvalGate,
+            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore) {
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
                                       cloudEventSink::fire, cbrTracker,
                                       listeners.stream().toList(), stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
-                                      driftPolicyEngine, exemptionStore, approvalGate);
+                                      driftPolicyEngine, exemptionStore, approvalGate,
+                                      historyStore, null);
     }
 
     @Produces
@@ -185,6 +187,14 @@ public class RuntimeBeans {
     public DefaultReconciliationStateStore defaultReconciliationStateStore() {
         return new DefaultReconciliationStateStore();
     }
+
+    @Produces
+    @DefaultBean
+    @ApplicationScoped
+    public DefaultDesiredStateHistoryStore defaultDesiredStateHistoryStore() {
+        return new DefaultDesiredStateHistoryStore();
+    }
+
 
     @Produces
     @DefaultBean
