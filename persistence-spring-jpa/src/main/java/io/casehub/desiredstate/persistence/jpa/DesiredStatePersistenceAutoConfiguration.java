@@ -27,4 +27,12 @@ public class DesiredStatePersistenceAutoConfiguration {
                                                              DesiredStateGraphFactory graphFactory) {
         return new SpringJpaReconciliationStateStore(em, graphFactory);
     }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.DesiredStateHistoryStore.class)
+    public io.casehub.desiredstate.api.DesiredStateHistoryStore desiredStateHistoryStore(
+            EntityManager em, DesiredStateGraphFactory graphFactory) {
+        return new SpringJpaDesiredStateHistoryStore(em, graphFactory);
+    }
+
 }

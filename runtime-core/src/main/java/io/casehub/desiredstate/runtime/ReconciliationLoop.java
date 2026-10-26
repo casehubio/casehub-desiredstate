@@ -634,6 +634,9 @@ public class ReconciliationLoop {
             }
             cbrTracker.clearTenant(tenancyId);
             reconciliationStateStore.remove(tenancyId);
+            if (historyStore != null) {
+                historyStore.remove(tenancyId);
+            }
         }
 
         void updateDesired(DesiredStateGraph newDesired) {

@@ -4,12 +4,12 @@ import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
-import io.casehub.desiredstate.api.DriftPolicyEvaluator;
-import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.DriftPolicy;
+import io.casehub.desiredstate.api.DriftPolicyEvaluator;
 import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultCountStore;
 import io.casehub.desiredstate.api.FaultPolicy;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.HumanNodeHandler;
 import io.casehub.desiredstate.api.InMemoryExemptionStore;
@@ -186,14 +186,16 @@ public class DesiredStateRuntimeAutoConfiguration {
             ReconciliationStateStore stateStore,
             DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
-            io.casehub.desiredstate.runtime.PlanApprovalGate approvalGate) {
+            io.casehub.desiredstate.runtime.PlanApprovalGate approvalGate,
+            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore) {
         Consumer<CloudEvent> cloudEventSink = event -> eventPublisher.publishEvent(event);
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
                                       cloudEventSink, cbrTracker, listeners, stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
-                                      driftPolicyEngine, exemptionStore, approvalGate);
+                                      driftPolicyEngine, exemptionStore, approvalGate,
+                                      historyStore, null);
     }
 
     @Bean
@@ -207,6 +209,13 @@ public class DesiredStateRuntimeAutoConfiguration {
     public DefaultReconciliationStateStore defaultReconciliationStateStore() {
         return new DefaultReconciliationStateStore();
     }
+
+    @Bean
+    @ConditionalOnMissingBean(io.casehub.desiredstate.api.DesiredStateHistoryStore.class)
+    public io.casehub.desiredstate.runtime.DefaultDesiredStateHistoryStore defaultDesiredStateHistoryStore() {
+        return new io.casehub.desiredstate.runtime.DefaultDesiredStateHistoryStore();
+    }
+
 
     @Bean
     @ConditionalOnMissingBean(DesiredStateGraphFactory.class)
