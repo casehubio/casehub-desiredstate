@@ -255,5 +255,137 @@ class ReconciliationLoopRollbackTest {
         assertThat(versions).hasSize(10);
     }
 
+    @Test
+    void rollbackNodeSwapsSpecFromHistory() {
+        record SpecV1() implements NodeSpec {
+            @Override
+            public NodeType nodeType() {return NodeType.of("test");}
+        }
+        record SpecV2() implements NodeSpec {
+            @Override
+            public NodeType nodeType() {return NodeType.of("test");}
+        }
+        var g1 = factory.of(
+                List.of(new DesiredNode(NodeId.of("n1"), new SpecV1(), HumanGating.NONE)),
+                List.of());
+        var g2 = factory.of(
+                List.of(new DesiredNode(NodeId.of("n1"), new SpecV2(), HumanGating.NONE)),
+                List.of());
+
+        loop.start("t1", g1);
+        loop.updateDesired("t1", g2);
+
+        var  versions = historyStore.listVersions("t1");
+        long v1       = versions.get(versions.size() - 1).version();
+
+        loop.rollbackNode("t1", NodeId.of("n1"), v1, "admin");
+
+        DesiredStateGraph current = loop.getDesired("t1");
+        assertThat(current.nodes().get(NodeId.of("n1")).spec()).isInstanceOf(SpecV1.class);
+    }
+
+    @Test
+    void rollbackNodeEmitsCloudEvent() {
+        loop.start("t1", graphWith("n1"));
+        loop.updateDesired("t1", graphWith("n1"));
+
+        var  versions = historyStore.listVersions("t1");
+        long v1       = versions.get(versions.size() - 1).version();
+
+        loop.rollbackNode("t1", NodeId.of("n1"), v1, "admin");
+
+        assertThat(emittedEvents).anySatisfy(event ->
+                                                     assertThat(event.getType()).isEqualTo(
+                                                             io.casehub.desiredstate.api.DesiredStateEventTypes.NODE_ROLLBACK_INITIATED));
+    }
+
+    @Test
+    void rollbackNodeThrowsWhenNodeAbsentInHistory() {
+        loop.start("t1", graphWith("n1"));
+        loop.updateDesired("t1", graphWith("n2"));
+
+        var  versions = historyStore.listVersions("t1");
+        long v1       = versions.get(versions.size() - 1).version();
+
+        assertThatThrownBy(() -> loop.rollbackNode("t1", NodeId.of("n2"), v1, "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not found in version");
+    }
+
+    @Test
+    void rollbackNodeThrowsWhenNodeAbsentInCurrentGraph() {
+        loop.start("t1", graphWith("n1"));
+        loop.updateDesired("t1", graphWith("n2"));
+
+        var  versions = historyStore.listVersions("t1");
+        long v1       = versions.get(versions.size() - 1).version();
+
+        assertThatThrownBy(() -> loop.rollbackNode("t1", NodeId.of("n1"), v1, "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not present in current graph");
+    }
+
+    @Test
+    void rollbackNodeThrowsOnTypeMismatch() {
+        record TypeA() implements NodeSpec {
+            @Override
+            public NodeType nodeType() {return NodeType.of("typeA");}
+        }
+        record TypeB() implements NodeSpec {
+            @Override
+            public NodeType nodeType() {return NodeType.of("typeB");}
+        }
+        actualAdapter.setHandledTypes(Set.of(NodeType.of("typeA"), NodeType.of("typeB")));
+
+        var g1 = factory.of(
+                List.of(new DesiredNode(NodeId.of("n1"), new TypeA(), HumanGating.NONE)),
+                List.of());
+        var g2 = factory.of(
+                List.of(new DesiredNode(NodeId.of("n1"), new TypeB(), HumanGating.NONE)),
+                List.of());
+
+        loop.start("t1", g1);
+        loop.updateDesired("t1", g2);
+
+        var  versions = historyStore.listVersions("t1");
+        long v1       = versions.get(versions.size() - 1).version();
+
+        assertThatThrownBy(() -> loop.rollbackNode("t1", NodeId.of("n1"), v1, "admin"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("type mismatch");
+    }
+
+    @Test
+    void rollbackNodeRecordsHistory() {
+        loop.start("t1", graphWith("n1"));
+        loop.updateDesired("t1", graphWith("n1"));
+
+        var  versions = historyStore.listVersions("t1");
+        long v1       = versions.get(versions.size() - 1).version();
+
+        loop.rollbackNode("t1", NodeId.of("n1"), v1, "admin");
+
+        var postVersions = historyStore.listVersions("t1");
+        assertThat(postVersions).hasSize(3);
+        assertThat(postVersions.get(0).source()).isEqualTo("node-rollback");
+        assertThat(postVersions.get(0).initiatedBy()).isEqualTo("admin");
+    }
+
+    @Test
+    void rollbackNodeThrowsWhenHistoryStoreNotConfigured() {
+        var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
+        var loopNoHistory = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+                                              .debounceWindow(TEST_DEBOUNCE)
+                                              .resyncInterval(TEST_RESYNC)
+                                              .build();
+        loopNoHistory.start("t1", graphWith("n1"));
+
+        assertThatThrownBy(() -> loopNoHistory.rollbackNode("t1", NodeId.of("n1"), 1, "admin"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("History store not configured");
+
+        loopNoHistory.shutdown();
+    }
+
 
 }

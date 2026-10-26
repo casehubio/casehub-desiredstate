@@ -53,6 +53,14 @@ public class ReconciliationEventEmitter {
                        .build();
     }
 
+    public CloudEvent nodeRollbackInitiated(io.casehub.desiredstate.api.NodeRollbackInitiatedData data) {
+        return base(DesiredStateEventTypes.NODE_ROLLBACK_INITIATED)
+                       .withSubject(data.nodeId())
+                       .withExtension("tenancyid", data.tenancyId())
+                       .withData("application/json", serialize(data))
+                       .build();
+    }
+
 
     public CloudEvent nodeFaulted(NodeFaultedData data) {
         return base(DesiredStateEventTypes.NODE_FAULTED)

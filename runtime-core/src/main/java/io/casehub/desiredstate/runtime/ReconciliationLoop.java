@@ -377,6 +377,58 @@ public class ReconciliationLoop {
         }
     }
 
+    public void rollbackNode(String tenancyId, NodeId nodeId, long version, String initiatedBy) {
+        TenantLoop loop = loops.get(tenancyId);
+        if (loop == null) {
+            throw new IllegalStateException("No reconciliation loop running for tenant: " + tenancyId);
+        }
+        if (historyStore == null) {
+            throw new IllegalStateException("History store not configured — rollback requires history");
+        }
+
+        DesiredStateGraph historical = historyStore.load(tenancyId, version)
+                                                   .orElseThrow(() -> new IllegalArgumentException(
+                                                           "Version " + version + " not found for tenant " + tenancyId));
+
+        DesiredNode historicalNode = historical.nodes().get(nodeId);
+        if (historicalNode == null) {
+            throw new IllegalArgumentException(
+                    "Node " + nodeId + " not found in version " + version);
+        }
+
+        DesiredStateGraph current     = loop.desiredRef.get();
+        DesiredNode       currentNode = current.nodes().get(nodeId);
+        if (currentNode == null) {
+            throw new IllegalArgumentException(
+                    "Node " + nodeId + " not present in current graph");
+        }
+
+        if (!currentNode.type().equals(historicalNode.type())) {
+            throw new IllegalArgumentException(
+                    "Node " + nodeId + " type mismatch: current=" + currentNode.type()
+                    + ", historical=" + historicalNode.type());
+        }
+
+        DesiredNode rolledBack = new DesiredNode(
+                currentNode.id(), historicalNode.spec(),
+                currentNode.humanGating(), currentNode.hooks(),
+                currentNode.targetStatus());
+
+        DesiredStateGraph updated = current.withNode(rolledBack);
+
+        long currentVersion = historyStore.listVersions(tenancyId).stream()
+                                          .mapToLong(io.casehub.desiredstate.api.HistoryEntry::version).max().orElse(0);
+
+        String rollbackId = java.util.UUID.randomUUID().toString();
+
+        cloudEventSink.accept(eventEmitter.nodeRollbackInitiated(
+                new io.casehub.desiredstate.api.NodeRollbackInitiatedData(
+                        tenancyId, nodeId.value(), currentVersion, version, initiatedBy,
+                        rollbackId, java.time.Instant.now())));
+
+        loop.updateDesiredInternal(updated, "node-rollback", initiatedBy, true);
+    }
+
 
     /**
      * Requests an out-of-band reconciliation for a tenant. Schedules a debounced

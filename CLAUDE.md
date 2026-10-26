@@ -223,7 +223,8 @@ mvn --batch-mode deploy -DskipTests   # CI only — requires GITHUB_TOKEN
 | `NodeAlreadyConvergedData` | CloudEvent data — per-node idempotent provision (already at desired spec) |
 | `NodeSuspendedData` | CloudEvent data — per-node suspend |
 | `NodeResumedData` | CloudEvent data — per-node resume |
-| `DesiredStateEventTypes` | CloudEvent type URI constants for `io.casehub.desiredstate.*` namespace. Includes `NODE_ALREADY_CONVERGED`, `NODE_DRIFT_EXEMPTED`, `LIFECYCLE_STATE_ENTERED`, `LIFECYCLE_STATE_EXITED`, `PLAN_AWAITING_APPROVAL`, `PLAN_APPROVED`, `PLAN_REJECTED`, `PLAN_INVALIDATED` |
+| `NodeRollbackInitiatedData` | CloudEvent data — per-node rollback with `nodeId`, `fromVersion`, `toVersion`, `initiatedBy`, `rollbackId` |
+| `DesiredStateEventTypes` | CloudEvent type URI constants for `io.casehub.desiredstate.*` namespace. Includes `NODE_ALREADY_CONVERGED`, `NODE_DRIFT_EXEMPTED`, `LIFECYCLE_STATE_ENTERED`, `LIFECYCLE_STATE_EXITED`, `PLAN_AWAITING_APPROVAL`, `PLAN_APPROVED`, `PLAN_REJECTED`, `PLAN_INVALIDATED`, `NODE_ROLLBACK_INITIATED` |
 | `NodeLifecycleState` | Enum — `ABSENT`, `PROVISIONING`, `PRESENT`, `DRIFTED`, `DEPROVISIONING`, `SUSPENDING`, `SUSPENDED`, `RESUMING`. `isTransient()` for transient states. `fromNodeStatus(NodeStatus)` for mapping from actual state |
 | `TransitionAction` | Sealed interface — `EmitEvent(String eventType)`. Domain-declared actions fired on lifecycle state transitions |
 | `NodeLifecycleDefinition` | Record — `nodeType`, `transitions` (Set of from→to), `onEnter`/`onExit` action maps. `supportsSuspendResume()`, `validate()` for build-time checking |
