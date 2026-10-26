@@ -1,6 +1,17 @@
 package io.casehub.desiredstate.persistence.jpa;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.Dependency;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HookDescriptor;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.LifecycleStep;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.NodeTypeId;
+import io.casehub.desiredstate.api.OrderingConstraint;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -111,6 +122,39 @@ class GraphSerializerTest {
         DesiredStateGraph result = serializer.deserialize(json, factory);
         assertThat(result).isNull();
     }
+
+    @Test
+    void roundTrip_withOrderingConstraints() {
+        DesiredNode alpha = new DesiredNode(NodeId.of("a1"), new AlphaSpec("first", 1), HumanGating.NONE);
+        DesiredNode beta  = new DesiredNode(NodeId.of("b1"), new BetaSpec("eu-west"), HumanGating.NONE);
+        OrderingConstraint constraint = new OrderingConstraint(
+                NodeType.of("test-alpha"), NodeType.of("test-beta"));
+
+        DesiredStateGraphFactory factory = new TestGraphFactory();
+        DesiredStateGraph original = factory.of(
+                List.of(alpha, beta), List.of(),
+                java.util.Set.of(constraint));
+
+        String            json     = serializer.serialize(original);
+        DesiredStateGraph restored = serializer.deserialize(json, factory);
+
+        assertThat(restored.nodes()).hasSize(2);
+        assertThat(restored.orderingConstraints()).containsExactly(constraint);
+    }
+
+    @Test
+    void roundTrip_withoutOrderingConstraints_deserializesCleanly() {
+        DesiredNode alpha = new DesiredNode(NodeId.of("a1"), new AlphaSpec("first", 1), HumanGating.NONE);
+
+        DesiredStateGraphFactory factory  = new TestGraphFactory();
+        DesiredStateGraph        original = factory.of(List.of(alpha), List.of());
+
+        String            json     = serializer.serialize(original);
+        DesiredStateGraph restored = serializer.deserialize(json, factory);
+
+        assertThat(restored.orderingConstraints()).isEmpty();
+    }
+
 
     private static class TestGraphFactory extends TestDesiredStateGraphFactory {
     }

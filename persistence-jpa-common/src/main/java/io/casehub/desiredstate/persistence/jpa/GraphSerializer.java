@@ -5,7 +5,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.Dependency;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.HookDescriptor;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.LifecycleStep;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.OrderingConstraint;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.TargetStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,8 +33,8 @@ class GraphSerializer {
 
         ArrayNode nodesArray = root.putArray("nodes");
         for (var entry : graph.nodes().entrySet()) {
-            DesiredNode node = entry.getValue();
-            ObjectNode nodeObj = nodesArray.addObject();
+            DesiredNode node    = entry.getValue();
+            ObjectNode  nodeObj = nodesArray.addObject();
             nodeObj.put("id", node.id().value());
             nodeObj.put("specClass", node.spec().getClass().getName());
             nodeObj.set("spec", mapper.valueToTree(node.spec()));
@@ -43,6 +54,15 @@ class GraphSerializer {
             depObj.put("to", dep.to().value());
         }
 
+        if (!graph.orderingConstraints().isEmpty()) {
+            ArrayNode constraintsArray = root.putArray("orderingConstraints");
+            for (OrderingConstraint oc : graph.orderingConstraints()) {
+                ObjectNode ocObj = constraintsArray.addObject();
+                ocObj.put("before", oc.before().value());
+                ocObj.put("after", oc.after().value());
+            }
+        }
+
         try {
             return mapper.writeValueAsString(root);
         } catch (JsonProcessingException e) {
@@ -56,14 +76,14 @@ class GraphSerializer {
 
             List<DesiredNode> nodes = new ArrayList<>();
             for (JsonNode nodeJson : root.get("nodes")) {
-                String id = nodeJson.get("id").asText();
-                String specClassName = nodeJson.get("specClass").asText();
-                Class<?> specClass = Class.forName(specClassName);
-                NodeSpec spec = (NodeSpec) mapper.treeToValue(nodeJson.get("spec"), specClass);
-                HumanGating gating = HumanGating.valueOf(nodeJson.get("humanGating").asText());
+                String      id            = nodeJson.get("id").asText();
+                String      specClassName = nodeJson.get("specClass").asText();
+                Class<?>    specClass     = Class.forName(specClassName);
+                NodeSpec    spec          = (NodeSpec) mapper.treeToValue(nodeJson.get("spec"), specClass);
+                HumanGating gating        = HumanGating.valueOf(nodeJson.get("humanGating").asText());
                 TargetStatus targetStatus = nodeJson.has("targetStatus")
-                    ? TargetStatus.valueOf(nodeJson.get("targetStatus").asText())
-                    : TargetStatus.ACTIVE;
+                                            ? TargetStatus.valueOf(nodeJson.get("targetStatus").asText())
+                                            : TargetStatus.ACTIVE;
                 HookDescriptor hooks = deserializeHooks(nodeJson.get("hooks"));
                 nodes.add(new DesiredNode(NodeId.of(id), spec, gating, hooks, targetStatus));
             }
@@ -74,6 +94,18 @@ class GraphSerializer {
                         NodeId.of(depJson.get("from").asText()),
                         NodeId.of(depJson.get("to").asText())
                 ));
+            }
+
+            JsonNode constraintsJson = root.get("orderingConstraints");
+            if (constraintsJson != null && constraintsJson.isArray() && !constraintsJson.isEmpty()) {
+                java.util.Set<OrderingConstraint> constraints = new java.util.LinkedHashSet<>();
+                for (JsonNode ocJson : constraintsJson) {
+                    constraints.add(new OrderingConstraint(
+                            NodeType.of(ocJson.get("before").asText()),
+                            NodeType.of(ocJson.get("after").asText())
+                    ));
+                }
+                return factory.of(nodes, deps, constraints);
             }
 
             return factory.of(nodes, deps);
