@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-public class LifecycleManager {
+public class LifecycleManager implements io.casehub.desiredstate.api.LifecycleCanceller {
 
     private static final Logger LOG = Logger.getLogger(LifecycleManager.class.getName());
 
@@ -37,6 +37,12 @@ public class LifecycleManager {
         lifecycles.remove(tenancyId);
         loop.stop(tenancyId);
     }
+
+    @Override
+    public void cancelLifecycle(String tenancyId) {
+        lifecycles.remove(tenancyId);
+    }
+
 
     public void updateDesired(String tenancyId, CompilationResult result) {
         lifecycles.remove(tenancyId);

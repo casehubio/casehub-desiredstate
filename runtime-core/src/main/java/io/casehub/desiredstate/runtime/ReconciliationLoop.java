@@ -308,6 +308,47 @@ public class ReconciliationLoop {
         loop.updateDesired(newDesired);
     }
 
+    public void rollback(String tenancyId, long version, String initiatedBy) {
+        TenantLoop loop = loops.get(tenancyId);
+        if (loop == null) {
+            throw new IllegalStateException("No reconciliation loop running for tenant: " + tenancyId);
+        }
+        if (historyStore == null) {
+            throw new IllegalStateException("History store not configured — rollback requires history");
+        }
+        DesiredStateGraph historical = historyStore.load(tenancyId, version)
+                                                   .orElseThrow(() -> new IllegalArgumentException(
+                                                           "Version " + version + " not found for tenant " + tenancyId));
+
+        loop.rollbackInProgress = true;
+        try {
+            if (approvalGate != null) {
+                approvalGate.cancelPending(tenancyId);
+            }
+            if (lifecycleCanceller != null) {
+                lifecycleCanceller.cancelLifecycle(tenancyId);
+            }
+
+            long currentVersion = historyStore.listVersions(tenancyId).stream()
+                                              .mapToLong(io.casehub.desiredstate.api.HistoryEntry::version).max().orElse(0);
+
+            String rollbackId = java.util.UUID.randomUUID().toString();
+
+            cloudEventSink.accept(eventEmitter.rollbackInitiated(
+                    new io.casehub.desiredstate.api.RollbackInitiatedData(
+                            tenancyId, currentVersion, version, initiatedBy,
+                            rollbackId, java.time.Instant.now())));
+
+            loop.pendingContext = new io.casehub.desiredstate.api.PlanContext.Rollback(
+                    currentVersion, version, "rollback to version " + version, rollbackId);
+
+            loop.updateDesiredInternal(historical, "rollback", initiatedBy, false);
+        } finally {
+            loop.rollbackInProgress = false;
+        }
+    }
+
+
     /**
      * Requests an out-of-band reconciliation for a tenant. Schedules a debounced
      * reconciliation cycle after the configured debounce window. If called multiple
@@ -507,6 +548,9 @@ public class ReconciliationLoop {
         private volatile ScheduledFuture<?> requestedReconciliation;
         /** Single resync timer used when resyncOverride is set (test mode). */
         private volatile ScheduledFuture<?> resyncFuture;
+        volatile         boolean            rollbackInProgress;
+        volatile         io.casehub.desiredstate.api.PlanContext pendingContext;
+
 
         TenantLoop(String tenancyId, DesiredStateGraph desired) {
             this(tenancyId, desired, null);
@@ -516,6 +560,9 @@ public class ReconciliationLoop {
             this.tenancyId = tenancyId;
             this.desiredRef = new AtomicReference<>(desired);
             this.listener = listener;
+            if (historyStore != null) {
+                historyStore.record(tenancyId, desired, "start", null);
+            }
         }
 
         void start() {
@@ -666,6 +713,9 @@ public class ReconciliationLoop {
          * Full-graph reconciliation. Used by event-driven path and initial reconciliation.
          */
         private void reconcile() {
+            if (rollbackInProgress) {
+                return;
+            }
             Tracer tracer = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME);
             Span reconcileSpan = tracer.spanBuilder("reconcile")
                                        .setAttribute(AttributeKey.stringKey("desiredstate.tenant.id"), tenancyId)
@@ -718,9 +768,15 @@ public class ReconciliationLoop {
                     return;
                 }
 
+                io.casehub.desiredstate.api.PlanContext context = pendingContext;
+                pendingContext = null;
+                if (context == null) {
+                    context = new io.casehub.desiredstate.api.PlanContext.Normal();
+                }
+
                 if (approvalGate != null) {
                     io.casehub.desiredstate.api.GateDecision decision =
-                            approvalGate.evaluateNewPlan(plan, tenancyId, new io.casehub.desiredstate.api.PlanContext.Normal());
+                            approvalGate.evaluateNewPlan(plan, tenancyId, context);
                     switch (decision) {
                         case io.casehub.desiredstate.api.GateDecision.Execute exec -> {
                             TransitionResult result = execute(exec.plan(), tenancyId);
