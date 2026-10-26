@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class PluginParser {
@@ -46,9 +47,20 @@ public class PluginParser {
     }
 
     private static PluginHeader parseHeader(JsonNode node) {
-        String type           = requireText(node, "type", "plugin.type");
-        int    version        = node.path("version").asInt(1);
+        String type = requireText(node, "type", "plugin.type");
+
+        JsonNode versionNode = node.get("version");
+        String   version;
+        if (versionNode != null && versionNode.isNumber()) {
+            version = versionNode.asInt() + ".0.0";
+        } else if (versionNode != null && versionNode.isTextual()) {
+            version = versionNode.asText();
+        } else {
+            version = "1.0.0";
+        }
+
         String resyncInterval = textOrNull(node, "resyncInterval");
+        String description    = textOrNull(node, "description");
 
         Map<String, PluginAuthStanza> auth     = new LinkedHashMap<>();
         JsonNode                      authNode = node.get("auth");
@@ -59,8 +71,22 @@ public class PluginParser {
                 auth.put(e.getKey(), new PluginAuthStanza(credentialRef));
             });
         }
-        return new PluginHeader(type, version, resyncInterval, Map.copyOf(auth));
+
+        PluginRequires requires = parseRequires(node.get("requires"));
+        return new PluginHeader(type, version, resyncInterval, Map.copyOf(auth),
+                                description, requires);
     }
+
+    private static PluginRequires parseRequires(JsonNode node) {
+        if (node == null || node.isMissingNode()) {
+            return PluginRequires.NONE;
+        }
+        Optional<String> runtime    = Optional.ofNullable(textOrNull(node, "runtime"));
+        List<String>     primitives = textList(node, "primitives");
+        List<String>     types      = textList(node, "types");
+        return new PluginRequires(runtime, primitives, types);
+    }
+
 
     private static PluginSpecSchema parseSpecSchema(JsonNode node) {
         JsonNode fieldsNode = node.get("fields");

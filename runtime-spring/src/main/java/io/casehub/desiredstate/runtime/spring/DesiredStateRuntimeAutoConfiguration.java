@@ -4,6 +4,8 @@ import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.DriftPolicyEvaluator;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.DriftPolicy;
 import io.casehub.desiredstate.api.ExemptionStore;
 import io.casehub.desiredstate.api.FaultCountStore;
@@ -57,7 +59,7 @@ public class DesiredStateRuntimeAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FaultPolicyEngine faultPolicyEngine(List<FaultPolicy> policies) {
+    public FaultPolicyEvaluator faultPolicyEngine(List<FaultPolicy> policies) {
         return new FaultPolicyEngine(policies);
     }
 
@@ -103,7 +105,7 @@ public class DesiredStateRuntimeAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DriftPolicyEngine driftPolicyEngine(List<DriftPolicy> policies) {
+    public DriftPolicyEvaluator driftPolicyEngine(List<DriftPolicy> policies) {
         policies.sort(org.springframework.core.annotation.AnnotationAwareOrderComparator.INSTANCE);
         return new DriftPolicyEngine(policies);
     }
@@ -175,14 +177,14 @@ public class DesiredStateRuntimeAutoConfiguration {
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapterRouter actualStateRouter,
-            FaultPolicyEngine faultPolicyEngine,
+            FaultPolicyEvaluator faultPolicyEngine,
             MergedEventSource mergedEventSource,
             NodeProvisionerRouter router,
             ApplicationEventPublisher eventPublisher,
             List<GlobalReconciliationListener> listeners,
             CbrProposalTracker cbrTracker,
             ReconciliationStateStore stateStore,
-            DriftPolicyEngine driftPolicyEngine,
+            DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
             io.casehub.desiredstate.runtime.PlanApprovalGate approvalGate) {
         Consumer<CloudEvent> cloudEventSink = event -> eventPublisher.publishEvent(event);

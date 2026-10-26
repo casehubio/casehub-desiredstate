@@ -2,6 +2,7 @@ package io.casehub.desiredstate.plugin.runtime;
 
 import io.casehub.desiredstate.plugin.model.PluginFieldDef;
 import io.casehub.desiredstate.plugin.model.PluginHeader;
+import io.casehub.desiredstate.plugin.model.PluginRequires;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
@@ -138,7 +139,7 @@ class PluginValidatorTest {
                                             List<ResolvedStep> provision,
                                             List<ResolvedStep> deprovision) {
         return new PluginModel(
-                new PluginHeader(type, 1, "30s", Map.of()),
+                new PluginHeader(type, "1.0.0", "30s", Map.of(), null, PluginRequires.NONE),
                 spec, actualState,
                 new PluginProvisionerDef(provision, deprovision, List.of(), List.of()),
                 List.of(), null, null);

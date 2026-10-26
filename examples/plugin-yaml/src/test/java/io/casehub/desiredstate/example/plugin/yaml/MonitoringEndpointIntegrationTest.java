@@ -51,7 +51,7 @@ class MonitoringEndpointIntegrationTest {
     @Test
     void pluginYamlParsesCorrectly() {
         assertThat(pluginModel.header().type()).isEqualTo("monitoring-endpoint");
-        assertThat(pluginModel.header().version()).isEqualTo(1);
+        assertThat(pluginModel.header().version()).isEqualTo("1.0.0");
         assertThat(pluginModel.spec().fields()).containsKeys("url", "name", "interval", "severity", "tags");
         assertThat(pluginModel.actualStateSteps()).hasSize(2);
         assertThat(pluginModel.provisioner().provisionSteps()).hasSize(2);

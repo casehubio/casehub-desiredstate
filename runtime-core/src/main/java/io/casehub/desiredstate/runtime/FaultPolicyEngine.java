@@ -6,6 +6,7 @@ import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.FaultEvent;
 import io.casehub.desiredstate.api.FaultPolicy;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.GraphMutation;
 
 import java.util.ArrayList;
@@ -16,11 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Evaluates all registered fault policies against a fault event and merges their mutations.
- * Detects conflicts when multiple policies propose incompatible mutations for the same node.
- */
-public class FaultPolicyEngine {
+public class FaultPolicyEngine implements FaultPolicyEvaluator {
 
     private final List<FaultPolicy> policies;
 
@@ -28,6 +25,7 @@ public class FaultPolicyEngine {
         this.policies = List.copyOf(policies);
     }
 
+    @Override
     public List<GraphMutation<DesiredNode>> evaluate(String tenancyId, FaultEvent event, DesiredStateGraph current, ActualState actual) {
         List<GraphMutation<DesiredNode>> allMutations = new ArrayList<>();
         for (FaultPolicy policy : policies) {

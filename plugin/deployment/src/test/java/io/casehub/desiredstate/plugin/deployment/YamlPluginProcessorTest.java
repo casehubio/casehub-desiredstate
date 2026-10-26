@@ -3,6 +3,7 @@ package io.casehub.desiredstate.plugin.deployment;
 import io.casehub.desiredstate.plugin.model.PluginCbrDef;
 import io.casehub.desiredstate.plugin.model.PluginFieldDef;
 import io.casehub.desiredstate.plugin.model.PluginHeader;
+import io.casehub.desiredstate.plugin.model.PluginRequires;
 import io.casehub.desiredstate.plugin.model.PluginModel;
 import io.casehub.desiredstate.plugin.model.PluginProvisionerDef;
 import io.casehub.desiredstate.plugin.model.PluginRasDef;
@@ -177,7 +178,7 @@ class YamlPluginProcessorTest {
             step("rest-call", Map.of("method", "GET", "url", "https://api"), "r"));
         var provisionSteps = List.of(step("assert", Map.of("condition", "true"), null));
         var plugin = new PluginModel(
-            new PluginHeader("no-compare", 1, null, Map.of()),
+            new PluginHeader("no-compare", "1.0.0", null, Map.of(), null, PluginRequires.NONE),
             spec, actualSteps,
             new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
@@ -197,7 +198,7 @@ class YamlPluginProcessorTest {
             step("compare-state", Map.of("present-when", "true"), null));
         var provisionSteps = List.of(step("assert", Map.of("condition", "true"), null));
         var plugin = new PluginModel(
-            new PluginHeader("bad-gate", 1, null, Map.of()),
+            new PluginHeader("bad-gate", "1.0.0", null, Map.of(), null, PluginRequires.NONE),
             spec, actualSteps,
             new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
@@ -243,7 +244,7 @@ class YamlPluginProcessorTest {
         var provisionSteps = List.of(
             step("assert", Map.of("condition", "true"), null));
         return new PluginModel(
-            new PluginHeader("test-resource", 1, "30s", Map.of()),
+            new PluginHeader("test-resource", "1.0.0", "30s", Map.of(), null, PluginRequires.NONE),
             spec, actualSteps,
             new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
@@ -255,7 +256,7 @@ class YamlPluginProcessorTest {
         var provisionSteps = List.of(
             step("assert", Map.of("condition", "true"), null));
         return new PluginModel(
-            new PluginHeader(type, 1, null, Map.of()),
+            new PluginHeader(type, "1.0.0", null, Map.of(), null, PluginRequires.NONE),
             spec, actualSteps,
             new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
             List.of(), emptyCbr(), emptyRas());
@@ -266,7 +267,7 @@ class YamlPluginProcessorTest {
         var provisionSteps = List.of(
                 step("assert", Map.of("condition", "true"), null));
         return new PluginModel(
-                new PluginHeader(type, 1, null, Map.of()),
+                new PluginHeader(type, "1.0.0", null, Map.of(), null, PluginRequires.NONE),
                 spec, actualSteps,
                 new PluginProvisionerDef(provisionSteps, provisionSteps, List.of(), List.of()),
                 List.of(), emptyCbr(), emptyRas());

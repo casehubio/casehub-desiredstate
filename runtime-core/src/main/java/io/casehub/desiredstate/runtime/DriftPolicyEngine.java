@@ -3,13 +3,14 @@ package io.casehub.desiredstate.runtime;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DriftContext;
 import io.casehub.desiredstate.api.DriftDecision;
+import io.casehub.desiredstate.api.DriftPolicyEvaluator;
 import io.casehub.desiredstate.api.DriftPolicy;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeStatus;
 
 import java.util.List;
 
-public class DriftPolicyEngine {
+public class DriftPolicyEngine implements DriftPolicyEvaluator {
 
     private final List<DriftPolicy> policies;
 
@@ -17,6 +18,7 @@ public class DriftPolicyEngine {
         this.policies = List.copyOf(policies);
     }
 
+    @Override
     public DriftDecision evaluate(NodeId nodeId, NodeStatus status,
                                   DesiredNode node, DriftContext context) {
         for (DriftPolicy policy : policies) {

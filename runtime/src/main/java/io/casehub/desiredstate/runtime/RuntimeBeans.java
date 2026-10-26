@@ -5,7 +5,9 @@ import io.casehub.desiredstate.api.ConfigurationAdapter;
 import io.casehub.desiredstate.api.ConfigurationRetriever;
 import io.casehub.desiredstate.api.DriftPolicy;
 import io.casehub.desiredstate.api.ExemptionStore;
+import io.casehub.desiredstate.api.DriftPolicyEvaluator;
 import io.casehub.desiredstate.api.FaultCountStore;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.FaultPolicy;
 import io.casehub.desiredstate.api.GlobalReconciliationListener;
 import io.casehub.desiredstate.api.HumanNodeHandler;
@@ -36,7 +38,7 @@ public class RuntimeBeans {
 
     @Produces
     @ApplicationScoped
-    public FaultPolicyEngine faultPolicyEngine(
+    public FaultPolicyEvaluator faultPolicyEngine(
             Instance<FaultPolicy> policies,
             FaultCountStore store) {
         return new FaultPolicyEngine(policies.stream().toList());
@@ -84,7 +86,7 @@ public class RuntimeBeans {
 
     @Produces
     @ApplicationScoped
-    public DriftPolicyEngine driftPolicyEngine(Instance<DriftPolicy> policies) {
+    public DriftPolicyEvaluator driftPolicyEngine(Instance<DriftPolicy> policies) {
         return new DriftPolicyEngine(policies.stream()
                                              .sorted(java.util.Comparator.comparingInt(p -> {
                                                  var priority = p.getClass().getAnnotation(jakarta.annotation.Priority.class);
@@ -151,14 +153,14 @@ public class RuntimeBeans {
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapterRouter actualStateRouter,
-            FaultPolicyEngine faultPolicyEngine,
+            FaultPolicyEvaluator faultPolicyEngine,
             MergedEventSource mergedEventSource,
             NodeProvisionerRouter router,
             Event<CloudEvent> cloudEventSink,
             Instance<GlobalReconciliationListener> listeners,
             CbrProposalTracker cbrTracker,
             ReconciliationStateStore stateStore,
-            DriftPolicyEngine driftPolicyEngine,
+            DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
             PlanApprovalGate approvalGate) {
         return new ReconciliationLoop(planner, executor, actualStateRouter,

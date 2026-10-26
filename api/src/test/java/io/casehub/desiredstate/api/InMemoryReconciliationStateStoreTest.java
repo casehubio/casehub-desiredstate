@@ -73,6 +73,37 @@ class InMemoryReconciliationStateStoreTest {
         assertTrue(store.load("tenant-2").isPresent());
     }
 
+    @Test
+    void allTenancyIds_emptyWhenNoStores() {
+        assertTrue(store.allTenancyIds().isEmpty());
+    }
+
+    @Test
+    void allTenancyIds_returnsAllStoredTenants() {
+        store.store("tenant-1", stubGraph());
+        store.store("tenant-2", stubGraph());
+        store.store("tenant-3", stubGraph());
+
+        java.util.Set<String> ids = store.allTenancyIds();
+        assertTrue(ids.contains("tenant-1"));
+        assertTrue(ids.contains("tenant-2"));
+        assertTrue(ids.contains("tenant-3"));
+        assertTrue(ids.size() == 3);
+    }
+
+    @Test
+    void allTenancyIds_excludesRemovedTenants() {
+        store.store("tenant-1", stubGraph());
+        store.store("tenant-2", stubGraph());
+        store.remove("tenant-1");
+
+        java.util.Set<String> ids = store.allTenancyIds();
+        assertTrue(!ids.contains("tenant-1"));
+        assertTrue(ids.contains("tenant-2"));
+        assertTrue(ids.size() == 1);
+    }
+
+
     private static DesiredStateGraph stubGraph() {
         return new StubGraph();
     }

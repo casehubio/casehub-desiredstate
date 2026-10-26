@@ -67,7 +67,7 @@ class YamlPluginProvisionerTest {
     @Test
     void suspendDelegatesToStepPipeline() {
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
@@ -85,7 +85,7 @@ class YamlPluginProvisionerTest {
     @Test
     void resumeDelegatesToStepPipeline() {
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(), List.of(), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
@@ -135,7 +135,7 @@ class YamlPluginProvisionerTest {
     @Test
     void supportsStatefulLifecycleWhenSuspendStepsDefined() {
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
@@ -182,7 +182,7 @@ class YamlPluginProvisionerTest {
     @Test
     void specFieldsAvailableInSteps() {
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(pluginStep("spec-check", Map.of("expected", "${spec.name}"))),
                 List.of(), List.of(), List.of(), List.of(), null, null);
@@ -213,7 +213,7 @@ class YamlPluginProvisionerTest {
     @Test
     void authCredentialsResolvedAndAvailable() {
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5),
+                "test-resource", "1.0.0", Duration.ofMinutes(5),
                 Map.of("api", "api-credentials"),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(pluginStep("auth-check", Map.of("token", "${auth.api.token}"))),
@@ -250,7 +250,7 @@ class YamlPluginProvisionerTest {
                         "string", true, null, null, null, null,
                         null, null, null, null, null, null, null)));
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 schema, List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
                 List.of(), List.of(), List.of(), List.of(), null, null);
@@ -271,7 +271,7 @@ class YamlPluginProvisionerTest {
                         "enum", true, null, null, null, null,
                         null, null, List.of("us-east", "eu-west"), null, null, null, null)));
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 schema, List.of(), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
                 List.of(), List.of(), List.of(), null, null);
@@ -305,14 +305,14 @@ class YamlPluginProvisionerTest {
     private static PluginDescriptor createDescriptor(List<ResolvedStep> provisionSteps,
                                                      List<ResolvedStep> deprovisionSteps) {
         return new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 provisionSteps, deprovisionSteps, List.of(), List.of(), List.of(), null, null);
     }
 
     private static PluginDescriptor createDescriptorWithInterval(Duration interval) {
         return new PluginDescriptor(
-                "test-resource", 1, interval, Map.of(),
+                "test-resource", "1.0.0", interval, Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(pluginStep("assert", Map.of("condition", "true"))),
                 List.of(), List.of(), List.of(), List.of(), null, null);

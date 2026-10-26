@@ -67,7 +67,7 @@ class YamlPluginActualStateAdapterTest {
                 "absent-when", "${spec.status} == 0"));
 
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(compareStep),
                 List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
@@ -87,7 +87,7 @@ class YamlPluginActualStateAdapterTest {
                 "absent-when", "${spec.status} == 0"));
 
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(compareStep),
                 List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
@@ -106,7 +106,7 @@ class YamlPluginActualStateAdapterTest {
                 "present-when", "${spec.status} == 1"));
 
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(compareStep),
                 List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 
@@ -131,7 +131,7 @@ class YamlPluginActualStateAdapterTest {
     @Test
     void handledTypesReturnsPluginTypes() {
         var descriptor = new PluginDescriptor(
-                "test-resource", 1, Duration.ofMinutes(5), Map.of(),
+                "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 new PluginSpecSchema(Map.of()), List.of(),
                 List.of(), List.of(), List.of(), List.of(), List.of(), null, null);
 

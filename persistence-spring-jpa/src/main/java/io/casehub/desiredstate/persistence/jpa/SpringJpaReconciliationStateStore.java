@@ -59,4 +59,12 @@ public class SpringJpaReconciliationStateStore implements ReconciliationStateSto
             em.flush();
         }
     }
+
+    @Override
+    @Transactional
+    public java.util.Set<String> allTenancyIds() {
+        var ids = em.createQuery("SELECT DISTINCT e.tenancyId FROM ReconciliationStateEntity e", String.class)
+                    .getResultList();
+        return java.util.Set.copyOf(ids);
+    }
 }

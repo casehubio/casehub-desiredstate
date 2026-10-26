@@ -21,4 +21,9 @@ public class InMemoryReconciliationStateStore implements ReconciliationStateStor
     public void remove(String tenancyId) {
         snapshots.remove(tenancyId);
     }
+
+    @Override
+    public java.util.Set<String> allTenancyIds() {
+        return java.util.Set.copyOf(snapshots.keySet());
+    }
 }

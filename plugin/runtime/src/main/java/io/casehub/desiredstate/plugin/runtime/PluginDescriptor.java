@@ -13,7 +13,7 @@ import java.util.Map;
 
 public record PluginDescriptor(
         String type,
-        int version,
+        String version,
         Duration resyncInterval,
         Map<String, String> authCredentialRefs,
         PluginSpecSchema specSchema,

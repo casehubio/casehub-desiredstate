@@ -4,6 +4,8 @@ import io.casehub.desiredstate.api.ActualState;
 import io.casehub.desiredstate.api.ActualStateAdapterRouter;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.DriftPolicyEvaluator;
+import io.casehub.desiredstate.api.FaultPolicyEvaluator;
 import io.casehub.desiredstate.api.DriftContext;
 import io.casehub.desiredstate.api.DriftDecision;
 import io.casehub.desiredstate.api.Exemption;
@@ -104,7 +106,7 @@ public class ReconciliationLoop {
     private final TransitionPlanner planner;
     private final TransitionExecutor executor;
     private final ActualStateAdapterRouter actualStateAdapterRouter;
-    private final FaultPolicyEngine faultPolicyEngine;
+    private final FaultPolicyEvaluator faultPolicyEngine;
     private final MergedEventSource mergedEventSource;
     private final NodeProvisionerRouter router;
     private final Duration debounceWindow;
@@ -114,7 +116,7 @@ public class ReconciliationLoop {
     private final CbrProposalTracker cbrTracker;
     private final List<GlobalReconciliationListener> globalListeners;
     private final ReconciliationStateStore reconciliationStateStore;
-    private final DriftPolicyEngine        driftPolicyEngine;
+    private final DriftPolicyEvaluator     driftPolicyEngine;
     private final ExemptionStore           exemptionStore;
     private final PlanApprovalGate         approvalGate;
 
@@ -129,7 +131,7 @@ public class ReconciliationLoop {
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
+            FaultPolicyEvaluator faultPolicyEngine,
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
@@ -140,7 +142,7 @@ public class ReconciliationLoop {
             TransitionPlanner planner,
             TransitionExecutor executor,
             ActualStateAdapterRouter actualStateAdapterRouter,
-            FaultPolicyEngine faultPolicyEngine,
+            FaultPolicyEvaluator faultPolicyEngine,
             MergedEventSource mergedEventSource,
             NodeProvisionerRouter router,
             Duration debounceWindow,
@@ -150,7 +152,7 @@ public class ReconciliationLoop {
             List<GlobalReconciliationListener> globalListeners,
             ReconciliationStateStore reconciliationStateStore,
             int nodeOutcomesThreshold,
-            DriftPolicyEngine driftPolicyEngine,
+            DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
             PlanApprovalGate approvalGate) {
         this.planner                  = planner;
@@ -182,7 +184,7 @@ public class ReconciliationLoop {
     public static Builder builder(TransitionPlanner planner,
                                   TransitionExecutor executor,
                                   ActualStateAdapterRouter actualStateAdapterRouter,
-                                  FaultPolicyEngine faultPolicyEngine,
+                                  FaultPolicyEvaluator faultPolicyEngine,
                                   MergedEventSource mergedEventSource) {
         return new Builder(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource);
     }
@@ -375,7 +377,7 @@ public class ReconciliationLoop {
         private final TransitionPlanner                  planner;
         private final TransitionExecutor                 executor;
         private final ActualStateAdapterRouter           actualStateAdapterRouter;
-        private final FaultPolicyEngine                  faultPolicyEngine;
+        private final FaultPolicyEvaluator                faultPolicyEngine;
         private final MergedEventSource                  mergedEventSource;
         private       NodeProvisionerRouter              router;
         private       Duration                           debounceWindow  = DEFAULT_DEBOUNCE;
@@ -385,14 +387,14 @@ public class ReconciliationLoop {
         private       List<GlobalReconciliationListener> globalListeners = List.of();
         private       ReconciliationStateStore           reconciliationStateStore;
         private       int                                nodeOutcomesThreshold = ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD;
-        private       DriftPolicyEngine                  driftPolicyEngine;
+        private       DriftPolicyEvaluator               driftPolicyEngine;
         private       ExemptionStore                     exemptionStore;
         private       PlanApprovalGate                   approvalGate;
 
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
                         ActualStateAdapterRouter actualStateAdapterRouter,
-                        FaultPolicyEngine faultPolicyEngine,
+                        FaultPolicyEvaluator faultPolicyEngine,
                         MergedEventSource mergedEventSource) {
             this.planner                  = planner;
             this.executor                 = executor;
@@ -442,7 +444,7 @@ public class ReconciliationLoop {
             return this;
         }
 
-        public Builder driftPolicyEngine(DriftPolicyEngine driftPolicyEngine) {
+        public Builder driftPolicyEngine(DriftPolicyEvaluator driftPolicyEngine) {
             this.driftPolicyEngine = driftPolicyEngine;
             return this;
         }

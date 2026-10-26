@@ -44,7 +44,7 @@ class PluginIntegrationTest {
     @Test
     void pluginYamlParsesCorrectly() {
         assertThat(pluginModel.header().type()).isEqualTo("mock-resource");
-        assertThat(pluginModel.header().version()).isEqualTo(1);
+        assertThat(pluginModel.header().version()).isEqualTo("1.0.0");
         assertThat(pluginModel.spec().fields()).containsKeys("name", "status-code");
         assertThat(pluginModel.actualStateSteps()).hasSize(1);
         assertThat(pluginModel.provisioner().provisionSteps()).hasSize(1);

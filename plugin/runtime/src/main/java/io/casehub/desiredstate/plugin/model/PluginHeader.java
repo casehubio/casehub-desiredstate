@@ -3,8 +3,10 @@ package io.casehub.desiredstate.plugin.model;
 import java.util.Map;
 
 public record PluginHeader(
-    String type,
-    int version,
-    String resyncInterval,
-    Map<String, PluginAuthStanza> auth
+        String type,
+        String version,
+        String resyncInterval,
+        Map<String, PluginAuthStanza> auth,
+        String description,
+        PluginRequires requires
 ) {}

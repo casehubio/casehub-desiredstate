@@ -14,12 +14,233 @@ class PluginParserTest {
     void parsesPluginHeader() throws IOException {
         var model = parseTestResource();
         assertThat(model.header().type()).isEqualTo("test-resource");
-        assertThat(model.header().version()).isEqualTo(1);
+        assertThat(model.header().version()).isEqualTo("1.0.0");
         assertThat(model.header().resyncInterval()).isEqualTo("30s");
         assertThat(model.header().auth()).containsKey("test-api");
         assertThat(model.header().auth().get("test-api").credentialRef())
             .isEqualTo("test-api-credentials");
     }
+
+    @Test
+    void parseSemverStringVersion() throws IOException {
+        var yaml = """
+                   plugin:
+                     type: semver-test
+                     version: 2.3.1
+                   spec:
+                     fields:
+                       name: { type: string, required: true }
+                   actual-state:
+                     steps:
+                       - compare-state:
+                           present-when: "true"
+                           absent-when: "false"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
+        assertThat(model.header().version()).isEqualTo("2.3.1");
+    }
+
+    @Test
+    void parseIntVersionAsBackwardCompat() throws IOException {
+        var yaml = """
+                   plugin:
+                     type: int-compat
+                     version: 3
+                   spec:
+                     fields:
+                       name: { type: string, required: true }
+                   actual-state:
+                     steps:
+                       - compare-state:
+                           present-when: "true"
+                           absent-when: "false"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
+        assertThat(model.header().version()).isEqualTo("3.0.0");
+    }
+
+    @Test
+    void parseRequiresSection() throws IOException {
+        var yaml = """
+                   plugin:
+                     type: requires-test
+                     version: 1.0.0
+                     requires:
+                       runtime: ">=1.0.0"
+                       primitives:
+                         - rest-call
+                         - compare-state
+                       types:
+                         - human-review
+                   spec:
+                     fields:
+                       name: { type: string, required: true }
+                   actual-state:
+                     steps:
+                       - compare-state:
+                           present-when: "true"
+                           absent-when: "false"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var            model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
+        PluginRequires req   = model.header().requires();
+        assertThat(req.runtimeVersionRange()).contains(">=1.0.0");
+        assertThat(req.primitives()).containsExactly("rest-call", "compare-state");
+        assertThat(req.types()).containsExactly("human-review");
+    }
+
+    @Test
+    void missingRequiresDefaultsToNone() throws IOException {
+        var model = parseTestResource();
+        assertThat(model.header().requires()).isEqualTo(PluginRequires.NONE);
+    }
+
+    @Test
+    void parseDescriptionField() throws IOException {
+        var yaml = """
+                   plugin:
+                     type: desc-test
+                     version: 1.0.0
+                     description: "Test plugin for monitoring"
+                   spec:
+                     fields:
+                       name: { type: string, required: true }
+                   actual-state:
+                     steps:
+                       - compare-state:
+                           present-when: "true"
+                           absent-when: "false"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
+        assertThat(model.header().description()).isEqualTo("Test plugin for monitoring");
+    }
+
+    @Test
+    void missingVersionDefaultsToOneZeroZero() throws IOException {
+        var yaml = """
+                   plugin:
+                     type: no-version
+                   spec:
+                     fields:
+                       name: { type: string, required: true }
+                   actual-state:
+                     steps:
+                       - compare-state:
+                           present-when: "true"
+                           absent-when: "false"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
+        assertThat(model.header().version()).isEqualTo("1.0.0");
+    }
+
+    @Test
+    void partialRequiresSectionParsesDefaults() throws IOException {
+        var yaml = """
+                   plugin:
+                     type: partial-req
+                     version: 1.0.0
+                     requires:
+                       primitives:
+                         - rest-call
+                   spec:
+                     fields:
+                       name: { type: string, required: true }
+                   actual-state:
+                     steps:
+                       - compare-state:
+                           present-when: "true"
+                           absent-when: "false"
+                   provisioner:
+                     provision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                     deprovision:
+                       steps:
+                         - assert:
+                             condition: "true"
+                   cbr:
+                     features: []
+                     outcome-signals: {}
+                   ras:
+                     situations: []
+                   """;
+        var            model = PluginParser.parse(new ByteArrayInputStream(yaml.getBytes()));
+        PluginRequires req   = model.header().requires();
+        assertThat(req.runtimeVersionRange()).isEmpty();
+        assertThat(req.primitives()).containsExactly("rest-call");
+        assertThat(req.types()).isEmpty();
+    }
+
 
     @Test
     void parsesSpecSchema() throws IOException {
