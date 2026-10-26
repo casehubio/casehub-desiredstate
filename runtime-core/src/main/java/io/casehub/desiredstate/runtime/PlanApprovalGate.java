@@ -54,8 +54,15 @@ public class PlanApprovalGate {
         };
     }
 
-    public GateDecision evaluateNewPlan(TransitionPlan plan, String tenancyId) {
-        PlanApprovalDecision decision = policy.evaluate(plan, tenancyId);
+    public void cancelPending(String tenancyId) {
+        PendingPlan pending = pendingPlans.remove(tenancyId);
+        if (pending != null) {
+            handler.cancel(pending.planReference(), tenancyId);
+        }
+    }
+
+    public GateDecision evaluateNewPlan(TransitionPlan plan, String tenancyId, io.casehub.desiredstate.api.PlanContext context) {
+        PlanApprovalDecision decision = policy.evaluate(plan, tenancyId, context);
         return switch (decision) {
             case PlanApprovalDecision.AutoApprove a ->
                 new GateDecision.Execute(plan);

@@ -304,4 +304,19 @@ class ReconciliationEventEmitterTest {
         assertEquals("tenant-1", event.getExtension("tenancyid"));
         assertEquals("desired state changed", payload(event).get("reason").asText());
     }
+
+    @Test
+    void rollbackInitiatedEvent() throws Exception {
+        var data = new io.casehub.desiredstate.api.RollbackInitiatedData(
+                "t1", 5L, 3L, "admin", "rb-123", Instant.now());
+        CloudEvent event = emitter.rollbackInitiated(data);
+        assertEquals(DesiredStateEventTypes.ROLLBACK_INITIATED, event.getType());
+        assertNotNull(event.getData());
+        assertEquals("t1", event.getSubject());
+        JsonNode json = payload(event);
+        assertEquals(5, json.get("fromVersion").asLong());
+        assertEquals(3, json.get("toVersion").asLong());
+        assertEquals("admin", json.get("initiatedBy").asText());
+        assertEquals("rb-123", json.get("rollbackId").asText());
+    }
 }

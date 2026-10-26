@@ -688,7 +688,7 @@ public class ReconciliationLoop {
 
                 if (approvalGate != null) {
                     io.casehub.desiredstate.api.GateDecision decision =
-                            approvalGate.evaluateNewPlan(plan, tenancyId);
+                            approvalGate.evaluateNewPlan(plan, tenancyId, new io.casehub.desiredstate.api.PlanContext.Normal());
                     switch (decision) {
                         case io.casehub.desiredstate.api.GateDecision.Execute exec -> {
                             TransitionResult result = execute(exec.plan(), tenancyId);

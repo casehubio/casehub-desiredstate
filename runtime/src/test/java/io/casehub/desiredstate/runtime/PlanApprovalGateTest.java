@@ -43,7 +43,7 @@ class PlanApprovalGateTest {
     @Test
     void checkPending_noPendingPlan_returnsEmpty() {
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.AutoApprove(),
+            (plan, tid, ctx) -> new PlanApprovalDecision.AutoApprove(),
             new StubHandler());
         Optional<GateDecision> result = gate.checkPending("t1", 1);
         assertThat(result).isEmpty();
@@ -52,10 +52,10 @@ class PlanApprovalGateTest {
     @Test
     void evaluateNewPlan_autoApprove_returnsExecute() {
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.AutoApprove(),
+            (plan, tid, ctx) -> new PlanApprovalDecision.AutoApprove(),
             new StubHandler());
         TransitionPlan plan = makePlan();
-        GateDecision decision = gate.evaluateNewPlan(plan, "t1");
+        GateDecision decision = gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
         assertThat(decision).isInstanceOf(GateDecision.Execute.class);
         assertThat(((GateDecision.Execute) decision).plan()).isSameAs(plan);
     }
@@ -64,10 +64,10 @@ class PlanApprovalGateTest {
     void evaluateNewPlan_requireApproval_storesAndReturnsAwaiting() {
         StubHandler handler = new StubHandler();
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.RequireApproval("topology change"),
+            (plan, tid, ctx) -> new PlanApprovalDecision.RequireApproval("topology change"),
             handler);
         TransitionPlan plan = makePlan();
-        GateDecision decision = gate.evaluateNewPlan(plan, "t1");
+        GateDecision decision = gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
         assertThat(decision).isInstanceOf(GateDecision.AwaitingApproval.class);
         assertThat(handler.submitted).isTrue();
     }
@@ -78,10 +78,10 @@ class PlanApprovalGateTest {
         handler.checkResult = new ApprovalCheckResult.Approved(
             new PlanApproval("ref1", "admin", Instant.now()));
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.RequireApproval("review"),
+            (plan, tid, ctx) -> new PlanApprovalDecision.RequireApproval("review"),
             handler);
         TransitionPlan plan = makePlan();
-        gate.evaluateNewPlan(plan, "t1");
+        gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
 
         Optional<GateDecision> result = gate.checkPending("t1", plan.after().version());
         assertThat(result).isPresent();
@@ -93,10 +93,10 @@ class PlanApprovalGateTest {
         StubHandler handler = new StubHandler();
         handler.checkResult = new ApprovalCheckResult.Pending("ref1");
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.RequireApproval("review"),
+            (plan, tid, ctx) -> new PlanApprovalDecision.RequireApproval("review"),
             handler);
         TransitionPlan plan = makePlan();
-        gate.evaluateNewPlan(plan, "t1");
+        gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
 
         Optional<GateDecision> result = gate.checkPending("t1", plan.after().version());
         assertThat(result).isPresent();
@@ -108,10 +108,10 @@ class PlanApprovalGateTest {
         StubHandler handler = new StubHandler();
         handler.checkResult = new ApprovalCheckResult.Pending("ref1");
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.RequireApproval("review"),
+            (plan, tid, ctx) -> new PlanApprovalDecision.RequireApproval("review"),
             handler);
         TransitionPlan plan = makePlan();
-        gate.evaluateNewPlan(plan, "t1");
+        gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
 
         Optional<GateDecision> result = gate.checkPending("t1", plan.after().version() + 99);
         assertThat(result).isEmpty();
@@ -123,10 +123,10 @@ class PlanApprovalGateTest {
         StubHandler handler = new StubHandler();
         handler.checkResult = new ApprovalCheckResult.Rejected("ref1", "too risky");
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.RequireApproval("review"),
+            (plan, tid, ctx) -> new PlanApprovalDecision.RequireApproval("review"),
             handler);
         TransitionPlan plan = makePlan();
-        gate.evaluateNewPlan(plan, "t1");
+        gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
 
         Optional<GateDecision> result = gate.checkPending("t1", plan.after().version());
         assertThat(result).isPresent();
@@ -140,10 +140,10 @@ class PlanApprovalGateTest {
         handler.checkResult = new ApprovalCheckResult.Approved(
             new PlanApproval("ref1", "admin", Instant.now()));
         PlanApprovalGate gate = new PlanApprovalGate(
-            (plan, tid) -> new PlanApprovalDecision.RequireApproval("review"),
+            (plan, tid, ctx) -> new PlanApprovalDecision.RequireApproval("review"),
             handler);
         TransitionPlan plan = makePlan();
-        gate.evaluateNewPlan(plan, "t1");
+        gate.evaluateNewPlan(plan, "t1", new io.casehub.desiredstate.api.PlanContext.Normal());
         gate.checkPending("t1", plan.after().version());
 
         Optional<GateDecision> secondCheck = gate.checkPending("t1", plan.after().version());

@@ -6,7 +6,5 @@ import io.casehub.desiredstate.api.TransitionPlan;
 
 public class NoOpPlanApprovalPolicy implements PlanApprovalPolicy {
     @Override
-    public PlanApprovalDecision evaluate(TransitionPlan plan, String tenancyId) {
-        return new PlanApprovalDecision.AutoApprove();
-    }
+    public PlanApprovalDecision evaluate(TransitionPlan plan, String tenancyId, io.casehub.desiredstate.api.PlanContext context) {return new PlanApprovalDecision.AutoApprove();}
 }

@@ -35,4 +35,7 @@ public final class DesiredStateEventTypes {
             "io.casehub.desiredstate.plan.rejected";
     public static final String PLAN_INVALIDATED       =
             "io.casehub.desiredstate.plan.invalidated";
+    public static final String ROLLBACK_INITIATED     =
+            "io.casehub.desiredstate.rollback.initiated";
+
 }
