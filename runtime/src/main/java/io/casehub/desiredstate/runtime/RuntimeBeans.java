@@ -163,7 +163,8 @@ public class RuntimeBeans {
             DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
             PlanApprovalGate approvalGate,
-            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore) {
+            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore,
+            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
                                       ReconciliationLoop.DEFAULT_DEBOUNCE, null,
@@ -171,7 +172,7 @@ public class RuntimeBeans {
                                       listeners.stream().toList(), stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
                                       driftPolicyEngine, exemptionStore, approvalGate,
-                                      historyStore, null);
+                                      historyStore, null, preferenceProvider);
     }
 
     @Produces

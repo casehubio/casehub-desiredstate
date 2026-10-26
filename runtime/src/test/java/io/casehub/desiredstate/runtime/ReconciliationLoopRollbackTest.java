@@ -3,7 +3,6 @@ package io.casehub.desiredstate.runtime;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
-import io.casehub.desiredstate.api.DesiredStateHistoryStore;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.InMemoryDesiredStateHistoryStore;
 import io.casehub.desiredstate.api.NodeId;
@@ -12,6 +11,11 @@ import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.testing.CannedEventSource;
 import io.casehub.desiredstate.testing.MockActualStateAdapter;
 import io.casehub.desiredstate.testing.MockTransitionExecutor;
+import io.casehub.platform.api.preferences.IntPreference;
+import io.casehub.platform.api.preferences.MultiValuePreference;
+import io.casehub.platform.api.preferences.PreferenceKey;
+import io.casehub.platform.api.preferences.Preferences;
+import io.casehub.platform.api.preferences.SingleValuePreference;
 import io.cloudevents.CloudEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -200,4 +205,55 @@ class ReconciliationLoopRollbackTest {
         var versions = historyStore.listVersions("t1");
         assertThat(versions).hasSize(1);
     }
+
+    @Test
+    void updateDesiredPrunesAtPreferenceDepth() {
+        var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
+        int customDepth   = 5;
+        Preferences prefs = new Preferences() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T extends SingleValuePreference> T get(PreferenceKey<T> key) {
+                if (key.equals(DesiredStatePreferenceKeys.HISTORY_MAX_DEPTH)) {
+                    return (T) new IntPreference(customDepth);
+                }
+                return null;
+            }
+
+            @Override
+            public <T extends MultiValuePreference> T get(PreferenceKey<T> key, String subKey) {return null;}
+
+            @Override
+            public Map<String, Object> asMap() {return Map.of();}
+        };
+        var customLoop = ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+                                           .debounceWindow(TEST_DEBOUNCE)
+                                           .resyncInterval(TEST_RESYNC)
+                                           .historyStore(historyStore)
+                                           .preferenceProvider(scope -> prefs)
+                                           .build();
+
+        customLoop.start("t1", graphWith("n1"));
+        for (int i = 2; i <= customDepth + 3; i++) {
+            customLoop.updateDesired("t1", graphWith("n" + i));
+        }
+
+        var versions = historyStore.listVersions("t1");
+        assertThat(versions).hasSize(customDepth);
+
+        customLoop.shutdown();
+    }
+
+    @Test
+    void updateDesiredPrunesAtDefaultDepthWithoutPreferenceProvider() {
+        loop.start("t1", graphWith("n1"));
+        for (int i = 2; i <= 15; i++) {
+            loop.updateDesired("t1", graphWith("n" + i));
+        }
+
+        var versions = historyStore.listVersions("t1");
+        assertThat(versions).hasSize(10);
+    }
+
+
 }

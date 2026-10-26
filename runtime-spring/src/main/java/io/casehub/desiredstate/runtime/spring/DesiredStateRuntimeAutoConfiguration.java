@@ -187,7 +187,8 @@ public class DesiredStateRuntimeAutoConfiguration {
             DriftPolicyEvaluator driftPolicyEngine,
             ExemptionStore exemptionStore,
             io.casehub.desiredstate.runtime.PlanApprovalGate approvalGate,
-            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore) {
+            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore,
+            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
         Consumer<CloudEvent> cloudEventSink = event -> eventPublisher.publishEvent(event);
         return new ReconciliationLoop(planner, executor, actualStateRouter,
                                       faultPolicyEngine, mergedEventSource, router,
@@ -195,7 +196,7 @@ public class DesiredStateRuntimeAutoConfiguration {
                                       cloudEventSink, cbrTracker, listeners, stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
                                       driftPolicyEngine, exemptionStore, approvalGate,
-                                      historyStore, null);
+                                      historyStore, null, preferenceProvider);
     }
 
     @Bean

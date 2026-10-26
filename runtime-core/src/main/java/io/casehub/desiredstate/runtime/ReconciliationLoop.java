@@ -121,6 +121,7 @@ public class ReconciliationLoop {
     private final PlanApprovalGate         approvalGate;
     private final io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore;
     private final io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller;
+    private final io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider;
 
 
     private final int                      nodeOutcomesThreshold;
@@ -137,8 +138,9 @@ public class ReconciliationLoop {
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
-             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null, null, null);
+             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null, null, null, null);
     }
+
 
     public ReconciliationLoop(
             TransitionPlanner planner,
@@ -159,6 +161,32 @@ public class ReconciliationLoop {
             PlanApprovalGate approvalGate,
             io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore,
             io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller) {
+        this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
+             router, debounceWindow, resyncOverride, cloudEventSink, cbrTracker, globalListeners,
+             reconciliationStateStore, nodeOutcomesThreshold, driftPolicyEngine, exemptionStore,
+             approvalGate, historyStore, lifecycleCanceller, null);
+    }
+
+    public ReconciliationLoop(
+            TransitionPlanner planner,
+            TransitionExecutor executor,
+            ActualStateAdapterRouter actualStateAdapterRouter,
+            FaultPolicyEvaluator faultPolicyEngine,
+            MergedEventSource mergedEventSource,
+            NodeProvisionerRouter router,
+            Duration debounceWindow,
+            Duration resyncOverride,
+            Consumer<CloudEvent> cloudEventSink,
+            CbrProposalTracker cbrTracker,
+            List<GlobalReconciliationListener> globalListeners,
+            ReconciliationStateStore reconciliationStateStore,
+            int nodeOutcomesThreshold,
+            DriftPolicyEvaluator driftPolicyEngine,
+            ExemptionStore exemptionStore,
+            PlanApprovalGate approvalGate,
+            io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore,
+            io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller,
+            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
         this.planner                  = planner;
         this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
@@ -178,6 +206,7 @@ public class ReconciliationLoop {
         this.approvalGate             = approvalGate;
         this.historyStore             = historyStore;
         this.lifecycleCanceller       = lifecycleCanceller;
+        this.preferenceProvider       = preferenceProvider;
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -439,6 +468,7 @@ public class ReconciliationLoop {
         private       PlanApprovalGate                   approvalGate;
         private       io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore;
         private       io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller;
+        private       io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider;
 
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
@@ -519,6 +549,11 @@ public class ReconciliationLoop {
             return this;
         }
 
+        public Builder preferenceProvider(io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
+            this.preferenceProvider = preferenceProvider;
+            return this;
+        }
+
 
         public ReconciliationLoop build() {
             return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
@@ -526,7 +561,7 @@ public class ReconciliationLoop {
                                           resyncInterval, cloudEventSink, cbrTracker, globalListeners,
                                           reconciliationStateStore, nodeOutcomesThreshold,
                                           driftPolicyEngine, exemptionStore, approvalGate,
-                                          historyStore, lifecycleCanceller);
+                                          historyStore, lifecycleCanceller, preferenceProvider);
         }
     }
 
@@ -650,7 +685,8 @@ public class ReconciliationLoop {
             if (historyStore != null) {
                 historyStore.record(tenancyId, newDesired, source, initiatedBy);
                 if (shouldPrune) {
-                    historyStore.prune(tenancyId, 10);
+                    int maxDepth = resolveHistoryMaxDepth();
+                    historyStore.prune(tenancyId, maxDepth);
                 }
             }
 
@@ -675,6 +711,16 @@ public class ReconciliationLoop {
                 }
             }
         }
+
+        private int resolveHistoryMaxDepth() {
+            if (preferenceProvider == null) {
+                return DesiredStatePreferenceKeys.HISTORY_MAX_DEPTH.defaultValue().value();
+            }
+            return preferenceProvider.resolve(
+                                             io.casehub.platform.api.preferences.SettingsScope.root(tenancyId))
+                                     .getOrDefault(DesiredStatePreferenceKeys.HISTORY_MAX_DEPTH).value();
+        }
+
 
         void scheduleReconciliation() {
             synchronized (this) {
