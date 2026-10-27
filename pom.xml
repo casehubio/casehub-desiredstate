@@ -39,6 +39,7 @@
         <module>annotations</module>
         <module>yaml</module>
         <module>plugin</module>
+        <module>bridge</module>
         <module>ts-dsl</module>
         <module>examples/pipeline-annotated</module>
         <module>examples/pipeline-yaml</module>
