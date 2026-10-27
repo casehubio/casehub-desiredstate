@@ -10,10 +10,17 @@ public class BridgeProvisioner implements NodeProvisioner {
 
     private final BridgeDescriptor descriptor;
     private final BridgeProvider provider;
+    private final BridgeOutputStateStore stateStore;
 
     public BridgeProvisioner(BridgeDescriptor descriptor, BridgeProvider provider) {
+        this(descriptor, provider, new NoOpBridgeOutputStateStore());
+    }
+
+    public BridgeProvisioner(BridgeDescriptor descriptor, BridgeProvider provider,
+                             BridgeOutputStateStore stateStore) {
         this.descriptor = descriptor;
         this.provider = provider;
+        this.stateStore = stateStore;
     }
 
     @Override
@@ -34,7 +41,10 @@ public class BridgeProvisioner implements NodeProvisioner {
         }
 
         return switch (result) {
-            case BridgeResult.Success s -> new ProvisionResult.Success();
+            case BridgeResult.Success s -> {
+                stateStore.store(context.tenancyId(), node.id().value(), s.outputState());
+                yield new ProvisionResult.Success();
+            }
             case BridgeResult.Failed f -> new ProvisionResult.Failed(f.reason());
             case BridgeResult.PendingApproval p -> new ProvisionResult.PendingApproval(
                 node.id(), p.planReference());
@@ -46,7 +56,10 @@ public class BridgeProvisioner implements NodeProvisioner {
         var request = toBridgeRequest(node, context.tenancyId());
         var result = provider.destroy(request);
         return switch (result) {
-            case BridgeResult.Success s -> new DeprovisionResult.Success();
+            case BridgeResult.Success s -> {
+                stateStore.remove(context.tenancyId(), node.id().value());
+                yield new DeprovisionResult.Success();
+            }
             case BridgeResult.Failed f -> new DeprovisionResult.Failed(f.reason());
             case BridgeResult.PendingApproval p -> new DeprovisionResult.PendingApproval(
                 node.id(), p.planReference());
@@ -92,6 +105,8 @@ public class BridgeProvisioner implements NodeProvisioner {
         Map<String, Object> fields = node.spec() instanceof BridgeNodeSpec bns
             ? bns.fields()
             : Map.of();
-        return new BridgeRequest(node.type().value(), node.id().value(), fields, tenancyId);
+        Map<String, Object> previousState = stateStore.load(tenancyId, node.id().value())
+            .orElse(Map.of());
+        return new BridgeRequest(node.type().value(), node.id().value(), fields, tenancyId, previousState);
     }
 }

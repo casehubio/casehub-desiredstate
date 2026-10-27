@@ -1,4 +1,4 @@
-package io.casehub.desiredstate.plugin.model;
+package io.casehub.desiredstate.plugin.api;
 
 import java.util.Map;
 

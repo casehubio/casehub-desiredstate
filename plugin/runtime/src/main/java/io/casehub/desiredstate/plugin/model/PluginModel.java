@@ -1,5 +1,6 @@
 package io.casehub.desiredstate.plugin.model;
 
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 
 import java.util.List;

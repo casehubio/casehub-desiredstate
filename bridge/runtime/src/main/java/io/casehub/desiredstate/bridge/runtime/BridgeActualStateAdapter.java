@@ -11,10 +11,17 @@ public class BridgeActualStateAdapter implements ActualStateAdapter {
 
     private final BridgeDescriptor descriptor;
     private final BridgeProvider provider;
+    private final BridgeOutputStateStore stateStore;
 
     public BridgeActualStateAdapter(BridgeDescriptor descriptor, BridgeProvider provider) {
+        this(descriptor, provider, new NoOpBridgeOutputStateStore());
+    }
+
+    public BridgeActualStateAdapter(BridgeDescriptor descriptor, BridgeProvider provider,
+                                    BridgeOutputStateStore stateStore) {
         this.descriptor = descriptor;
         this.provider = provider;
+        this.stateStore = stateStore;
     }
 
     @Override
@@ -32,7 +39,12 @@ public class BridgeActualStateAdapter implements ActualStateAdapter {
             var typeDesc = descriptor.typeDescriptors().get(node.type().value());
             if (typeDesc == null) continue;
 
-            var request = new BridgeReadRequest(node.type().value(), node.id().value(), tenancyId);
+            Map<String, Object> previousState = stateStore.load(tenancyId, node.id().value())
+                .orElse(Map.of());
+            Map<String, Object> desiredSpec = node.spec() instanceof BridgeNodeSpec bns
+                ? bns.fields() : Map.of();
+            var request = new BridgeReadRequest(node.type().value(), node.id().value(),
+                tenancyId, previousState, desiredSpec);
             var result = provider.readState(request);
 
             NodeStatus status = mapStateResult(result, typeDesc);

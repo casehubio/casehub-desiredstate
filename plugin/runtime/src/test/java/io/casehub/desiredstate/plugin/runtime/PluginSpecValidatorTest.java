@@ -1,7 +1,7 @@
 package io.casehub.desiredstate.plugin.runtime;
 
-import io.casehub.desiredstate.plugin.model.PluginFieldDef;
-import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
+import io.casehub.desiredstate.plugin.api.PluginFieldDef;
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -3,7 +3,7 @@ package io.casehub.desiredstate.plugin.runtime;
 import io.casehub.desiredstate.plugin.model.PluginCbrDef;
 import io.casehub.desiredstate.plugin.model.PluginFaultPolicyDef;
 import io.casehub.desiredstate.plugin.model.PluginRasDef;
-import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 
 import io.casehub.yaml.step.catalog.ResolvedStep;
 

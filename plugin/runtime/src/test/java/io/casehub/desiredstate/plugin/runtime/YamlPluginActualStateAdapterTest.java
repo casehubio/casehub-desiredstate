@@ -6,7 +6,7 @@ import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
-import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 import io.casehub.desiredstate.plugin.runtime.primitives.CompareStatePrimitive;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.yaml.core.condition.ConditionEvaluator;

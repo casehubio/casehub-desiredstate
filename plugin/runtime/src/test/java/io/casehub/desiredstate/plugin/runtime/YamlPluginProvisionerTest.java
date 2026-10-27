@@ -13,7 +13,7 @@ import io.casehub.desiredstate.api.ResumeResult;
 import io.casehub.desiredstate.api.SuspendContext;
 import io.casehub.desiredstate.api.SuspendResult;
 import io.casehub.desiredstate.plugin.api.YamlNodeSpec;
-import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.yaml.core.condition.ConditionEvaluator;
 import io.casehub.yaml.plugin.api.Result;
@@ -246,7 +246,7 @@ class YamlPluginProvisionerTest {
     @Test
     void provisionRejectsInvalidSpec() {
         var schema = new PluginSpecSchema(Map.of(
-                "name", new io.casehub.desiredstate.plugin.model.PluginFieldDef(
+                "name", new io.casehub.desiredstate.plugin.api.PluginFieldDef(
                         "string", true, null, null, null, null,
                         null, null, null, null, null, null, null)));
         var descriptor = new PluginDescriptor(
@@ -267,7 +267,7 @@ class YamlPluginProvisionerTest {
     @Test
     void deprovisionRejectsInvalidSpec() {
         var schema = new PluginSpecSchema(Map.of(
-                "region", new io.casehub.desiredstate.plugin.model.PluginFieldDef(
+                "region", new io.casehub.desiredstate.plugin.api.PluginFieldDef(
                         "enum", true, null, null, null, null,
                         null, null, List.of("us-east", "eu-west"), null, null, null, null)));
         var descriptor = new PluginDescriptor(

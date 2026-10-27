@@ -1,8 +1,8 @@
 package io.casehub.desiredstate.plugin.runtime;
 
-import io.casehub.desiredstate.plugin.model.PluginFieldDef;
+import io.casehub.desiredstate.plugin.api.PluginFieldDef;
 import io.casehub.desiredstate.plugin.model.PluginModel;
-import io.casehub.desiredstate.plugin.model.PluginSpecSchema;
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 
 import java.util.HashSet;

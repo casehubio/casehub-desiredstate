@@ -2,6 +2,8 @@ package io.casehub.desiredstate.plugin.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.casehub.desiredstate.plugin.api.PluginFieldDef;
+import io.casehub.desiredstate.plugin.api.PluginSpecSchema;
 import io.casehub.yaml.jackson.YamlMappers;
 import io.casehub.yaml.step.catalog.ResolvedStep;
 
