@@ -1,0 +1,34 @@
+bridge:
+  protocol: test-provider
+  version: "1.0"
+
+  lifecycle:
+    mode: managed-process
+    binary: /usr/bin/test-provider
+    args: ["--grpc"]
+    healthCheck:
+      type: grpc
+      interval: 30s
+      timeout: 5s
+    restart:
+      policy: on-failure
+      maxRetries: 3
+      backoff: exponential
+
+  types:
+    - id: test_resource
+      stateMapping:
+        active: PRESENT
+        deleted: ABSENT
+        _default: DRIFTED
+      errorMapping:
+        NotFound: { category: PERMANENT }
+        Throttled: { category: TRANSIENT }
+        _default: { category: PERMANENT }
+
+    - id: test_bucket
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT
+      errorMapping:
+        _default: { category: PERMANENT }
