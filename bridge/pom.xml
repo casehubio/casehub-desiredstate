@@ -19,5 +19,6 @@
         <module>runtime</module>
         <module>deployment</module>
         <module>spring</module>
+        <module>terraform</module>
     </modules>
 </project>
