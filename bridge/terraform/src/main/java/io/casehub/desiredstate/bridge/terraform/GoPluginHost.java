@@ -22,6 +22,7 @@ public class GoPluginHost implements AutoCloseable {
     private Process process;
     private ManagedChannel channel;
     private GoPluginHandshake handshake;
+    private EventLoopGroup eventLoopGroup;
     private static final Duration HANDSHAKE_TIMEOUT = Duration.ofSeconds(30);
 
     public ManagedChannel connect(String binaryPath, List<String> args) {
@@ -85,6 +86,10 @@ public class GoPluginHost implements AutoCloseable {
             }
             channel = null;
         }
+        if (eventLoopGroup != null) {
+            eventLoopGroup.shutdownGracefully(0, 2, TimeUnit.SECONDS);
+            eventLoopGroup = null;
+        }
         if (process != null) {
             process.destroyForcibly();
             process = null;
@@ -95,17 +100,16 @@ public class GoPluginHost implements AutoCloseable {
     private ManagedChannel buildChannel(GoPluginHandshake hs) {
         if ("unix".equals(hs.networkType())) {
             String osName = System.getProperty("os.name").toLowerCase();
-            EventLoopGroup group;
             Class<? extends io.netty.channel.Channel> channelType;
             if (osName.contains("mac") || osName.contains("darwin")) {
-                group = new KQueueEventLoopGroup();
+                eventLoopGroup = new KQueueEventLoopGroup();
                 channelType = KQueueDomainSocketChannel.class;
             } else {
-                group = new EpollEventLoopGroup();
+                eventLoopGroup = new EpollEventLoopGroup();
                 channelType = EpollDomainSocketChannel.class;
             }
             return NettyChannelBuilder.forAddress(new DomainSocketAddress(hs.address()))
-                .eventLoopGroup(group)
+                .eventLoopGroup(eventLoopGroup)
                 .channelType(channelType)
                 .usePlaintext()
                 .build();

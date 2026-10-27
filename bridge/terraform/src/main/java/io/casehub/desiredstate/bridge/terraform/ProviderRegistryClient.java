@@ -135,9 +135,14 @@ public class ProviderRegistryClient {
     void verifySha256(Path file, String expectedSha) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] fileBytes = Files.readAllBytes(file);
-            byte[] hash = digest.digest(fileBytes);
-            String actualSha = HexFormat.of().formatHex(hash);
+            try (InputStream is = Files.newInputStream(file)) {
+                byte[] buf = new byte[8192];
+                int read;
+                while ((read = is.read(buf)) != -1) {
+                    digest.update(buf, 0, read);
+                }
+            }
+            String actualSha = HexFormat.of().formatHex(digest.digest());
             if (!actualSha.equalsIgnoreCase(expectedSha)) {
                 throw new SecurityException(
                     "SHA256 mismatch: expected " + expectedSha + " but got " + actualSha);
