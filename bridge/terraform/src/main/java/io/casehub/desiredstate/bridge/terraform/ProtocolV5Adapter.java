@@ -26,7 +26,10 @@ class ProtocolV5Adapter implements TerraformProtocol {
         for (var entry : response.getResourceSchemasMap().entrySet()) {
             schemas.put(entry.getKey(), translateSchema(entry.getValue()));
         }
-        return new ProviderSchema(schemas);
+        ResourceSchema providerSchema = response.hasProvider()
+            ? translateSchema(response.getProvider())
+            : new ResourceSchema(Map.of());
+        return new ProviderSchema(schemas, providerSchema);
     }
 
     @Override

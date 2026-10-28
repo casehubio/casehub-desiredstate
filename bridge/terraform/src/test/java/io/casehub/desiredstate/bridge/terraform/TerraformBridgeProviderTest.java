@@ -1,6 +1,9 @@
 package io.casehub.desiredstate.bridge.terraform;
 
-import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.bridge.BridgeReadRequest;
+import io.casehub.desiredstate.bridge.BridgeRequest;
+import io.casehub.desiredstate.bridge.BridgeResult;
+import io.casehub.desiredstate.bridge.BridgeStateResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -17,8 +20,8 @@ class TerraformBridgeProviderTest {
     @BeforeEach
     void setup() {
         mockProtocol = new MockTerraformProtocol();
-        var processManager = new MockProviderProcessManager(mockProtocol);
-        provider = new TerraformBridgeProvider(processManager);
+        var registry = new MockTenantProviderRegistry(mockProtocol);
+        provider = new TerraformBridgeProvider(registry);
     }
 
     @Test
@@ -131,6 +134,64 @@ class TerraformBridgeProviderTest {
         assertThat(types).contains("tf:mock/test:mock_resource");
     }
 
+
+    @Test
+    void applyRetriesOnAuthenticationError() {
+        var callCount = new java.util.concurrent.atomic.AtomicInteger();
+        var retryProtocol = new MockTerraformProtocol() {
+            @Override
+            public PlanResponse plan(String resourceType, Map<String, Object> priorState,
+                                     Map<String, Object> proposedState) {
+                lastPlanResourceType  = resourceType;
+                lastPlanProposedState = proposedState;
+                if (callCount.incrementAndGet() == 1) {
+                    return new PlanResponse(Map.of(), new byte[0], false,
+                                            List.of(new TfDiagnostic(TfDiagnostic.Severity.ERROR,
+                                                                     "unauthorized", "Credentials expired")));
+                }
+                return planResponse;
+            }
+        };
+        retryProtocol.planResponse  = new PlanResponse(
+                Map.of("id", "i-123"), new byte[]{1}, false, List.of());
+        retryProtocol.applyResponse = new ApplyResponse(
+                Map.of("id", "i-123"), new byte[0], List.of());
+
+        var registry      = new MockTenantProviderRegistry(retryProtocol);
+        var retryProvider = new TerraformBridgeProvider(registry);
+
+        var request = new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                        Map.of("ami", "ami-123"), "tenant-1");
+        var result = retryProvider.apply(request);
+
+        assertThat(result).isInstanceOf(BridgeResult.Success.class);
+        assertThat(registry.evictCount).isEqualTo(1);
+        assertThat(callCount.get()).isEqualTo(2);
+    }
+
+    @Test
+    void applyPropagatesSecondAuthFailure() {
+        var retryProtocol = new MockTerraformProtocol() {
+            @Override
+            public PlanResponse plan(String resourceType, Map<String, Object> priorState,
+                                     Map<String, Object> proposedState) {
+                return new PlanResponse(Map.of(), new byte[0], false,
+                                        List.of(new TfDiagnostic(TfDiagnostic.Severity.ERROR,
+                                                                 "unauthorized", "Bad credentials")));
+            }
+        };
+
+        var registry      = new MockTenantProviderRegistry(retryProtocol);
+        var retryProvider = new TerraformBridgeProvider(registry);
+
+        var request = new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                        Map.of("ami", "ami-123"), "tenant-1");
+        var result = retryProvider.apply(request);
+
+        assertThat(result).isInstanceOf(BridgeResult.Failed.class);
+        assertThat(registry.evictCount).isEqualTo(1);
+    }
+
     static class MockTerraformProtocol implements TerraformProtocol {
         PlanResponse planResponse;
         ApplyResponse applyResponse;
@@ -191,4 +252,34 @@ class TerraformBridgeProviderTest {
             return SchemaTranslator.translate("mock", "test", schema);
         }
     }
+
+    static class MockTenantProviderRegistry extends TenantProviderRegistry {
+        private final TerraformProtocol protocol;
+        int evictCount = 0;
+
+        MockTenantProviderRegistry(TerraformProtocol protocol) {
+            super(null, null, null);
+            this.protocol = protocol;
+        }
+
+        @Override
+        public TerraformProtocol getProtocol(String tenancyId) {
+            return protocol;
+        }
+
+        @Override
+        public java.util.List<DiscoveredType> discoverTypes() {
+            var schema = protocol.getSchema();
+            return SchemaTranslator.translate("mock", "test", schema);
+        }
+
+        @Override
+        public void evict(String tenancyId) {
+            evictCount++;
+        }
+
+        @Override
+        public void close() {}
+    }
+
 }

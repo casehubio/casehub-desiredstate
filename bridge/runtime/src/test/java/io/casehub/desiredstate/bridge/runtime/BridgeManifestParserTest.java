@@ -2,10 +2,18 @@ package io.casehub.desiredstate.bridge.runtime;
 
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
-import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.bridge.BridgeDescriptor;
+import io.casehub.desiredstate.bridge.BridgeErrorCategory;
+import io.casehub.desiredstate.bridge.LifecycleMode;
+import io.casehub.desiredstate.bridge.RestartPolicyType;
 import org.junit.jupiter.api.Test;
+
 import java.io.InputStream;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BridgeManifestParserTest {
 
@@ -56,6 +64,32 @@ class BridgeManifestParserTest {
         assertEquals("/usr/bin/test-provider", lc.binaryPath());
         assertEquals(RestartPolicyType.ON_FAILURE, lc.restartPolicy().policy());
         assertEquals(3, lc.restartPolicy().maxRetries());
+    }
+
+
+    @Test
+    void parsesCredentialRefFromManifest() {
+        String yaml = """
+                      bridge:
+                        protocol: terraform
+                        credentialRef: my-aws-creds
+                        types:
+                          - id: aws_instance
+                            stateMapping:
+                              _default: PRESENT
+                            errorMapping:
+                              _default: { category: PERMANENT }
+                      """;
+        var descriptor = BridgeManifestParser.parse(
+                new java.io.ByteArrayInputStream(yaml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+
+        assertEquals("my-aws-creds", descriptor.credentialRef());
+    }
+
+    @Test
+    void credentialRefIsNullWhenAbsent() {
+        var descriptor = parseTestManifest();
+        assertNull(descriptor.credentialRef());
     }
 
     private BridgeDescriptor parseTestManifest() {

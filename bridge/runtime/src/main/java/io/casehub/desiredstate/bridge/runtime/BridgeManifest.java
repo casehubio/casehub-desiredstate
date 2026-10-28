@@ -11,7 +11,8 @@ record BridgeManifest(
         String protocol,
         String version,
         LifecycleDef lifecycle,
-        List<TypeDef> types
+        List<TypeDef> types,
+        String credentialRef
     ) {}
 
     record LifecycleDef(

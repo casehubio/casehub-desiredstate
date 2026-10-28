@@ -8,5 +8,12 @@ public record BridgeDescriptor(
     String protocolId,
     Set<NodeType> handledTypes,
     Map<String, BridgeTypeDescriptor> typeDescriptors,
-    BridgeLifecycleConfig lifecycleConfig
-) {}
+    BridgeLifecycleConfig lifecycleConfig,
+    String credentialRef
+) {
+    public BridgeDescriptor(String protocolId, Set<NodeType> handledTypes,
+                            Map<String, BridgeTypeDescriptor> typeDescriptors,
+                            BridgeLifecycleConfig lifecycleConfig) {
+        this(protocolId, handledTypes, typeDescriptors, lifecycleConfig, null);
+    }
+}

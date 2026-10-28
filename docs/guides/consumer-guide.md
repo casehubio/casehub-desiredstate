@@ -29,6 +29,9 @@ The framework is domain-agnostic. It provides graph management, topological tran
 | `yaml/runtime/` | `casehub-desiredstate-yaml` | YAML-driven graph declarations. Declare desired-state graphs in `META-INF/desiredstate/*.yaml` files. Jackson-based deserializer with `NodeSpecRegistry` (maps YAML `type:` strings to `@NodeTypeId`-annotated `NodeSpec` classes), variable resolution via `casehub-yaml-core` (`VariableResolver` with deferred prefixes), reusable YAML modules with parameter constraints (`minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `allowedValues`), module extension (`extends`), typed outputs, and cross-module references (`${module.alias.output}`). Modules are discovered at `META-INF/desiredstate/modules/*.yaml`. Build-time validation (unknown types, dangling dependencies, cycles, parameter validation). The build extension (deployment module, auto-activated) discovers YAML files and generates `GoalCompiler<Void>` CDI beans qualified by namespace + name. |
 | `plugin/api/` | `casehub-desiredstate-plugin-api` | Step pipeline SPI for YAML-declared plugins. Depend on this to implement custom `StepPrimitive` beans (named operations invocable from plugin YAML). Pure Java. |
 | `plugin/runtime/` | `casehub-desiredstate-plugin` | YAML plugin runtime. Add this to enable `META-INF/desiredstate/plugins/*.yaml` — each plugin file declares a complete self-healing resource type (spec schema, actual-state detection, provisioning steps, fault policies, CBR features, RAS situations) without Java. The build extension (deployment module, auto-activated) validates plugin schema definitions at build time. At runtime, `PluginSpecValidator` validates user-submitted field values against `PluginFieldDef` constraints (required, type, pattern, min/max, length bounds, enum membership, list/map item types) before provisioning — operators get all validation errors in a single message. Built-in step primitives: `rest-call`, `json-extract`, `compare-state`, `assert`. Compound YAML primitives compose other primitives hierarchically. |
+| `bridge/api/` | `casehub-desiredstate-bridge-api` | Bridge SPI for external infrastructure adapters. `BridgeProvider`, `PlanCapable`, `SuspendCapable`, request/response types, and `BridgeDescriptor` (includes `credentialRef` for credential resolution). |
+| `bridge/runtime/` | `casehub-desiredstate-bridge` | Bridge runtime. `BridgeProvisioner` adapts `BridgeProvider` to `NodeProvisioner`. Manifest YAML discovery at `META-INF/desiredstate/bridges/*.yaml`. |
+| `bridge/terraform/` | `casehub-desiredstate-bridge-terraform` | Terraform/OpenTofu bridge adapter. Go-plugin gRPC protocol (v5/v6), zero-config schema discovery, plan/apply/read lifecycle. Per-tenant process isolation via `TenantProviderRegistry`. Credential resolution via platform `CredentialResolver` -- configure `credentialRef` in bridge manifest YAML. |
 | `annotations/runtime/` | `casehub-desiredstate-annotations` | Annotation-driven graph declarations. Two models: interface (`@DesiredState` + `@Node`) for centralized graphs, class-based (`@DeclareNode`) for cross-module composition. `@DependsOn` supports string IDs and type-safe `Class<? extends NodeSpec>[]` refs. Graph rewriting via `@GraphRule` (parameterized pattern matching with `@Match`, `@DirectDep`, `@Reaches`, `@NotExists` or imperative with full `DesiredStateGraph` access). Graph validation via `@GraphInvariant` (same pattern vocabulary, universal quantification — fires after rules converge). Standalone rule/invariant containers: `@GraphRule(graph = {"pipeline:*"})` classes with include/exclude matching (`!` prefix for exclusions). `@Tier(nodeType)` eliminates runtime `ReviewSpecFactory` probe. Also: `@FaultPolicyDef`, `@GoalMethod`. The build extension (deployment module, auto-activated) scans annotations and generates `GoalCompiler` + `ThresholdFaultPolicy` CDI beans. |
 
 ---
@@ -608,6 +611,48 @@ tests:
     <scope>test</scope>
 </dependency>
 ```
+
+---
+
+## Terraform Bridge -- Credential Resolution
+
+The Terraform bridge adapter (`bridge/terraform`) manages Terraform/OpenTofu provider binaries via the go-plugin gRPC protocol. Providers that require credentials (AWS, GCP, Azure) are configured through the platform's `CredentialResolver` SPI.
+
+### Configuration
+
+Add `credentialRef` to the bridge manifest YAML:
+
+```yaml
+bridge:
+  protocol: terraform
+  credentialRef: my-aws-creds
+  provider:
+    namespace: hashicorp
+    type: aws
+    version: "5.0.0"
+```
+
+Store credentials under the ref name with provider-native attribute keys. For AWS:
+
+```properties
+my-aws-creds.access_key=AKIA...
+my-aws-creds.secret_key=...
+my-aws-creds.region=us-east-1
+```
+
+The attribute names come from the provider's own schema (`GetProviderSchema` response). Check the provider's documentation for required config attributes.
+
+### Per-Tenant Isolation
+
+Each `(provider, tenant)` pair gets its own OS process. Credentials are resolved and the provider configured on first access for each tenant. `TenantProviderRegistry` manages process lifecycle -- creation, caching, and shutdown.
+
+### Credential Refresh
+
+When credentials expire, the provider returns authentication errors. The bridge detects this (via `TerraformErrorClassifier`), shuts down the stale process, re-resolves credentials, starts a fresh process, and retries the operation once. If the retry also fails, the error propagates normally.
+
+### No Credentials
+
+Providers that do not require credentials (e.g., `hashicorp/null`, `hashicorp/random`) work without `credentialRef`. Omit the field -- the bridge skips `ConfigureProvider` and operates as before.
 
 ---
 

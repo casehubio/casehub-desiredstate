@@ -26,7 +26,9 @@ class NullProviderIntegrationTest {
         var binary = registryClient.resolve(config);
         processManager = new ProviderProcessManager(
             new GoPluginHost(), config, binary.binaryPath());
-        provider = new TerraformBridgeProvider(processManager);
+        var registry = new TenantProviderRegistry(
+            () -> processManager, null, null);
+        provider = new TerraformBridgeProvider(registry);
     }
 
     @AfterAll

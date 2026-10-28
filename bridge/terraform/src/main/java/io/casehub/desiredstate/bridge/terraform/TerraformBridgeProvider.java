@@ -10,11 +10,11 @@ import java.util.stream.Collectors;
 
 public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
 
-    private final ProviderProcessManager processManager;
+    private final TenantProviderRegistry registry;
     private Set<String> supportedTypes;
 
-    public TerraformBridgeProvider(ProviderProcessManager processManager) {
-        this.processManager = processManager;
+    public TerraformBridgeProvider(TenantProviderRegistry registry) {
+        this.registry = registry;
     }
 
     @Override
@@ -25,7 +25,7 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
     @Override
     public Set<String> supportedTypes() {
         if (supportedTypes == null) {
-            supportedTypes = processManager.discoverTypes().stream()
+            supportedTypes = registry.discoverTypes().stream()
                 .map(dt -> dt.nodeType().value())
                 .collect(Collectors.toSet());
         }
@@ -34,22 +34,24 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
 
     @Override
     public BridgePlan plan(BridgeRequest request) {
-        var protocol = processManager.getProtocol();
-        var response = protocol.plan(
-            stripNamespace(request.typeId()),
-            request.previousState(),
-            request.spec());
-        checkDiagnostics(response.diagnostics());
-        return new BridgePlan(
-            request.resourceId(),
-            "Plan for " + request.typeId(),
-            List.of(new ResourceChange(request.typeId(), request.resourceId(), ChangeAction.CREATE)),
-            response.plannedPrivate());
+        return withAuthRetry(request.tenancyId(), () -> {
+            var protocol = registry.getProtocol(request.tenancyId());
+            var response = protocol.plan(
+                stripNamespace(request.typeId()),
+                request.previousState(),
+                request.spec());
+            checkDiagnostics(response.diagnostics());
+            return new BridgePlan(
+                request.resourceId(),
+                "Plan for " + request.typeId(),
+                List.of(new ResourceChange(request.typeId(), request.resourceId(), ChangeAction.CREATE)),
+                response.plannedPrivate());
+        });
     }
 
     @Override
     public BridgeResult applyPlan(BridgePlan plan) {
-        var protocol = processManager.getProtocol();
+        var protocol = registry.getProtocol(plan.planId());
         var response = protocol.apply(
             stripNamespace(plan.planId()),
             Map.of(),
@@ -64,7 +66,21 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
 
     @Override
     public BridgeResult apply(BridgeRequest request) {
-        var protocol = processManager.getProtocol();
+        return withAuthRetry(request.tenancyId(), () -> doApply(request));
+    }
+
+    @Override
+    public BridgeResult destroy(BridgeRequest request) {
+        return withAuthRetry(request.tenancyId(), () -> doDestroy(request));
+    }
+
+    @Override
+    public BridgeStateResult readState(BridgeReadRequest request) {
+        return withAuthRetry(request.tenancyId(), () -> doReadState(request));
+    }
+
+    private BridgeResult doApply(BridgeRequest request) {
+        var protocol = registry.getProtocol(request.tenancyId());
         var planResp = protocol.plan(
             stripNamespace(request.typeId()),
             request.previousState(),
@@ -86,9 +102,8 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
         return new BridgeResult.Success(applyResp.newState());
     }
 
-    @Override
-    public BridgeResult destroy(BridgeRequest request) {
-        var protocol = processManager.getProtocol();
+    private BridgeResult doDestroy(BridgeRequest request) {
+        var protocol = registry.getProtocol(request.tenancyId());
         var planResp = protocol.plan(
             stripNamespace(request.typeId()),
             request.previousState(),
@@ -110,9 +125,8 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
         return new BridgeResult.Success(Map.of());
     }
 
-    @Override
-    public BridgeStateResult readState(BridgeReadRequest request) {
-        var protocol = processManager.getProtocol();
+    private BridgeStateResult doReadState(BridgeReadRequest request) {
+        var protocol = registry.getProtocol(request.tenancyId());
         var response = protocol.read(
             stripNamespace(request.typeId()),
             request.previousState());
@@ -127,6 +141,23 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
         Map<String, Object> state = new HashMap<>(response.currentState());
         state.put("status", drifted ? "drifted" : "present");
         return new BridgeStateResult.Found(state);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T withAuthRetry(String tenancyId, java.util.function.Supplier<T> operation) {
+        T result = operation.get();
+        if (tenancyId != null && isAuthError(result)) {
+            registry.evict(tenancyId);
+            result = operation.get();
+        }
+        return result;
+    }
+
+    private boolean isAuthError(Object result) {
+        if (result instanceof BridgeResult.Failed f) {
+            return f.category() == BridgeErrorCategory.AUTHENTICATION;
+        }
+        return false;
     }
 
     private String stripNamespace(String typeId) {
