@@ -192,6 +192,42 @@ class TerraformBridgeProviderTest {
         assertThat(registry.evictCount).isEqualTo(1);
     }
 
+
+    @Test
+    void importResourceCallsProtocolImport() {
+        mockProtocol.importResponse = new ImportResponse(
+                Map.of("id", "i-abc123", "type", "t3.micro"),
+                new byte[0], List.of());
+
+        var result = provider.importResource("tf:hashicorp/aws:aws_instance", "i-abc123", "tenant-1");
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.bridge.BridgeImportResult.Success.class);
+        var success = (io.casehub.desiredstate.bridge.BridgeImportResult.Success) result;
+        assertThat(success.state()).containsEntry("id", "i-abc123");
+    }
+
+    @Test
+    void importResourceReturnsFailedOnDiagnosticError() {
+        mockProtocol.importResponse = new ImportResponse(
+                Map.of(), new byte[0],
+                List.of(new TfDiagnostic(TfDiagnostic.Severity.ERROR, "Not found", "Resource does not exist")));
+
+        var result = provider.importResource("tf:hashicorp/aws:aws_instance", "i-missing", "tenant-1");
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.bridge.BridgeImportResult.Failed.class);
+        assertThat(((io.casehub.desiredstate.bridge.BridgeImportResult.Failed) result).reason()).contains("Not found");
+    }
+
+    @Test
+    void importResourceReturnsFailedOnEmptyState() {
+        mockProtocol.importResponse = new ImportResponse(
+                Map.of(), new byte[0], List.of());
+
+        var result = provider.importResource("tf:hashicorp/aws:aws_instance", "i-missing", "tenant-1");
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.bridge.BridgeImportResult.Failed.class);
+    }
+
     static class MockTerraformProtocol implements TerraformProtocol {
         PlanResponse planResponse;
         ApplyResponse applyResponse;
@@ -226,6 +262,14 @@ class TerraformBridgeProviderTest {
         @Override
         public ReadResponse read(String resourceType, Map<String, Object> currentState) {
             return readResponse;
+        }
+
+
+        ImportResponse importResponse;
+
+        @Override
+        public ImportResponse importResource(String resourceType, String id) {
+            return importResponse;
         }
 
         @Override

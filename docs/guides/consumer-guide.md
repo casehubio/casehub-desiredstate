@@ -656,6 +656,48 @@ Providers that do not require credentials (e.g., `hashicorp/null`, `hashicorp/ra
 
 ---
 
+## Terraform Bridge -- Import Existing Resources
+
+When adopting existing cloud infrastructure into CaseHub management, use the `import` field on a node spec to reference the cloud resource's native ID. The bridge calls `ImportResourceState` to read the resource's current state, storing it so subsequent reconciliation cycles can manage it normally.
+
+### Declaring an Import
+
+Add `import` with the cloud resource's native identifier:
+
+```yaml
+nodes:
+  web-server:
+    type: tf:hashicorp/aws:aws_instance
+    spec:
+      import: i-abc123
+      instance_type: t3.micro
+      ami: ami-0abcdef1234567890
+```
+
+The import ID is whatever the Terraform provider uses to locate the resource: an EC2 instance ID, an S3 bucket name, an RDS instance identifier.
+
+### How It Works
+
+1. First reconciliation: `readActual()` sees no state in the store, reports ABSENT
+2. `BridgeProvisioner.provision()` detects `importId` + empty state store, calls `ImportResourceState` instead of plan+apply
+3. The imported state is stored in `BridgeOutputStateStore`
+4. Next reconciliation: `readState()` reads stored state, detects the resource as PRESENT
+5. If the imported state differs from the desired spec (drift), the normal plan+apply flow converges it
+
+### Recovery
+
+The `import` field stays permanently on the node spec as provenance. If `BridgeOutputStateStore` data is lost (e.g., in-memory store after restart), the next reconciliation cycle detects no state + importId present and automatically re-imports from cloud.
+
+### Scope
+
+Import is a one-to-one operation: one node, one cloud resource. If `ImportResourceState` returns multiple resources (some providers decompose a resource into sub-resources), only the primary resource matching the requested type is stored. Secondary resources can be managed by declaring them as separate nodes with their own `importId`.
+
+### ImportCapable SPI
+
+Import capability is exposed via the `ImportCapable` mixin interface (`bridge/api`). Any `BridgeProvider` that implements `ImportCapable` can support import. `TerraformBridgeProvider` implements it using the provider's `ImportResourceState` RPC.
+
+---
+
 ## What This Repo Does NOT Do
 
 - Persist desired-state graphs -- graphs are in-memory per tenant

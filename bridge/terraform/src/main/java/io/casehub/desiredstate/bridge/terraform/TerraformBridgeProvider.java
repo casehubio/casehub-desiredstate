@@ -1,6 +1,17 @@
 package io.casehub.desiredstate.bridge.terraform;
 
-import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.bridge.BridgeErrorCategory;
+import io.casehub.desiredstate.bridge.BridgeImportResult;
+import io.casehub.desiredstate.bridge.BridgePlan;
+import io.casehub.desiredstate.bridge.BridgeProvider;
+import io.casehub.desiredstate.bridge.BridgeReadRequest;
+import io.casehub.desiredstate.bridge.BridgeRequest;
+import io.casehub.desiredstate.bridge.BridgeResult;
+import io.casehub.desiredstate.bridge.BridgeStateResult;
+import io.casehub.desiredstate.bridge.ChangeAction;
+import io.casehub.desiredstate.bridge.ImportCapable;
+import io.casehub.desiredstate.bridge.PlanCapable;
+import io.casehub.desiredstate.bridge.ResourceChange;
 
 import java.util.HashMap;
 import java.util.List;
@@ -8,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
+public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, ImportCapable {
 
     private final TenantProviderRegistry registry;
     private Set<String> supportedTypes;
@@ -78,6 +89,24 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
     public BridgeStateResult readState(BridgeReadRequest request) {
         return withAuthRetry(request.tenancyId(), () -> doReadState(request));
     }
+
+    @Override
+    public BridgeImportResult importResource(String typeId, String importId, String tenancyId) {
+        return withAuthRetry(tenancyId, () -> doImport(typeId, importId, tenancyId));
+    }
+
+    private BridgeImportResult doImport(String typeId, String importId, String tenancyId) {
+        var protocol = registry.getProtocol(tenancyId);
+        var response = protocol.importResource(stripNamespace(typeId), importId);
+        if (hasErrors(response.diagnostics())) {
+            return new BridgeImportResult.Failed(formatErrors(response.diagnostics()));
+        }
+        if (response.state().isEmpty()) {
+            return new BridgeImportResult.Failed("Import returned empty state for " + importId);
+        }
+        return new BridgeImportResult.Success(response.state());
+    }
+
 
     private BridgeResult doApply(BridgeRequest request) {
         var protocol = registry.getProtocol(request.tenancyId());
@@ -156,6 +185,11 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable {
     private boolean isAuthError(Object result) {
         if (result instanceof BridgeResult.Failed f) {
             return f.category() == BridgeErrorCategory.AUTHENTICATION;
+        }
+        if (result instanceof BridgeImportResult.Failed f) {
+            String lower = f.reason().toLowerCase(java.util.Locale.ROOT);
+            return lower.contains("auth") || lower.contains("credential")
+                   || lower.contains("unauthorized") || lower.contains("accessdenied");
         }
         return false;
     }

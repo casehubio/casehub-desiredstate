@@ -1,7 +1,26 @@
 package io.casehub.desiredstate.bridge.runtime;
 
-import io.casehub.desiredstate.api.*;
-import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.DeprovisionResult;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.NodeProvisioner;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.api.ProvisionContext;
+import io.casehub.desiredstate.api.ProvisionResult;
+import io.casehub.desiredstate.api.ResumeContext;
+import io.casehub.desiredstate.api.ResumeResult;
+import io.casehub.desiredstate.api.SuspendContext;
+import io.casehub.desiredstate.api.SuspendResult;
+import io.casehub.desiredstate.bridge.BridgeDescriptor;
+import io.casehub.desiredstate.bridge.BridgeImportResult;
+import io.casehub.desiredstate.bridge.BridgeNodeSpec;
+import io.casehub.desiredstate.bridge.BridgeOutputStateStore;
+import io.casehub.desiredstate.bridge.BridgeProvider;
+import io.casehub.desiredstate.bridge.BridgeRequest;
+import io.casehub.desiredstate.bridge.BridgeResult;
+import io.casehub.desiredstate.bridge.ImportCapable;
+import io.casehub.desiredstate.bridge.PlanCapable;
+import io.casehub.desiredstate.bridge.SuspendCapable;
 
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +49,20 @@ public class BridgeProvisioner implements NodeProvisioner {
 
     @Override
     public ProvisionResult provision(DesiredNode node, ProvisionContext context) {
+        if (node.spec() instanceof BridgeNodeSpec bns && bns.importId() != null
+            && provider instanceof ImportCapable importCapable
+            && stateStore.load(context.tenancyId(), node.id().value()).isEmpty()) {
+            var importResult = importCapable.importResource(
+                    node.type().value(), bns.importId(), context.tenancyId());
+            return switch (importResult) {
+                case BridgeImportResult.Success s -> {
+                    stateStore.store(context.tenancyId(), node.id().value(), s.state());
+                    yield new ProvisionResult.Success();
+                }
+                case BridgeImportResult.Failed f -> new ProvisionResult.Failed(f.reason());
+            };
+        }
+
         var request = toBridgeRequest(node, context.tenancyId());
 
         BridgeResult result;
@@ -47,7 +80,7 @@ public class BridgeProvisioner implements NodeProvisioner {
             }
             case BridgeResult.Failed f -> new ProvisionResult.Failed(f.reason());
             case BridgeResult.PendingApproval p -> new ProvisionResult.PendingApproval(
-                node.id(), p.planReference());
+                    node.id(), p.planReference());
         };
     }
 

@@ -1,7 +1,15 @@
 package io.casehub.desiredstate.bridge.terraform;
 
 import com.google.protobuf.ByteString;
-import io.casehub.desiredstate.bridge.terraform.proto.v6.*;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.ApplyResourceChange;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.ConfigureProvider;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.Diagnostic;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.DynamicValue;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.GetProviderSchema;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.PlanResourceChange;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.ProviderGrpc;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.ReadResource;
+import io.casehub.desiredstate.bridge.terraform.proto.v6.Schema;
 import io.grpc.ManagedChannel;
 
 import java.util.ArrayList;
@@ -88,6 +96,33 @@ class ProtocolV6Adapter implements TerraformProtocol {
             decodeMsgpackDynamic(response.getNewState()),
             response.getPrivate().toByteArray(),
             translateDiagnostics(response.getDiagnosticsList()));
+    }
+
+
+    @Override
+    public ImportResponse importResource(String resourceType, String id) {
+        var response = stub.importResourceState(
+                io.casehub.desiredstate.bridge.terraform.proto.v6.ImportResourceState.Request.newBuilder()
+                                                                                             .setTypeName(resourceType)
+                                                                                             .setId(id)
+                                                                                             .build());
+        if (!response.getDiagnosticsList().isEmpty()) {
+            var diags = translateDiagnostics(response.getDiagnosticsList());
+            if (diags.stream().anyMatch(d -> d.severity() == TfDiagnostic.Severity.ERROR)) {
+                return new ImportResponse(Map.of(), new byte[0], diags);
+            }
+        }
+        for (var imported : response.getImportedResourcesList()) {
+            if (imported.getTypeName().equals(resourceType)) {
+                return new ImportResponse(
+                        decodeMsgpackDynamic(imported.getState()),
+                        imported.getPrivate().toByteArray(),
+                        translateDiagnostics(response.getDiagnosticsList()));
+            }
+        }
+        return new ImportResponse(Map.of(), new byte[0],
+                                  List.of(new TfDiagnostic(TfDiagnostic.Severity.ERROR,
+                                                           "Import returned no resource matching type " + resourceType, "")));
     }
 
     @Override

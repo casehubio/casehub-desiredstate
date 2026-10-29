@@ -1,7 +1,16 @@
 package io.casehub.desiredstate.bridge.terraform;
 
 import com.google.protobuf.ByteString;
-import io.casehub.desiredstate.bridge.terraform.proto.v5.*;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.ApplyResourceChange;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.Configure;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.Diagnostic;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.DynamicValue;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.GetProviderSchema;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.ImportResourceState;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.PlanResourceChange;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.ProviderGrpc;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.ReadResource;
+import io.casehub.desiredstate.bridge.terraform.proto.v5.Schema;
 import io.grpc.ManagedChannel;
 
 import java.util.ArrayList;
@@ -88,6 +97,33 @@ class ProtocolV5Adapter implements TerraformProtocol {
             decodeJsonDynamic(response.getNewState()),
             response.getPrivate().toByteArray(),
             translateDiagnostics(response.getDiagnosticsList()));
+    }
+
+
+    @Override
+    public ImportResponse importResource(String resourceType, String id) {
+        var response = stub.importResourceState(
+                ImportResourceState.Request.newBuilder()
+                                           .setTypeName(resourceType)
+                                           .setId(id)
+                                           .build());
+        if (!response.getDiagnosticsList().isEmpty()) {
+            var diags = translateDiagnostics(response.getDiagnosticsList());
+            if (diags.stream().anyMatch(d -> d.severity() == TfDiagnostic.Severity.ERROR)) {
+                return new ImportResponse(Map.of(), new byte[0], diags);
+            }
+        }
+        for (var imported : response.getImportedResourcesList()) {
+            if (imported.getTypeName().equals(resourceType)) {
+                return new ImportResponse(
+                        decodeJsonDynamic(imported.getState()),
+                        imported.getPrivate().toByteArray(),
+                        translateDiagnostics(response.getDiagnosticsList()));
+            }
+        }
+        return new ImportResponse(Map.of(), new byte[0],
+                                  List.of(new TfDiagnostic(TfDiagnostic.Severity.ERROR,
+                                                           "Import returned no resource matching type " + resourceType, "")));
     }
 
     @Override

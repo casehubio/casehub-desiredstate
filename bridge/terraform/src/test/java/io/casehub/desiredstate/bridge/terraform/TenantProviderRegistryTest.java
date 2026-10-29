@@ -177,5 +177,10 @@ class TenantProviderRegistryTest {
 
         @Override
         public void close() {}
+
+        @Override
+        public ImportResponse importResource(String resourceType, String id) {
+            return new ImportResponse(Map.of(), new byte[0], List.of());
+        }
     }
 }

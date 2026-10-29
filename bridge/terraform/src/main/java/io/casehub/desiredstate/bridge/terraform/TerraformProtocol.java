@@ -10,4 +10,7 @@ public interface TerraformProtocol extends AutoCloseable {
     ApplyResponse apply(String resourceType, Map<String, Object> priorState,
                         byte[] plannedPrivate);
     ReadResponse read(String resourceType, Map<String, Object> currentState);
+
+    ImportResponse importResource(String resourceType, String id);
+
 }
