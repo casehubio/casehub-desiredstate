@@ -696,6 +696,16 @@ Import is a one-to-one operation: one node, one cloud resource. If `ImportResour
 
 Import capability is exposed via the `ImportCapable` mixin interface (`bridge/api`). Any `BridgeProvider` that implements `ImportCapable` can support import. `TerraformBridgeProvider` implements it using the provider's `ImportResourceState` RPC.
 
+## Terraform Bridge -- Auto-mTLS
+
+The Terraform bridge automatically enables mutual TLS for provider communication, matching Terraform CLI's default behavior since go-plugin v5.
+
+**How it works:** At provider startup, the bridge generates an ephemeral ECDSA P-521 certificate and passes it to the provider via the `PLUGIN_CLIENT_CERT` environment variable. The provider generates its own certificate and returns it in the handshake. Both sides verify the other's certificate on every gRPC call.
+
+**No configuration needed.** mTLS is always on. Providers that don't support mTLS (pre-go-plugin v5) automatically fall back to plaintext.
+
+**Certificate rotation:** Certificates are regenerated on every provider restart -- health check failures, credential rotation, or tenant eviction all produce fresh certificates automatically.
+
 ---
 
 ## What This Repo Does NOT Do

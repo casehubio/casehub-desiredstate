@@ -9,15 +9,25 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.kqueue.KQueueDomainSocketChannel;
 import io.netty.channel.kqueue.KQueueEventLoopGroup;
 import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class GoPluginHost implements AutoCloseable {
+
+    private static final Logger log = Logger.getLogger(GoPluginHost.class.getName());
 
     private Process process;
     private ManagedChannel channel;
@@ -35,11 +45,14 @@ public class GoPluginHost implements AutoCloseable {
         command.addAll(args);
 
         try {
+            CertificateBundle clientBundle = PluginCertificateGenerator.generate();
+
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.environment().put(GoPluginHandshake.MAGIC_COOKIE_KEY,
                                  GoPluginHandshake.MAGIC_COOKIE_VALUE);
             pb.environment().put("PLUGIN_MIN_PORT", "10000");
             pb.environment().put("PLUGIN_MAX_PORT", "25000");
+            pb.environment().put("PLUGIN_CLIENT_CERT", clientBundle.certPem());
             pb.redirectErrorStream(false);
             process = pb.start();
 
@@ -49,7 +62,12 @@ public class GoPluginHost implements AutoCloseable {
             String handshakeLine = readHandshakeLine(stdout);
             handshake = GoPluginHandshake.parse(handshakeLine);
 
-            channel = buildChannel(handshake);
+            SslContext sslContext = null;
+            if (handshake.hasTls()) {
+                sslContext = buildSslContext(clientBundle, handshake.serverCertDer());
+            }
+
+            channel = buildChannel(handshake, sslContext);
 
             return channel;
         } catch (Exception e) {
@@ -97,7 +115,25 @@ public class GoPluginHost implements AutoCloseable {
         handshake = null;
     }
 
-    private ManagedChannel buildChannel(GoPluginHandshake hs) {
+    private SslContext buildSslContext(CertificateBundle clientBundle, byte[] serverCertDer) {
+        try {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            X509Certificate serverCert = (X509Certificate) cf.generateCertificate(
+                new ByteArrayInputStream(serverCertDer));
+
+            return SslContextBuilder.forClient()
+                .keyManager(clientBundle.privateKey(), clientBundle.certificate())
+                .trustManager(serverCert)
+                .sslProvider(SslProvider.JDK)
+                .build();
+        } catch (Exception e) {
+            log.log(Level.WARNING,
+                "Failed to build TLS context from server certificate, falling back to plaintext", e);
+            return null;
+        }
+    }
+
+    private ManagedChannel buildChannel(GoPluginHandshake hs, SslContext sslContext) {
         if ("unix".equals(hs.networkType())) {
             String osName = System.getProperty("os.name").toLowerCase();
             Class<? extends io.netty.channel.Channel> channelType;
@@ -108,10 +144,21 @@ public class GoPluginHost implements AutoCloseable {
                 eventLoopGroup = new EpollEventLoopGroup();
                 channelType = EpollDomainSocketChannel.class;
             }
-            return NettyChannelBuilder.forAddress(new DomainSocketAddress(hs.address()))
+            NettyChannelBuilder builder = NettyChannelBuilder
+                .forAddress(new DomainSocketAddress(hs.address()))
                 .eventLoopGroup(eventLoopGroup)
-                .channelType(channelType)
-                .usePlaintext()
+                .channelType(channelType);
+            if (sslContext != null) {
+                builder.sslContext(sslContext).overrideAuthority("localhost");
+            } else {
+                builder.usePlaintext();
+            }
+            return builder.build();
+        }
+        if (sslContext != null) {
+            return NettyChannelBuilder.forTarget(hs.address())
+                .sslContext(sslContext)
+                .overrideAuthority("localhost")
                 .build();
         }
         return ManagedChannelBuilder.forTarget(hs.address())

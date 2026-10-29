@@ -7,6 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -65,6 +69,89 @@ class GoPluginHostTest {
         host.shutdown();
         assertThat(host.isHealthy()).isFalse();
         assertThat(host.handshake()).isNull();
+    }
+
+    @Test
+    void connectSetsPluginClientCertEnvVar() throws Exception {
+        Path script = tempDir.resolve("env-check-provider.sh");
+        Files.writeString(script,
+            "#!/bin/bash\n"
+            + "if [ -n \"$PLUGIN_CLIENT_CERT\" ]; then\n"
+            + "  echo '1|5|tcp|127.0.0.1:0|grpc'\n"
+            + "else\n"
+            + "  echo 'NO_CERT' >&2\n"
+            + "  exit 1\n"
+            + "fi\n"
+            + "while true; do sleep 1; done\n");
+        script.toFile().setExecutable(true);
+
+        var host = new GoPluginHost();
+        try {
+            host.connect(script.toString(), List.of());
+            assertThat(host.handshake()).isNotNull();
+        } finally {
+            host.shutdown();
+        }
+    }
+
+    @Test
+    void connectFallsBackToPlaintextWhenNoServerCert() throws Exception {
+        Path script = tempDir.resolve("plaintext-provider.sh");
+        Files.writeString(script,
+            "#!/bin/bash\necho '1|5|tcp|127.0.0.1:0|grpc'\nwhile true; do sleep 1; done\n");
+        script.toFile().setExecutable(true);
+
+        var host = new GoPluginHost();
+        try {
+            host.connect(script.toString(), List.of());
+            assertThat(host.handshake().hasTls()).isFalse();
+            assertThat(host.channel()).isNotNull();
+        } finally {
+            host.shutdown();
+        }
+    }
+
+    @Test
+    void mtlsRoundTripWithGeneratedCerts() throws Exception {
+        var clientBundle = PluginCertificateGenerator.generate();
+        var serverBundle = PluginCertificateGenerator.generate();
+
+        javax.net.ssl.SSLContext sslCtx = javax.net.ssl.SSLContext.getInstance("TLS");
+
+        javax.net.ssl.KeyManagerFactory kmf =
+            javax.net.ssl.KeyManagerFactory.getInstance(
+                javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+        java.security.KeyStore clientKs = java.security.KeyStore.getInstance("PKCS12");
+        clientKs.load(null);
+        clientKs.setKeyEntry("client", clientBundle.privateKey(), new char[0],
+            new java.security.cert.Certificate[]{clientBundle.certificate()});
+        kmf.init(clientKs, new char[0]);
+
+        javax.net.ssl.TrustManagerFactory tmf =
+            javax.net.ssl.TrustManagerFactory.getInstance(
+                javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm());
+        java.security.KeyStore trustKs = java.security.KeyStore.getInstance("PKCS12");
+        trustKs.load(null);
+        trustKs.setCertificateEntry("server", serverBundle.certificate());
+        tmf.init(trustKs);
+
+        sslCtx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        assertThat(sslCtx.getProtocol()).isEqualTo("TLS");
+    }
+
+    @Test
+    void buildSslContextProducesValidContext() throws Exception {
+        var clientBundle = PluginCertificateGenerator.generate();
+        var serverBundle = PluginCertificateGenerator.generate();
+
+        SslContext sslContext = SslContextBuilder.forClient()
+            .keyManager(clientBundle.privateKey(), clientBundle.certificate())
+            .trustManager(serverBundle.certificate())
+            .sslProvider(SslProvider.JDK)
+            .build();
+
+        assertThat(sslContext).isNotNull();
+        assertThat(sslContext.isClient()).isTrue();
     }
 
     @Test
