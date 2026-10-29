@@ -53,7 +53,7 @@ class SchemaCacheTest {
     @Test
     void specSchemaFieldsPreserved() {
         var cache = new SchemaCache(tempDir);
-        var field = new PluginFieldDef("STRING", true, null, null, null, null, null, null, null, null, null, null, null);
+        var field = new PluginFieldDef("STRING", true, null, null, null, null, null, null, null, null, null, null, null, false, false);
         var specSchema = new PluginSpecSchema(Map.of("name", field));
         var nodeType = NodeType.of("tf:hashicorp/test:test_res");
         var typeDesc = new BridgeTypeDescriptor(nodeType, Map.of(), NodeStatus.DRIFTED, NodeStatus.ABSENT, Map.of(), BridgeErrorCategory.PERMANENT);
@@ -67,10 +67,28 @@ class SchemaCacheTest {
         assertThat(loadedField.required()).isTrue();
     }
 
+
+    @Test
+    void sensitiveAndDeprecatedFieldsPreserved() {
+        var cache      = new SchemaCache(tempDir);
+        var field      = new PluginFieldDef("STRING", true, null, null, null, null, null, null, null, null, null, null, null, true, true);
+        var specSchema = new PluginSpecSchema(Map.of("password", field));
+        var nodeType   = NodeType.of("tf:hashicorp/test:test_res");
+        var typeDesc   = new BridgeTypeDescriptor(nodeType, Map.of(), NodeStatus.DRIFTED, NodeStatus.ABSENT, Map.of(), BridgeErrorCategory.PERMANENT);
+        var type       = new DiscoveredType(nodeType, specSchema, typeDesc);
+
+        cache.store("hashicorp", "test", "2.0.0", List.of(type));
+        var loaded = cache.load("hashicorp", "test", "2.0.0").get();
+
+        var loadedField = loaded.get(0).specSchema().fields().get("password");
+        assertThat(loadedField.sensitive()).isTrue();
+        assertThat(loadedField.deprecated()).isTrue();
+    }
+
     private static DiscoveredType sampleType(String resourceName) {
         var nodeType = NodeType.of("tf:hashicorp/aws:" + resourceName);
         var specSchema = new PluginSpecSchema(Map.of(
-            "name", new PluginFieldDef("STRING", true, null, null, null, null, null, null, null, null, null, null, null)
+            "name", new PluginFieldDef("STRING", true, null, null, null, null, null, null, null, null, null, null, null, false, false)
         ));
         var typeDesc = new BridgeTypeDescriptor(nodeType, Map.of(), NodeStatus.DRIFTED, NodeStatus.ABSENT, Map.of(), BridgeErrorCategory.PERMANENT);
         return new DiscoveredType(nodeType, specSchema, typeDesc);

@@ -248,7 +248,7 @@ class YamlPluginProvisionerTest {
         var schema = new PluginSpecSchema(Map.of(
                 "name", new io.casehub.desiredstate.plugin.api.PluginFieldDef(
                         "string", true, null, null, null, null,
-                        null, null, null, null, null, null, null)));
+                        null, null, null, null, null, null, null, false, false)));
         var descriptor = new PluginDescriptor(
                 "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 schema, List.of(),
@@ -269,7 +269,7 @@ class YamlPluginProvisionerTest {
         var schema = new PluginSpecSchema(Map.of(
                 "region", new io.casehub.desiredstate.plugin.api.PluginFieldDef(
                         "enum", true, null, null, null, null,
-                        null, null, List.of("us-east", "eu-west"), null, null, null, null)));
+                        null, null, List.of("us-east", "eu-west"), null, null, null, null, false, false)));
         var descriptor = new PluginDescriptor(
                 "test-resource", "1.0.0", Duration.ofMinutes(5), Map.of(),
                 schema, List.of(), List.of(),

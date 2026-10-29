@@ -61,7 +61,8 @@ public final class SchemaTranslator {
         };
         return new PluginFieldDef(
             fieldType, attr.required(), null, null,
-            null, null, null, null, null, null, null, null, null
+            null, null, null, null, null, null, null, null, null,
+            attr.sensitive(), attr.deprecated()
         );
     }
 }

@@ -100,7 +100,7 @@ class ProtocolV5Adapter implements TerraformProtocol {
                 String type = decodeCtyType(attr.getType().toByteArray());
                 attrs.put(attr.getName(), new AttributeSchema(
                     attr.getName(), type, attr.getRequired(), attr.getOptional(),
-                    attr.getComputed(), attr.getSensitive(), attr.getDescription()));
+                    attr.getComputed(), attr.getSensitive(), attr.getDeprecated(), attr.getDescription()));
             }
         }
         return new ResourceSchema(attrs);

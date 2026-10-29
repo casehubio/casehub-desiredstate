@@ -29,7 +29,7 @@ class PluginValidatorTest {
     void unknownFieldTypeThrows() {
         var spec = new PluginSpecSchema(Map.of(
             "data", new PluginFieldDef("complex", false, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-type", spec);
 
         assertThatThrownBy(() ->
@@ -59,7 +59,7 @@ class PluginValidatorTest {
             Map.of("condition", "true"), Map.of());
         var spec = new PluginSpecSchema(Map.of(
             "name", new PluginFieldDef("string", true, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("no-compare", spec,
             List.of(step), List.of(step), List.of(step));
 
@@ -84,7 +84,7 @@ class PluginValidatorTest {
     void inconsistentMinMaxThrows() {
         var spec = new PluginSpecSchema(Map.of(
             "count", new PluginFieldDef("integer", false, null, null, null, null,
-                10, 5, null, null, null, null, null)));
+                10, 5, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-range", spec);
 
         assertThatThrownBy(() ->
@@ -106,7 +106,7 @@ class PluginValidatorTest {
             Map.of("condition", "true"), Map.of());
         var spec = new PluginSpecSchema(Map.of(
             "name", new PluginFieldDef("string", true, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-actual", spec,
             List.of(compareStep, approvalStep), List.of(assertStep), List.of(assertStep));
 
@@ -120,7 +120,7 @@ class PluginValidatorTest {
         return createPlugin("test-resource",
             new PluginSpecSchema(Map.of(
                 "name", new PluginFieldDef("string", true, null, null, null, null,
-                    null, null, null, null, null, null, null))));
+                    null, null, null, null, null, null, null, false, false))));
     }
 
     private static PluginModel createPlugin(String type, PluginSpecSchema spec) {

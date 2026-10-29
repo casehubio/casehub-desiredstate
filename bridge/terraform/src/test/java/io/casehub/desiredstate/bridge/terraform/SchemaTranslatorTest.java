@@ -188,8 +188,37 @@ class SchemaTranslatorTest {
         assertThat(types).isEmpty();
     }
 
+
+    @Test
+    void sensitiveAttributePropagatesToField() {
+        var schema = new ProviderSchema(Map.of(
+                "res", new ResourceSchema(Map.of(
+                        "password", new AttributeSchema("password", "string", true, false, false, true, false, "")
+                                                ))
+                                              ));
+
+        var types = SchemaTranslator.translate("hashicorp", "test", schema);
+        var field = types.get(0).specSchema().fields().get("password");
+        assertThat(field.sensitive()).isTrue();
+        assertThat(field.deprecated()).isFalse();
+    }
+
+    @Test
+    void deprecatedAttributePropagatesToField() {
+        var schema = new ProviderSchema(Map.of(
+                "res", new ResourceSchema(Map.of(
+                        "old_name", new AttributeSchema("old_name", "string", false, true, false, false, true, "use new_name instead")
+                                                ))
+                                              ));
+
+        var types = SchemaTranslator.translate("hashicorp", "test", schema);
+        var field = types.get(0).specSchema().fields().get("old_name");
+        assertThat(field.sensitive()).isFalse();
+        assertThat(field.deprecated()).isTrue();
+    }
+
     private static AttributeSchema attr(String name, String type,
                                          boolean required, boolean optional, boolean computed) {
-        return new AttributeSchema(name, type, required, optional, computed, false, "");
+        return new AttributeSchema(name, type, required, optional, computed, false, false, "");
     }
 }

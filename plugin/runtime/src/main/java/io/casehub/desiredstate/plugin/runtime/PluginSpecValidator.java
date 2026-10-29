@@ -12,13 +12,18 @@ public final class PluginSpecValidator {
 
     private PluginSpecValidator() {}
 
-    public static void validate(String type, Map<String, Object> fields, PluginSpecSchema schema) {
-        List<String> errors = new ArrayList<>();
+    public static List<String> validate(String type, Map<String, Object> fields, PluginSpecSchema schema) {
+        List<String> errors   = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
 
         for (Map.Entry<String, PluginFieldDef> entry : schema.fields().entrySet()) {
-            String fieldName = entry.getKey();
-            PluginFieldDef def = entry.getValue();
-            Object value = fields.get(fieldName);
+            String         fieldName = entry.getKey();
+            PluginFieldDef def       = entry.getValue();
+            Object         value     = fields.get(fieldName);
+
+            if (def.deprecated() && value != null) {
+                warnings.add(fieldName + ": field is deprecated");
+            }
 
             if (value == null) {
                 if (def.required()) {
@@ -33,8 +38,9 @@ public final class PluginSpecValidator {
 
         if (!errors.isEmpty()) {
             throw new PluginValidationException(type,
-                "spec validation failed:\n  " + String.join("\n  ", errors));
+                                                "spec validation failed:\n  " + String.join("\n  ", errors));
         }
+        return warnings;
     }
 
     private static void validateType(String fieldName, Object value, PluginFieldDef def,
@@ -64,7 +70,7 @@ public final class PluginSpecValidator {
                 if (!(value instanceof String)) {
                     errors.add(fieldName + ": expected string for enum, got " + value.getClass().getSimpleName());
                 } else if (def.values() != null && !def.values().contains(value)) {
-                    errors.add(fieldName + ": value '" + value + "' not in allowed values " + def.values());
+                    errors.add(fieldName + ": value '" + mask(value, def.sensitive()) + "' not in allowed values " + def.values());
                 }
             }
             case "list" -> {
@@ -100,10 +106,10 @@ public final class PluginSpecValidator {
 
         if (value instanceof Number n) {
             if (def.min() != null && n.doubleValue() < def.min().doubleValue()) {
-                errors.add(fieldName + ": value " + n + " below min " + def.min());
+                errors.add(fieldName + ": value " + mask(n, def.sensitive()) + " below min " + def.min());
             }
             if (def.max() != null && n.doubleValue() > def.max().doubleValue()) {
-                errors.add(fieldName + ": value " + n + " exceeds max " + def.max());
+                errors.add(fieldName + ": value " + mask(n, def.sensitive()) + " exceeds max " + def.max());
             }
         }
 
@@ -147,4 +153,9 @@ public final class PluginSpecValidator {
             default -> true;
         };
     }
+
+    private static String mask(Object value, boolean sensitive) {
+        return sensitive ? "***" : String.valueOf(value);
+    }
+
 }

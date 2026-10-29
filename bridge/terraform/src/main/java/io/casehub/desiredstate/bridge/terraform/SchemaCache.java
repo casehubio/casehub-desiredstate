@@ -81,6 +81,8 @@ public class SchemaCache {
             PluginFieldDef f = entry.getValue();
             fieldMap.put("type", f.type());
             fieldMap.put("required", f.required());
+            if (f.sensitive()) fieldMap.put("sensitive", true);
+            if (f.deprecated()) fieldMap.put("deprecated", true);
             result.put(entry.getKey(), fieldMap);
         }
         return result;
@@ -92,9 +94,12 @@ public class SchemaCache {
         for (var entry : rawFields.entrySet()) {
             String fieldType = (String) entry.getValue().get("type");
             boolean required = Boolean.TRUE.equals(entry.getValue().get("required"));
+            boolean sensitive = Boolean.TRUE.equals(entry.getValue().get("sensitive"));
+            boolean deprecated = Boolean.TRUE.equals(entry.getValue().get("deprecated"));
             fields.put(entry.getKey(), new PluginFieldDef(
                 fieldType, required, null, null,
-                null, null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null, null,
+                sensitive, deprecated));
         }
         return new PluginSpecSchema(fields);
     }

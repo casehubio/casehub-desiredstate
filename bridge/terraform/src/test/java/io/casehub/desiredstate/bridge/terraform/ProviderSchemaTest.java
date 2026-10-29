@@ -9,8 +9,8 @@ class ProviderSchemaTest {
     @Test
     void providerSchemaHoldsProviderLevelAttributes() {
         var providerAttrs = Map.of(
-            "region", new AttributeSchema("region", "string", false, true, false, false, "AWS region"),
-            "access_key", new AttributeSchema("access_key", "string", false, true, false, true, "Access key")
+            "region", new AttributeSchema("region", "string", false, true, false, false, false, "AWS region"),
+            "access_key", new AttributeSchema("access_key", "string", false, true, false, true, false, "Access key")
         );
         var providerSchema = new ResourceSchema(providerAttrs);
         var schema = new ProviderSchema(Map.of(), providerSchema);

@@ -115,7 +115,9 @@ public class PluginParser {
                 textOrNull(node, "item-type"),
                 textOrNull(node, "value-type"),
                 intOrNull(node, "minItems"),
-                intOrNull(node, "maxItems")
+                intOrNull(node, "maxItems"),
+                node.path("sensitive").asBoolean(false),
+                node.path("deprecated").asBoolean(false)
         );
     }
 

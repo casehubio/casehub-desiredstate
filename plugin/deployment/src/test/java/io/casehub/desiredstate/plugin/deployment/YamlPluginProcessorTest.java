@@ -35,7 +35,7 @@ class YamlPluginProcessorTest {
     void unknownFieldTypeFailsBuild() {
         var spec = new PluginSpecSchema(Map.of(
             "data", new PluginFieldDef("complex", false, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-type", spec);
 
         assertThatThrownBy(() ->
@@ -48,7 +48,7 @@ class YamlPluginProcessorTest {
     void inconsistentMinMaxFailsBuild() {
         var spec = new PluginSpecSchema(Map.of(
             "count", new PluginFieldDef("integer", false, null, null, null, null,
-                10, 5, null, null, null, null, null)));
+                10, 5, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-range", spec);
 
         assertThatThrownBy(() ->
@@ -62,7 +62,7 @@ class YamlPluginProcessorTest {
     void inconsistentMinMaxLengthFailsBuild() {
         var spec = new PluginSpecSchema(Map.of(
             "name", new PluginFieldDef("string", false, null, null, 10, 5,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-length", spec);
 
         assertThatThrownBy(() ->
@@ -76,7 +76,7 @@ class YamlPluginProcessorTest {
     void enumWithoutValuesFailsBuild() {
         var spec = new PluginSpecSchema(Map.of(
             "mode", new PluginFieldDef("enum", false, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-enum", spec);
 
         assertThatThrownBy(() ->
@@ -90,7 +90,7 @@ class YamlPluginProcessorTest {
     void listWithoutItemTypeFailsBuild() {
         var spec = new PluginSpecSchema(Map.of(
             "tags", new PluginFieldDef("list", false, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var plugin = createPlugin("bad-list", spec);
 
         assertThatThrownBy(() ->
@@ -117,7 +117,7 @@ class YamlPluginProcessorTest {
     void invalidSpecRefFailsBuild() {
         var spec = new PluginSpecSchema(Map.of(
             "namespace", new PluginFieldDef("string", true, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
         var steps = List.of(
             step("rest-call", Map.of("url", "https://api/${spec.namespce}"), "r"),
             step("compare-state", Map.of("present-when", "true"), null));
@@ -276,7 +276,7 @@ class YamlPluginProcessorTest {
     private static PluginSpecSchema validSpec() {
         return new PluginSpecSchema(Map.of(
             "name", new PluginFieldDef("string", true, null, null, null, null,
-                null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, false, false)));
     }
 
     private static ResolvedStep step(String primitive, Map<String, Object> params,

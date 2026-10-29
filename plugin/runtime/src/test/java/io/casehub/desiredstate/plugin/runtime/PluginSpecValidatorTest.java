@@ -388,46 +388,105 @@ class PluginSpecValidatorTest {
 
     // --- Helper methods ---
 
+
+    @Test
+    void deprecatedFieldEmitsWarning() {
+        var schema = new PluginSpecSchema(Map.of(
+                "old_name", new PluginFieldDef("string", false, null, null, null, null,
+                                               null, null, null, null, null, null, null, false, true)));
+        var fields = Map.<String, Object>of("old_name", "value");
+
+        var warnings = PluginSpecValidator.validate("test-type", fields, schema);
+        assertThat(warnings).hasSize(1);
+        assertThat(warnings.get(0)).contains("old_name").contains("deprecated");
+    }
+
+    @Test
+    void deprecatedFieldWithNullValueNoWarning() {
+        var schema = new PluginSpecSchema(Map.of(
+                "old_name", new PluginFieldDef("string", false, null, null, null, null,
+                                               null, null, null, null, null, null, null, false, true)));
+
+        var warnings = PluginSpecValidator.validate("test-type", Map.of(), schema);
+        assertThat(warnings).isEmpty();
+    }
+
+    @Test
+    void nonDeprecatedFieldNoWarning() {
+        var schema = new PluginSpecSchema(Map.of(
+                "name", field("string", true)));
+        var fields = Map.<String, Object>of("name", "hello");
+
+        var warnings = PluginSpecValidator.validate("test-type", fields, schema);
+        assertThat(warnings).isEmpty();
+    }
+
+    @Test
+    void sensitiveFieldValueMaskedInEnumError() {
+        var schema = new PluginSpecSchema(Map.of(
+                "secret", new PluginFieldDef("enum", true, null, null, null, null,
+                                             null, null, List.of("a", "b"), null, null, null, null, true, false)));
+
+        assertThatThrownBy(() -> PluginSpecValidator.validate("test-type",
+                                                              Map.of("secret", "real-password"), schema))
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("***")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("real-password"));
+    }
+
+    @Test
+    void sensitiveFieldValueMaskedInNumericError() {
+        var schema = new PluginSpecSchema(Map.of(
+                "pin", new PluginFieldDef("number", true, null, null, null, null,
+                                          0, 9999, null, null, null, null, null, true, false)));
+
+        assertThatThrownBy(() -> PluginSpecValidator.validate("test-type",
+                                                              Map.of("pin", 99999), schema))
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("***")
+                .satisfies(e -> assertThat(e.getMessage()).doesNotContain("99999"));
+    }
+
     private static PluginFieldDef field(String type, boolean required) {
         return new PluginFieldDef(type, required, null, null, null, null,
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, false, false);
     }
 
     private static PluginFieldDef enumField(boolean required, List<String> values) {
         return new PluginFieldDef("enum", required, null, null, null, null,
-            null, null, values, null, null, null, null);
+            null, null, values, null, null, null, null, false, false);
     }
 
     private static PluginFieldDef listField(boolean required, String itemType) {
         return new PluginFieldDef("list", required, null, null, null, null,
-            null, null, null, itemType, null, null, null);
+            null, null, null, itemType, null, null, null, false, false);
     }
 
     private static PluginFieldDef listFieldWithBounds(boolean required, String itemType,
                                                        Integer minItems, Integer maxItems) {
         return new PluginFieldDef("list", required, null, null, null, null,
-            null, null, null, itemType, null, minItems, maxItems);
+            null, null, null, itemType, null, minItems, maxItems, false, false);
     }
 
     private static PluginFieldDef mapField(boolean required, String valueType) {
         return new PluginFieldDef("map", required, null, null, null, null,
-            null, null, null, null, valueType, null, null);
+            null, null, null, null, valueType, null, null, false, false);
     }
 
     private static PluginFieldDef patternField(boolean required, String pattern) {
         return new PluginFieldDef("string", required, null, pattern, null, null,
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, false, false);
     }
 
     private static PluginFieldDef numericField(String type, boolean required,
                                                 Number min, Number max) {
         return new PluginFieldDef(type, required, null, null, null, null,
-            min, max, null, null, null, null, null);
+            min, max, null, null, null, null, null, false, false);
     }
 
     private static PluginFieldDef stringLengthField(boolean required,
                                                      Integer minLength, Integer maxLength) {
         return new PluginFieldDef("string", required, null, null, minLength, maxLength,
-            null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, false, false);
     }
 }
