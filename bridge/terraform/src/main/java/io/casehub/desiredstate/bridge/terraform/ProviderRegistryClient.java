@@ -1,6 +1,6 @@
 package io.casehub.desiredstate.bridge.terraform;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -15,25 +15,36 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class ProviderRegistryClient {
 
+    private static final Logger log = Logger.getLogger(ProviderRegistryClient.class.getName());
     private static final String REGISTRY_BASE = "https://registry.terraform.io";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper()
+        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration DOWNLOAD_TIMEOUT = Duration.ofMinutes(5);
 
     private final Path cacheDir;
     private final HttpClient httpClient;
+    private final Set<String> trustedKeyIds;
 
     public ProviderRegistryClient() {
-        this(defaultCacheDir());
+        this(defaultCacheDir(), Set.of());
     }
 
     public ProviderRegistryClient(Path cacheDir) {
+        this(cacheDir, Set.of());
+    }
+
+    public ProviderRegistryClient(Path cacheDir, Set<String> trustedKeyIds) {
         this.cacheDir = cacheDir;
+        this.trustedKeyIds = trustedKeyIds;
         this.httpClient = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
             .connectTimeout(Duration.ofSeconds(10))
@@ -81,13 +92,37 @@ public class ProviderRegistryClient {
                     + " " + config.version() + " (" + os + "/" + arch + ")");
             }
 
-            JsonNode meta = JSON.readTree(response.body());
-            String downloadUrl = meta.get("download_url").asText();
-            String expectedSha = meta.get("shasum").asText();
+            RegistryPackageResponse meta = JSON.readValue(response.body(),
+                RegistryPackageResponse.class);
+
+            String expectedSha;
+            if (meta.shasumsUrl() != null && meta.shasumsSignatureUrl() != null
+                    && meta.signingKeys() != null
+                    && meta.signingKeys().gpgPublicKeys() != null
+                    && !meta.signingKeys().gpgPublicKeys().isEmpty()) {
+
+                byte[] sha256sumsContent = downloadBytes(meta.shasumsUrl());
+                byte[] signatureBytes = downloadBytes(meta.shasumsSignatureUrl());
+
+                var result = GpgSignatureVerifier.verify(
+                    sha256sumsContent, signatureBytes,
+                    meta.signingKeys().gpgPublicKeys(), trustedKeyIds);
+
+                if (result instanceof GpgSignatureVerifier.VerificationResult.Failed failed) {
+                    throw new SecurityException(
+                        "GPG signature verification failed: " + failed.reason());
+                }
+
+                expectedSha = extractChecksum(new String(sha256sumsContent), meta.filename());
+            } else {
+                log.log(Level.WARNING,
+                    "Registry response missing GPG signing data, falling back to direct shasum");
+                expectedSha = meta.shasum();
+            }
 
             Path tempZip = Files.createTempFile("terraform-provider-", ".zip");
             try {
-                downloadFile(downloadUrl, tempZip);
+                downloadFile(meta.downloadUrl(), tempZip);
                 verifySha256(tempZip, expectedSha);
 
                 Path targetDir = cachePath(config.namespace(), config.type(),
@@ -130,6 +165,39 @@ public class ProviderRegistryClient {
         try (InputStream in = response.body()) {
             Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+
+    private byte[] downloadBytes(String url) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .timeout(DOWNLOAD_TIMEOUT)
+            .GET()
+            .build();
+
+        HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse.BodyHandlers.ofByteArray());
+
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("Download failed with status " + response.statusCode()
+                + " for " + url);
+        }
+        return response.body();
+    }
+
+    String extractChecksum(String sha256sumsContent, String filename) {
+        for (String line : sha256sumsContent.lines().toList()) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+            int separatorIdx = trimmed.indexOf("  ");
+            if (separatorIdx < 0) continue;
+            String checksum = trimmed.substring(0, separatorIdx);
+            String file = trimmed.substring(separatorIdx + 2);
+            if (file.equals(filename)) {
+                return checksum;
+            }
+        }
+        throw new SecurityException(
+            "Filename " + filename + " not found in SHA256SUMS file");
     }
 
     void verifySha256(Path file, String expectedSha) {

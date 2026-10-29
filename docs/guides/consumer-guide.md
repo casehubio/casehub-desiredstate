@@ -706,6 +706,31 @@ The Terraform bridge automatically enables mutual TLS for provider communication
 
 **Certificate rotation:** Certificates are regenerated on every provider restart -- health check failures, credential rotation, or tenant eviction all produce fresh certificates automatically.
 
+## Terraform Bridge -- GPG Signature Verification
+
+Provider binaries downloaded from the Terraform registry are verified for authenticity using GPG signatures. This establishes a trust chain from the provider publisher's signing key to the downloaded binary.
+
+**Verification flow:**
+1. Download the provider zip, SHA256SUMS file, and its detached GPG signature
+2. Verify the GPG signature on the SHA256SUMS file using the public keys from the registry API response
+3. Extract the matching checksum from the verified SHA256SUMS file
+4. Verify the SHA-256 hash of the downloaded zip
+
+**No configuration needed.** GPG verification is automatic when the registry provides signing data. Registries that don't provide signing keys fall back to direct SHA-256 checksum verification.
+
+### Trusted Key Pinning
+
+For production deployments, pin specific signing key IDs in the bridge manifest to reject signatures from unexpected keys:
+
+```yaml
+bridge:
+  protocol: terraform
+  trustedKeyIds:
+    - "51852D87348FFC4C"
+```
+
+When `trustedKeyIds` is set, only signatures from listed keys are accepted. If the registry returns a signature from an unlisted key, the download fails. Omit the field to trust any key the registry provides.
+
 ---
 
 ## What This Repo Does NOT Do

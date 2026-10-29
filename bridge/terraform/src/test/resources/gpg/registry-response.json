@@ -1,0 +1,21 @@
+{
+  "protocols": ["5.0"],
+  "os": "darwin",
+  "arch": "arm64",
+  "filename": "terraform-provider-random_3.6.0_darwin_arm64.zip",
+  "download_url": "https://releases.hashicorp.com/terraform-provider-random/3.6.0/terraform-provider-random_3.6.0_darwin_arm64.zip",
+  "shasums_url": "https://releases.hashicorp.com/terraform-provider-random/3.6.0/terraform-provider-random_3.6.0_SHA256SUMS",
+  "shasums_signature_url": "https://releases.hashicorp.com/terraform-provider-random/3.6.0/terraform-provider-random_3.6.0_SHA256SUMS.sig",
+  "shasum": "5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a",
+  "signing_keys": {
+    "gpg_public_keys": [
+      {
+        "key_id": "51852D87348FFC4C",
+        "ascii_armor": "-----BEGIN PGP PUBLIC KEY BLOCK-----\ntest\n-----END PGP PUBLIC KEY BLOCK-----",
+        "trust_signature": "",
+        "source": "HashiCorp",
+        "source_url": "https://www.hashicorp.com/security.html"
+      }
+    ]
+  }
+}

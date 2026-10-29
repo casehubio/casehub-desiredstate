@@ -112,6 +112,31 @@ class ProviderRegistryClientTest {
         assertThat(binary.getFileName().toString()).startsWith("terraform-provider-");
     }
 
+    @Test
+    void extractChecksumFromSha256sumsFile() {
+        var client = new ProviderRegistryClient(tempDir);
+
+        String sha256sums = """
+            abc123def456  terraform-provider-random_3.6.0_linux_amd64.zip
+            789012345678  terraform-provider-random_3.6.0_darwin_arm64.zip
+            """;
+
+        String checksum = client.extractChecksum(sha256sums,
+            "terraform-provider-random_3.6.0_darwin_arm64.zip");
+        assertThat(checksum).isEqualTo("789012345678");
+    }
+
+    @Test
+    void extractChecksumThrowsWhenFilenameNotFound() {
+        var client = new ProviderRegistryClient(tempDir);
+
+        String sha256sums = "abc123  other-file.zip\n";
+
+        assertThatThrownBy(() -> client.extractChecksum(sha256sums, "missing.zip"))
+            .isInstanceOf(SecurityException.class)
+            .hasMessageContaining("missing.zip");
+    }
+
     private String sha256(byte[] content) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         return HexFormat.of().formatHex(digest.digest(content));

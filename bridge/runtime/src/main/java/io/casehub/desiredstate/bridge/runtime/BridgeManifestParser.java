@@ -39,7 +39,7 @@ public final class BridgeManifestParser {
             typeDescriptors.put(typeDef.id(), toTypeDescriptor(nodeType, typeDef));
         }
 
-        return new BridgeDescriptor(root.protocol(), handledTypes, typeDescriptors, toLifecycleConfig(root.lifecycle()), root.credentialRef());
+        return new BridgeDescriptor(root.protocol(), handledTypes, typeDescriptors, toLifecycleConfig(root.lifecycle()), root.credentialRef(), root.trustedKeyIds() != null ? root.trustedKeyIds() : java.util.List.of());
     }
 
     private static BridgeTypeDescriptor toTypeDescriptor(NodeType nodeType, BridgeManifest.TypeDef def) {
