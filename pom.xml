@@ -69,6 +69,15 @@
                 <scope>import</scope>
             </dependency>
 
+            <!-- Align Engine Flow's SDK with platform playbook compilation. -->
+            <dependency>
+                <groupId>io.serverlessworkflow</groupId>
+                <artifactId>serverlessworkflow-bom</artifactId>
+                <version>7.35.3.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <!-- platform yaml-core orchestration primitives -->
             <dependency>
                 <groupId>io.casehub</groupId>
