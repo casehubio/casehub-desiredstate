@@ -15,6 +15,8 @@ import io.casehub.desiredstate.bridge.BridgeErrorCategory;
 import io.casehub.desiredstate.bridge.BridgeImportResult;
 import io.casehub.desiredstate.bridge.BridgeNodeSpec;
 import io.casehub.desiredstate.bridge.BridgeResult;
+import io.casehub.desiredstate.bridge.testing.MockBridgeProvider;
+import io.casehub.desiredstate.bridge.testing.MockImportCapableBridgeProvider;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

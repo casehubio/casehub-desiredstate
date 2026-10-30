@@ -1,4 +1,4 @@
-package io.casehub.desiredstate.bridge.runtime;
+package io.casehub.desiredstate.bridge.testing;
 
 import io.casehub.desiredstate.bridge.*;
 import java.util.*;

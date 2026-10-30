@@ -2,6 +2,7 @@ package io.casehub.desiredstate.bridge.runtime;
 
 import io.casehub.desiredstate.api.*;
 import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.bridge.testing.MockBridgeProvider;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

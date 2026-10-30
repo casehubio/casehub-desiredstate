@@ -2,6 +2,7 @@ package io.casehub.desiredstate.bridge.runtime;
 
 import io.casehub.desiredstate.api.ActualStateAdapter;
 import io.casehub.desiredstate.api.NodeProvisioner;
+import io.casehub.desiredstate.bridge.testing.MockBridgeProvider;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;

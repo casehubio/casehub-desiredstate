@@ -20,5 +20,6 @@
         <module>deployment</module>
         <module>spring</module>
         <module>terraform</module>
+        <module>testing</module>
     </modules>
 </project>
