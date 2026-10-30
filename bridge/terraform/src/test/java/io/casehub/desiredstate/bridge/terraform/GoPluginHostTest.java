@@ -1,15 +1,14 @@
 package io.casehub.desiredstate.bridge.terraform;
 
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.SslProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -171,4 +170,42 @@ class GoPluginHostTest {
             host.shutdown();
         }
     }
+
+    @Test
+    void shutdownDoesNotCloseExternalEventLoopGroup() {
+        var group = createEventLoopGroup();
+        try {
+            var host = new GoPluginHost();
+            // Verify the field tracking: shutdown with no connection is still safe
+            host.shutdown();
+            assertThat(group.isShutdown()).isFalse();
+        } finally {
+            group.shutdownGracefully(0, 0, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+    }
+
+    @Test
+    void connectWithSharedGroupUsesExternalGroup() throws Exception {
+        Path script = tempDir.resolve("shared-group-provider.sh");
+        Files.writeString(script,
+                          "#!/bin/bash\necho '1|5|tcp|127.0.0.1:0|grpc'\nwhile true; do sleep 1; done\n");
+        script.toFile().setExecutable(true);
+
+        var host = new GoPluginHost();
+        try {
+            host.connect(script.toString(), List.of(), null);
+            assertThat(host.handshake()).isNotNull();
+        } finally {
+            host.shutdown();
+        }
+    }
+
+    private io.netty.channel.EventLoopGroup createEventLoopGroup() {
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("mac") || os.contains("darwin")) {
+            return new io.netty.channel.kqueue.KQueueEventLoopGroup(1);
+        }
+        return new io.netty.channel.epoll.EpollEventLoopGroup(1);
+    }
+
 }

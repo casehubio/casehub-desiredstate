@@ -8,9 +8,16 @@ public record BridgeLifecycleConfig(
     List<String> args,
     HealthCheckConfig healthCheck,
     RestartPolicy restartPolicy,
-    String endpoint
+    String endpoint,
+    PoolConfig poolConfig
 ) {
     public BridgeLifecycleConfig {
         if (args == null) args = List.of();
+    }
+
+    public BridgeLifecycleConfig(LifecycleMode mode, String binaryPath, List<String> args,
+                                  HealthCheckConfig healthCheck, RestartPolicy restartPolicy,
+                                  String endpoint) {
+        this(mode, binaryPath, args, healthCheck, restartPolicy, endpoint, null);
     }
 }

@@ -92,6 +92,47 @@ class BridgeManifestParserTest {
         assertNull(descriptor.credentialRef());
     }
 
+    @Test
+    void parsePoolConfigFromManifest() {
+        String yaml = """
+                      bridge:
+                        protocol: terraform
+                        lifecycle:
+                          mode: managed-process
+                          binary: /opt/tf
+                          pool:
+                            maxProcesses: 5
+                            idleTimeout: 10m
+                            checkoutTimeout: 60s
+                        types:
+                          - id: "tf:test:resource"
+                      """;
+        var descriptor = BridgeManifestParser.parse(
+                new java.io.ByteArrayInputStream(yaml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        var pool = descriptor.lifecycleConfig().poolConfig();
+        assertNotNull(pool);
+        assertEquals(5, pool.maxProcesses());
+        assertEquals(java.time.Duration.ofMinutes(10), pool.idleTimeout());
+        assertEquals(java.time.Duration.ofSeconds(60), pool.checkoutTimeout());
+    }
+
+    @Test
+    void omittedPoolConfigIsNull() {
+        String yaml = """
+                      bridge:
+                        protocol: terraform
+                        lifecycle:
+                          mode: managed-process
+                          binary: /opt/tf
+                        types:
+                          - id: "tf:test:resource"
+                      """;
+        var descriptor = BridgeManifestParser.parse(
+                new java.io.ByteArrayInputStream(yaml.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertNull(descriptor.lifecycleConfig().poolConfig());
+    }
+
+
     private BridgeDescriptor parseTestManifest() {
         InputStream is = getClass().getResourceAsStream(
             "/META-INF/desiredstate/bridges/test-bridge.yaml");

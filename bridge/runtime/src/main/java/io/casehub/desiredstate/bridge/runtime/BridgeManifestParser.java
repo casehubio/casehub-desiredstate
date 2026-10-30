@@ -99,7 +99,15 @@ public final class BridgeManifestParser {
                 BackoffStrategy.valueOf(def.restart().backoff().toUpperCase()));
         }
 
-        return new BridgeLifecycleConfig(mode, def.binary(), def.args(), healthCheck, restartPolicy, def.endpoint());
+        return new BridgeLifecycleConfig(mode, def.binary(), def.args(), healthCheck, restartPolicy, def.endpoint(), toPoolConfig(def.pool()));
+    }
+
+    private static PoolConfig toPoolConfig(BridgeManifest.PoolDef pool) {
+        if (pool == null) return null;
+        int maxProcesses = pool.maxProcesses() > 0 ? pool.maxProcesses() : PoolConfig.DEFAULT.maxProcesses();
+        Duration idleTimeout = pool.idleTimeout() != null ? parseDuration(pool.idleTimeout()) : PoolConfig.DEFAULT.idleTimeout();
+        Duration checkoutTimeout = pool.checkoutTimeout() != null ? parseDuration(pool.checkoutTimeout()) : PoolConfig.DEFAULT.checkoutTimeout();
+        return new PoolConfig(maxProcesses, idleTimeout, checkoutTimeout);
     }
 
     private static RestartPolicyType parseRestartPolicyType(String policy) {

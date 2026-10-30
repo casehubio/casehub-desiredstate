@@ -22,7 +22,8 @@ record BridgeManifest(
         List<String> args,
         HealthCheckDef healthCheck,
         RestartDef restart,
-        String endpoint
+        String endpoint,
+        PoolDef pool
     ) {}
 
     record HealthCheckDef(String type, String interval, String timeout) {}
@@ -36,4 +37,6 @@ record BridgeManifest(
     ) {}
 
     record ErrorMappingEntry(String category) {}
+
+    record PoolDef(int maxProcesses, String idleTimeout, String checkoutTimeout) {}
 }

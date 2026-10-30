@@ -33,9 +33,14 @@ public class GoPluginHost implements AutoCloseable {
     private ManagedChannel channel;
     private GoPluginHandshake handshake;
     private EventLoopGroup eventLoopGroup;
+    private boolean ownsEventLoopGroup;
     private static final Duration HANDSHAKE_TIMEOUT = Duration.ofSeconds(30);
 
     public ManagedChannel connect(String binaryPath, List<String> args) {
+        return connect(binaryPath, args, null);
+    }
+
+    public ManagedChannel connect(String binaryPath, List<String> args, EventLoopGroup sharedGroup) {
         if (process != null && process.isAlive()) {
             throw new IllegalStateException("Provider already running");
         }
@@ -65,6 +70,11 @@ public class GoPluginHost implements AutoCloseable {
             SslContext sslContext = null;
             if (handshake.hasTls()) {
                 sslContext = buildSslContext(clientBundle, handshake.serverCertDer());
+            }
+
+            if (sharedGroup != null) {
+                this.eventLoopGroup = sharedGroup;
+                this.ownsEventLoopGroup = false;
             }
 
             channel = buildChannel(handshake, sslContext);
@@ -104,10 +114,11 @@ public class GoPluginHost implements AutoCloseable {
             }
             channel = null;
         }
-        if (eventLoopGroup != null) {
+        if (eventLoopGroup != null && ownsEventLoopGroup) {
             eventLoopGroup.shutdownGracefully(0, 2, TimeUnit.SECONDS);
-            eventLoopGroup = null;
         }
+        eventLoopGroup = null;
+        ownsEventLoopGroup = false;
         if (process != null) {
             process.destroyForcibly();
             process = null;
@@ -137,11 +148,17 @@ public class GoPluginHost implements AutoCloseable {
         if ("unix".equals(hs.networkType())) {
             String osName = System.getProperty("os.name").toLowerCase();
             Class<? extends io.netty.channel.Channel> channelType;
+            if (eventLoopGroup == null) {
+                if (osName.contains("mac") || osName.contains("darwin")) {
+                    eventLoopGroup = new KQueueEventLoopGroup();
+                } else {
+                    eventLoopGroup = new EpollEventLoopGroup();
+                }
+                ownsEventLoopGroup = true;
+            }
             if (osName.contains("mac") || osName.contains("darwin")) {
-                eventLoopGroup = new KQueueEventLoopGroup();
                 channelType = KQueueDomainSocketChannel.class;
             } else {
-                eventLoopGroup = new EpollEventLoopGroup();
                 channelType = EpollDomainSocketChannel.class;
             }
             NettyChannelBuilder builder = NettyChannelBuilder
