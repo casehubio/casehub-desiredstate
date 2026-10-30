@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow-a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#666" stroke-width="1.2"/>
+    </marker>
+    <marker id="arrow-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="none" stroke="#2e7d32" stroke-width="1.2"/>
+    </marker>
+  </defs>
+
+  <text x="360" y="28" text-anchor="middle" font-size="15" font-weight="600" fill="#1a1a2e">After: Credential-Hash Pool</text>
+
+  <!-- Tenants -->
+  <rect x="20" y="60" width="110" height="36" rx="6" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="75" y="82" text-anchor="middle" font-size="12" fill="#1a1a2e">Tenant A</text>
+
+  <rect x="20" y="110" width="110" height="36" rx="6" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="75" y="132" text-anchor="middle" font-size="12" fill="#1a1a2e">Tenant B</text>
+
+  <rect x="20" y="160" width="110" height="36" rx="6" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="75" y="182" text-anchor="middle" font-size="12" fill="#1a1a2e">Tenant C</text>
+
+  <rect x="20" y="250" width="110" height="36" rx="6" fill="#e0f2f1" stroke="#00897b" stroke-width="1.5"/>
+  <text x="75" y="272" text-anchor="middle" font-size="12" fill="#1a1a2e">Tenant D</text>
+
+  <!-- Labels for credential groups -->
+  <text x="75" y="55" text-anchor="middle" font-size="9" fill="#4285f4">same credentials</text>
+  <text x="75" y="245" text-anchor="middle" font-size="9" fill="#00897b">different credentials</text>
+
+  <!-- Two-Level Registry -->
+  <rect x="190" y="50" width="200" height="250" rx="8" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="1.5"/>
+  <text x="290" y="72" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">TenantProviderRegistry</text>
+
+  <!-- Routing table -->
+  <rect x="205" y="85" width="170" height="80" rx="4" fill="#fff" stroke="#ce93d8" stroke-width="1"/>
+  <text x="290" y="100" text-anchor="middle" font-size="10" font-weight="600" fill="#6a1b9a">Routing</text>
+  <text x="290" y="116" text-anchor="middle" font-size="9" fill="#666">A → sha256:7f3a...</text>
+  <text x="290" y="130" text-anchor="middle" font-size="9" fill="#666">B → sha256:7f3a...</text>
+  <text x="290" y="144" text-anchor="middle" font-size="9" fill="#666">C → sha256:7f3a...</text>
+  <text x="290" y="158" text-anchor="middle" font-size="9" fill="#666">D → sha256:b91c...</text>
+
+  <!-- Pool table -->
+  <rect x="205" y="180" width="170" height="105" rx="4" fill="#fff" stroke="#ce93d8" stroke-width="1"/>
+  <text x="290" y="196" text-anchor="middle" font-size="10" font-weight="600" fill="#6a1b9a">Pool</text>
+  <text x="290" y="214" text-anchor="middle" font-size="9" fill="#666">sha256:7f3a... → proc₁</text>
+  <text x="290" y="228" text-anchor="middle" font-size="9" fill="#888">  refs=3, idle=0s</text>
+  <text x="290" y="250" text-anchor="middle" font-size="9" fill="#666">sha256:b91c... → proc₂</text>
+  <text x="290" y="264" text-anchor="middle" font-size="9" fill="#888">  refs=1, idle=0s</text>
+  <text x="290" y="280" text-anchor="middle" font-size="9" fill="#999">max=10, evict@5min</text>
+
+  <!-- Arrows tenant → registry -->
+  <line x1="130" y1="78" x2="188" y2="120" stroke="#666" stroke-width="1.2" marker-end="url(#arrow-a)"/>
+  <line x1="130" y1="128" x2="188" y2="130" stroke="#666" stroke-width="1.2" marker-end="url(#arrow-a)"/>
+  <line x1="130" y1="178" x2="188" y2="140" stroke="#666" stroke-width="1.2" marker-end="url(#arrow-a)"/>
+  <line x1="130" y1="268" x2="188" y2="155" stroke="#666" stroke-width="1.2" marker-end="url(#arrow-a)"/>
+
+  <!-- OS Processes -->
+  <rect x="470" y="100" width="220" height="55" rx="6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="580" y="120" text-anchor="middle" font-size="11" fill="#1b5e20">proc₁: aws-provider</text>
+  <text x="580" y="136" text-anchor="middle" font-size="9" fill="#666">creds: AKIA-SHARED (A, B, C)</text>
+  <text x="580" y="148" text-anchor="middle" font-size="9" fill="#888">hash: sha256:7f3a...</text>
+
+  <rect x="470" y="190" width="220" height="55" rx="6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="580" y="210" text-anchor="middle" font-size="11" fill="#1b5e20">proc₂: aws-provider</text>
+  <text x="580" y="226" text-anchor="middle" font-size="9" fill="#666">creds: AKIA-TENANT-D</text>
+  <text x="580" y="238" text-anchor="middle" font-size="9" fill="#888">hash: sha256:b91c...</text>
+
+  <!-- Arrows registry → processes -->
+  <line x1="390" y1="220" x2="468" y2="128" stroke="#2e7d32" stroke-width="1.2" marker-end="url(#arrow-g)"/>
+  <line x1="390" y1="256" x2="468" y2="218" stroke="#2e7d32" stroke-width="1.2" marker-end="url(#arrow-g)"/>
+
+  <!-- Result -->
+  <text x="580" y="300" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">2 processes for 4 tenants</text>
+  <text x="580" y="318" text-anchor="middle" font-size="11" fill="#888">Shared when credentials match</text>
+  <text x="580" y="336" text-anchor="middle" font-size="11" fill="#888">Separate when they differ</text>
+  <text x="580" y="356" text-anchor="middle" font-size="11" fill="#888">Bounded, evicted, LRU-managed</text>
+</svg>
