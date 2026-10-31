@@ -21,5 +21,6 @@
         <module>spring</module>
         <module>terraform</module>
         <module>testing</module>
+        <module>ansible</module>
     </modules>
 </project>

@@ -1,0 +1,51 @@
+bridge:
+  protocol: ansible
+  version: "1.0"
+
+  lifecycle:
+    mode: managed-process
+    binary: ansible-playbook
+    healthCheck:
+      type: tcp
+      interval: 60s
+      timeout: 5s
+
+  types:
+    - id: ansible:amazon.aws.ec2_instance
+      ansible:
+        collection: amazon.aws
+        provision_module: ec2_instance
+        deprovision_strategy: state_absent
+        info_module: ec2_instance_info
+        info_filter_key: instance_ids
+        result_key: instances
+        output_keys:
+          - instance_id
+          - public_ip_address
+          - instance_type
+        drift_keys:
+          - instance_type
+          - security_groups
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT
+      errorMapping:
+        _default: { category: TRANSIENT }
+
+    - id: ansible:amazon.aws.s3_bucket
+      ansible:
+        collection: amazon.aws
+        provision_module: s3_bucket
+        deprovision_strategy: state_absent
+        info_module: s3_bucket_info
+        info_filter_key: name
+        result_key: buckets
+        output_keys:
+          - name
+        drift_keys:
+          - versioning
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT
+      errorMapping:
+        _default: { category: TRANSIENT }

@@ -1,0 +1,23 @@
+{
+  "plays": [{
+    "play": {"name": "target"},
+    "tasks": [{
+      "task": {"name": "provision"},
+      "hosts": {
+        "target": {
+          "changed": true,
+          "msg": "",
+          "instances": [{
+            "instance_id": "i-123",
+            "public_ip_address": "54.1.2.3",
+            "instance_type": "t3.micro",
+            "security_groups": [{"group_id": "sg-abc"}]
+          }]
+        }
+      }
+    }]
+  }],
+  "stats": {
+    "target": {"ok": 1, "changed": 1, "unreachable": 0, "failed": 0}
+  }
+}

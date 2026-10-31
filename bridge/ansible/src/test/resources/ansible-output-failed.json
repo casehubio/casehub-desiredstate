@@ -1,0 +1,18 @@
+{
+  "plays": [{
+    "play": {"name": "target"},
+    "tasks": [{
+      "task": {"name": "provision"},
+      "hosts": {
+        "target": {
+          "changed": false,
+          "failed": true,
+          "msg": "Access denied: unauthorized"
+        }
+      }
+    }]
+  }],
+  "stats": {
+    "target": {"ok": 0, "changed": 0, "unreachable": 0, "failed": 1}
+  }
+}
