@@ -169,4 +169,24 @@ class AnsibleBridgeProviderTest {
         assertThat(plan).isNotNull();
         assertThat(plan.planId()).isEqualTo("web-server-1");
     }
+
+    @Test
+    void applyPlanExecutesRealProvisioning() {
+        java.util.concurrent.atomic.AtomicInteger callCount = new java.util.concurrent.atomic.AtomicInteger();
+        provider = new AnsibleBridgeProvider(configs, "ansible-playbook",
+            (workDir, cmd, env, timeout) -> {
+                callCount.incrementAndGet();
+                return new AnsibleProcessResult(0, SUCCESS_JSON, "");
+            });
+
+        var request = new BridgeRequest("ansible:amazon.aws.ec2_instance", "web-server-1",
+            Map.of("instance_type", "t3.micro"), "tenant-1");
+        var plan = provider.plan(request);
+        var result = provider.applyPlan(plan);
+
+        assertThat(result).isInstanceOf(BridgeResult.Success.class);
+        var success = (BridgeResult.Success) result;
+        assertThat(success.outputState()).containsEntry("instance_id", "i-123");
+        assertThat(callCount.get()).isEqualTo(2);
+    }
 }

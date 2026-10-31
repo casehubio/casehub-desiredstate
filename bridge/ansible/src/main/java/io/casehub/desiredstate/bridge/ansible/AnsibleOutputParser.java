@@ -58,7 +58,7 @@ public final class AnsibleOutputParser {
                                                           AnsibleModuleConfig config) {
         Map<String, Object> rawResult = taskResult.result();
 
-        Object collection = rawResult.get(config.resultKey());
+        Object collection = config.resultKey() != null ? rawResult.get(config.resultKey()) : null;
         Map<String, Object> source;
         if (collection instanceof List<?> list && !list.isEmpty()) {
             source = (Map<String, Object>) list.get(0);

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class AnsibleProcess {
 
@@ -50,11 +51,16 @@ public final class AnsibleProcess {
             pb.environment().putAll(env);
             pb.environment().put("ANSIBLE_STDOUT_CALLBACK", "json");
             pb.environment().put("ANSIBLE_NOCOLOR", "true");
-            pb.redirectErrorStream(true);
+            pb.redirectErrorStream(false);
 
             Process process = pb.start();
+            AtomicReference<byte[]> stderrBytes = new AtomicReference<>(new byte[0]);
+            Thread drainer = Thread.ofVirtual().start(() -> {
+                try { stderrBytes.set(process.getErrorStream().readAllBytes()); } catch (IOException ignored) {}
+            });
             String stdout = new String(process.getInputStream().readAllBytes());
-            String stderr = "";
+            try { drainer.join(); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            String stderr = new String(stderrBytes.get());
 
             boolean finished = process.waitFor(timeoutSecs, TimeUnit.SECONDS);
             if (!finished) {

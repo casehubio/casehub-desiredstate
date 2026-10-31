@@ -71,4 +71,17 @@ class AnsibleOutputParserTest {
         var desired = Map.<String, Object>of("instance_type", "t3.micro");
         assertThat(AnsibleOutputParser.detectDrift(actual, desired, List.of())).isFalse();
     }
+
+    @Test
+    void extractOutputStateWithNullResultKeyUsesRawResult() {
+        var taskResult = new AnsibleTaskResult("ok", "", true,
+            Map.of("instance_id", "i-123", "instance_type", "t3.micro"));
+        var config = new AnsibleModuleConfig("amazon.aws", "ec2_instance", "state_absent",
+            null, null, null, null,
+            List.of("instance_id"), List.of());
+
+        var outputState = AnsibleOutputParser.extractOutputState(taskResult, config);
+
+        assertThat(outputState).containsEntry("instance_id", "i-123");
+    }
 }

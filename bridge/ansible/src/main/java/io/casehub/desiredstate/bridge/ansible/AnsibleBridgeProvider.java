@@ -1,6 +1,5 @@
 package io.casehub.desiredstate.bridge.ansible;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.casehub.desiredstate.bridge.BridgeImportResult;
 import io.casehub.desiredstate.bridge.BridgePlan;
@@ -150,19 +149,18 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
         return new BridgePlan(request.resourceId(), summary,
             List.of(new ResourceChange(request.typeId(), request.resourceId(),
                 pbResult.taskResult().changed() ? ChangeAction.UPDATE : ChangeAction.CREATE)),
-            pbResult);
+            new AnsiblePlanContext(request, pbResult));
     }
 
     @Override
     public BridgeResult applyPlan(BridgePlan plan) {
-        if (!(plan.rawPlan() instanceof AnsiblePlaybookResult cachedResult)) {
+        if (!(plan.rawPlan() instanceof AnsiblePlanContext ctx)) {
             return new BridgeResult.Failed("Invalid plan reference", BridgeErrorCategory.CONFIGURATION);
         }
-        return cachedResult.succeeded()
-            ? new BridgeResult.Success(Map.of())
-            : new BridgeResult.Failed(cachedResult.taskResult().msg(),
-                AnsibleErrorClassifier.classify(cachedResult.taskResult()));
+        return apply(ctx.originalRequest());
     }
+
+    record AnsiblePlanContext(BridgeRequest originalRequest, AnsiblePlaybookResult checkResult) {}
 
     private BridgeResult executeAndMapResult(String playbook, SpecParts specParts,
                                               AnsibleModuleConfig config, String tenancyId) {
@@ -241,9 +239,9 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
             if (entry.getKey().startsWith("_")) {
                 reserved.put(entry.getKey(), entry.getValue());
                 switch (entry.getKey()) {
-                    case "_extra_vars" -> extraVars = (Map<String, Object>) entry.getValue();
-                    case "_environment" -> environment = (Map<String, Object>) entry.getValue();
-                    case "_timeout" -> timeout = ((Number) entry.getValue()).intValue();
+                    case "_extra_vars" -> { if (entry.getValue() instanceof Map<?,?> m) extraVars = (Map<String, Object>) m; }
+                    case "_environment" -> { if (entry.getValue() instanceof Map<?,?> m) environment = (Map<String, Object>) m; }
+                    case "_timeout" -> { if (entry.getValue() instanceof Number n) timeout = n.intValue(); }
                 }
             } else {
                 moduleParams.put(entry.getKey(), entry.getValue());
