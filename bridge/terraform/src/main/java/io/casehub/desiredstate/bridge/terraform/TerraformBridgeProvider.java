@@ -48,29 +48,31 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
         return withAuthRetry(request.tenancyId(), () -> {
             var protocol = registry.getProtocol(request.tenancyId());
             var response = protocol.plan(
-                stripNamespace(request.typeId()),
-                request.previousState(),
-                request.spec());
+                    stripNamespace(request.typeId()),
+                    request.previousState(),
+                    request.spec());
             checkDiagnostics(response.diagnostics());
             return new BridgePlan(
-                request.resourceId(),
-                "Plan for " + request.typeId(),
-                List.of(new ResourceChange(request.typeId(), request.resourceId(), ChangeAction.CREATE)),
-                response.plannedPrivate());
+                    request.resourceId(),
+                    request.tenancyId(),
+                    request.typeId(),
+                    "Plan for " + request.typeId(),
+                    List.of(new ResourceChange(request.typeId(), request.resourceId(), ChangeAction.CREATE)),
+                    response.plannedPrivate());
         });
     }
 
     @Override
     public BridgeResult applyPlan(BridgePlan plan) {
-        var protocol = registry.getProtocol(plan.planId());
+        var protocol = registry.getProtocol(plan.tenancyId());
         var response = protocol.apply(
-            stripNamespace(plan.planId()),
-            Map.of(),
-            (byte[]) plan.rawPlan());
+                stripNamespace(plan.typeId()),
+                Map.of(),
+                (byte[]) plan.rawPlan());
         if (hasErrors(response.diagnostics())) {
             return new BridgeResult.Failed(
-                formatErrors(response.diagnostics()),
-                TerraformErrorClassifier.classify(response.diagnostics()));
+                    formatErrors(response.diagnostics()),
+                    TerraformErrorClassifier.classify(response.diagnostics()));
         }
         return new BridgeResult.Success(response.newState());
     }

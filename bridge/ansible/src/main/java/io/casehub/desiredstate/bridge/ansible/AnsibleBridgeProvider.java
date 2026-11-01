@@ -1,6 +1,7 @@
 package io.casehub.desiredstate.bridge.ansible;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.casehub.desiredstate.bridge.BridgeErrorCategory;
 import io.casehub.desiredstate.bridge.BridgeImportResult;
 import io.casehub.desiredstate.bridge.BridgePlan;
 import io.casehub.desiredstate.bridge.BridgeProvider;
@@ -9,7 +10,6 @@ import io.casehub.desiredstate.bridge.BridgeRequest;
 import io.casehub.desiredstate.bridge.BridgeResult;
 import io.casehub.desiredstate.bridge.BridgeStateResult;
 import io.casehub.desiredstate.bridge.ChangeAction;
-import io.casehub.desiredstate.bridge.BridgeErrorCategory;
 import io.casehub.desiredstate.bridge.ImportCapable;
 import io.casehub.desiredstate.bridge.PlanCapable;
 import io.casehub.desiredstate.bridge.ResourceChange;
@@ -137,19 +137,19 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
 
     @Override
     public BridgePlan plan(BridgeRequest request) {
-        var config = requireConfig(request.typeId());
-        var specParts = splitSpec(request.spec());
-        String playbook = PlaybookGenerator.check(config.fqProvisionModule(), specParts.moduleParams);
+        var    config    = requireConfig(request.typeId());
+        var    specParts = splitSpec(request.spec());
+        String playbook  = PlaybookGenerator.check(config.fqProvisionModule(), specParts.moduleParams);
 
         var pbResult = executePlaybook(playbook, specParts, request.tenancyId());
         String summary = pbResult.succeeded()
-            ? (pbResult.taskResult().changed() ? "Changes detected" : "No changes")
-            : "Check mode failed: " + pbResult.taskResult().msg();
+                         ? (pbResult.taskResult().changed() ? "Changes detected" : "No changes")
+                         : "Check mode failed: " + pbResult.taskResult().msg();
 
-        return new BridgePlan(request.resourceId(), summary,
-            List.of(new ResourceChange(request.typeId(), request.resourceId(),
-                pbResult.taskResult().changed() ? ChangeAction.UPDATE : ChangeAction.CREATE)),
-            new AnsiblePlanContext(request, pbResult));
+        return new BridgePlan(request.resourceId(), request.tenancyId(), request.typeId(), summary,
+                              List.of(new ResourceChange(request.typeId(), request.resourceId(),
+                                                         pbResult.taskResult().changed() ? ChangeAction.UPDATE : ChangeAction.CREATE)),
+                              new AnsiblePlanContext(request, pbResult));
     }
 
     @Override

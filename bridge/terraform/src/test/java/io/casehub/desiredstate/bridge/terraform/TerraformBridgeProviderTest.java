@@ -15,13 +15,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TerraformBridgeProviderTest {
 
     private MockTerraformProtocol mockProtocol;
+    private MockTenantProviderRegistry mockRegistry;
+
     private TerraformBridgeProvider provider;
 
     @BeforeEach
     void setup() {
         mockProtocol = new MockTerraformProtocol();
-        var registry = new MockTenantProviderRegistry(mockProtocol);
-        provider = new TerraformBridgeProvider(registry);
+        mockRegistry = new MockTenantProviderRegistry(mockProtocol);
+        provider     = new TerraformBridgeProvider(mockRegistry);
     }
 
     @Test
@@ -129,6 +131,27 @@ class TerraformBridgeProviderTest {
     }
 
     @Test
+    void applyPlanUsesCorrectTenancyIdAndTypeId() {
+        mockProtocol.planResponse  = new PlanResponse(
+                Map.of("id", "i-123"), new byte[]{1, 2}, false, List.of());
+        mockProtocol.applyResponse = new ApplyResponse(
+                Map.of("id", "i-123", "arn", "arn:aws:ec2:..."), new byte[0], List.of());
+
+        var request = new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                        Map.of("ami", "ami-123"), "tenant-1");
+        var plan = provider.plan(request);
+
+        mockRegistry.lastGetProtocolTenancyId = null;
+        mockProtocol.lastApplyResourceType    = null;
+
+        provider.applyPlan(plan);
+
+        assertThat(mockRegistry.lastGetProtocolTenancyId).isEqualTo("tenant-1");
+        assertThat(mockProtocol.lastApplyResourceType).isEqualTo("aws_instance");
+    }
+
+
+    @Test
     void supportedTypesDiscoveredFromProcessManager() {
         var types = provider.supportedTypes();
         assertThat(types).contains("tf:mock/test:mock_resource");
@@ -234,6 +257,8 @@ class TerraformBridgeProviderTest {
         ReadResponse readResponse;
         String lastPlanResourceType;
         Map<String, Object> lastPlanProposedState;
+        String              lastApplyResourceType;
+
 
         @Override
         public ProviderSchema getSchema() {
@@ -255,7 +280,8 @@ class TerraformBridgeProviderTest {
 
         @Override
         public ApplyResponse apply(String resourceType, Map<String, Object> priorState,
-                                    byte[] plannedPrivate) {
+                                   byte[] plannedPrivate) {
+            lastApplyResourceType = resourceType;
             return applyResponse;
         }
 
@@ -300,6 +326,8 @@ class TerraformBridgeProviderTest {
     static class MockTenantProviderRegistry extends TenantProviderRegistry {
         private final TerraformProtocol protocol;
         int evictCount = 0;
+        String lastGetProtocolTenancyId;
+
 
         MockTenantProviderRegistry(TerraformProtocol protocol) {
             super(null, null, null);
@@ -308,6 +336,7 @@ class TerraformBridgeProviderTest {
 
         @Override
         public TerraformProtocol getProtocol(String tenancyId) {
+            lastGetProtocolTenancyId = tenancyId;
             return protocol;
         }
 
