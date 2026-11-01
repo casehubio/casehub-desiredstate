@@ -146,10 +146,12 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
                          ? (pbResult.taskResult().changed() ? "Changes detected" : "No changes")
                          : "Check mode failed: " + pbResult.taskResult().msg();
 
+        List<ResourceChange> changes = pbResult.succeeded() && pbResult.taskResult().changed()
+                                       ? List.of(new ResourceChange(request.typeId(), request.resourceId(), ChangeAction.UPDATE))
+                                       : List.of();
+
         return new BridgePlan(request.resourceId(), request.tenancyId(), request.typeId(), summary,
-                              List.of(new ResourceChange(request.typeId(), request.resourceId(),
-                                                         pbResult.taskResult().changed() ? ChangeAction.UPDATE : ChangeAction.CREATE)),
-                              new AnsiblePlanContext(request, pbResult));
+                              changes, new AnsiblePlanContext(request, pbResult));
     }
 
     @Override

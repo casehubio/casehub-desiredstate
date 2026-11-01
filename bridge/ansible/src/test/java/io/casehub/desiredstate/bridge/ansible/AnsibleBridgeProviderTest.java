@@ -40,6 +40,13 @@ class AnsibleBridgeProviderTest {
         {"plays":[{"play":{"name":"target"},"tasks":[{"task":{"name":"read_state"},
         "hosts":{"target":{"changed":false,"msg":"","instances":[]}}}]}],
         "stats":{"target":{"ok":1,"changed":0,"unreachable":0,"failed":0}}}""";
+    private static final String NO_CHANGES_JSON = """
+                                                  {"plays":[{"play":{"name":"target"},"tasks":[{"task":{"name":"provision"},
+                                                  "hosts":{"target":{"changed":false,"msg":"",
+                                                  "instances":[{"instance_id":"i-123","public_ip_address":"54.1.2.3",
+                                                  "instance_type":"t3.micro"}]}}}]}],
+                                                  "stats":{"target":{"ok":1,"changed":0,"unreachable":0,"failed":0}}}""";
+
 
     private Map<String, AnsibleModuleConfig> configs;
     private String capturedStdout;
@@ -169,6 +176,18 @@ class AnsibleBridgeProviderTest {
         assertThat(plan).isNotNull();
         assertThat(plan.planId()).isEqualTo("web-server-1");
     }
+
+    @Test
+    void planReturnsEmptyChangesWhenNoChangeNeeded() {
+        capturedStdout = NO_CHANGES_JSON;
+        var request = new BridgeRequest("ansible:amazon.aws.ec2_instance", "web-server-1",
+                                        Map.of("instance_type", "t3.micro"), "tenant-1");
+        var plan = provider.plan(request);
+
+        assertThat(plan.resourceChanges()).isEmpty();
+        assertThat(plan.summary()).isEqualTo("No changes");
+    }
+
 
     @Test
     void applyPlanExecutesRealProvisioning() {
