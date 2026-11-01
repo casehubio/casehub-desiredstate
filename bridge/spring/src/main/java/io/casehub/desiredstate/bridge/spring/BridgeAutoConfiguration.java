@@ -11,11 +11,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 
 @AutoConfiguration
@@ -47,15 +48,14 @@ public class BridgeAutoConfiguration implements SmartInitializingSingleton {
     static List<BridgeDescriptor> discoverManifests(ClassLoader classLoader) {
         List<BridgeDescriptor> descriptors = new ArrayList<>();
         try {
-            Enumeration<URL> urls = classLoader.getResources("META-INF/desiredstate/bridges/");
-            while (urls.hasMoreElements()) {
-                URL url = urls.nextElement();
-                try (InputStream is = url.openStream()) {
-                    if (is != null) {
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver(classLoader);
+            for (Resource resource : resolver.getResources("classpath*:META-INF/desiredstate/bridges/*.yaml")) {
+                if (resource.isReadable()) {
+                    try (InputStream is = resource.getInputStream()) {
                         descriptors.add(BridgeManifestParser.parse(is));
+                    } catch (Exception e) {
+                        // skip malformed manifests
                     }
-                } catch (Exception e) {
-                    // skip malformed manifests
                 }
             }
         } catch (IOException e) {

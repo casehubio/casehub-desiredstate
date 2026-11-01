@@ -1,0 +1,9 @@
+bridge:
+  protocol: test-provider
+  version: "1.0"
+
+  types:
+    - id: test_resource
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT

@@ -5,11 +5,11 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
-import java.util.Enumeration;
 import java.util.Map;
 
 @AutoConfiguration
@@ -28,18 +28,16 @@ public class AnsibleBridgeAutoConfiguration {
 
     private Map<String, AnsibleModuleConfig> discoverConfigs() {
         try {
-            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            Enumeration<URL> urls = cl.getResources("META-INF/desiredstate/bridges/");
-            while (urls.hasMoreElements()) {
-                URL url = urls.nextElement();
-                try (InputStream is = url.openStream()) {
-                    if (is != null) {
+            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            for (Resource resource : resolver.getResources("classpath*:META-INF/desiredstate/bridges/*.yaml")) {
+                if (resource.isReadable()) {
+                    try (InputStream is = resource.getInputStream()) {
                         var configs = AnsibleManifestExtensionParser.parse(is);
                         if (!configs.isEmpty()) {
                             return configs;
                         }
-                    }
-                } catch (Exception ignored) {}
+                    } catch (Exception ignored) {}
+                }
             }
         } catch (IOException ignored) {}
         return Map.of();
