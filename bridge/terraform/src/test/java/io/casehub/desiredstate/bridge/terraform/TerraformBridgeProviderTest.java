@@ -117,6 +117,24 @@ class TerraformBridgeProviderTest {
     }
 
     @Test
+    void readStateIgnoresWarningDiagnostics() {
+        mockProtocol.readResponse = new ReadResponse(
+                Map.of("id", "i-123", "ami", "ami-123"), new byte[0], List.of());
+        mockProtocol.planResponse = new PlanResponse(
+                Map.of("id", "i-123", "ami", "ami-123"), new byte[0], false,
+                List.of(new TfDiagnostic(TfDiagnostic.Severity.WARNING, "Deprecated", "Use ami_id instead")));
+
+        var request = new BridgeReadRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                            "tenant-1", Map.of("id", "i-123"), Map.of("ami", "ami-123"));
+        var result = provider.readState(request);
+
+        assertThat(result).isInstanceOf(BridgeStateResult.Found.class);
+        var found = (BridgeStateResult.Found) result;
+        assertThat(found.state()).containsEntry("status", "present");
+    }
+
+
+    @Test
     void stripNamespaceExtractsResourceType() {
         mockProtocol.planResponse = new PlanResponse(
             Map.of(), new byte[0], false, List.of());

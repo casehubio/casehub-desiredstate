@@ -168,7 +168,7 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
             stripNamespace(request.typeId()),
             response.currentState(),
             request.desiredSpec());
-        boolean drifted = !planResp.diagnostics().isEmpty() || planResp.requiresReplace();
+        boolean drifted = hasErrors(planResp.diagnostics()) || planResp.requiresReplace();
         Map<String, Object> state = new HashMap<>(response.currentState());
         state.put("status", drifted ? "drifted" : "present");
         return new BridgeStateResult.Found(state);
