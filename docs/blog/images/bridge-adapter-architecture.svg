@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 440" font-family="Inter, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="8" markerHeight="6" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 7" refX="9" refY="3.5" markerWidth="8" markerHeight="6" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0284c7"/>
+    </marker>
+  </defs>
+
+  <rect width="820" height="440" fill="#fafafa" rx="8"/>
+
+  <!-- Title -->
+  <text x="410" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#1e293b">Bridge Adapter Architecture</text>
+
+  <!-- Reconciliation Loop -->
+  <rect x="30" y="60" width="180" height="80" rx="8" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.5"/>
+  <text x="120" y="90" text-anchor="middle" font-size="13" font-weight="600" fill="#0c4a6e">Reconciliation</text>
+  <text x="120" y="108" text-anchor="middle" font-size="13" font-weight="600" fill="#0c4a6e">Loop</text>
+  <text x="120" y="128" text-anchor="middle" font-size="10" fill="#64748b">graphs, plans, faults</text>
+
+  <!-- NodeProvisioner SPI -->
+  <rect x="290" y="60" width="180" height="80" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="380" y="90" text-anchor="middle" font-size="13" font-weight="600" fill="#14532d">NodeProvisioner</text>
+  <text x="380" y="108" text-anchor="middle" font-size="11" fill="#166534">SPI boundary</text>
+  <text x="380" y="126" text-anchor="middle" font-size="10" fill="#64748b">provision / deprovision</text>
+
+  <!-- Arrow: Loop -> NodeProvisioner -->
+  <line x1="210" y1="100" x2="287" y2="100" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="248" y="92" text-anchor="middle" font-size="9" fill="#64748b">executes</text>
+
+  <!-- BridgeProvisioner -->
+  <rect x="550" y="60" width="230" height="80" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="665" y="88" text-anchor="middle" font-size="13" font-weight="600" fill="#78350f">BridgeProvisioner</text>
+  <text x="665" y="106" text-anchor="middle" font-size="10" fill="#92400e">adapts BridgeProvider</text>
+  <text x="665" y="122" text-anchor="middle" font-size="10" fill="#92400e">to NodeProvisioner</text>
+
+  <!-- Arrow: NodeProvisioner -> BridgeProvisioner -->
+  <line x1="470" y1="100" x2="547" y2="100" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="508" y="92" text-anchor="middle" font-size="9" fill="#64748b">implements</text>
+
+  <!-- Dividing line -->
+  <line x1="30" y1="180" x2="790" y2="180" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="6,4"/>
+  <text x="410" y="198" text-anchor="middle" font-size="10" font-weight="600" fill="#94a3b8">BridgeProvider SPI</text>
+
+  <!-- Terraform adapter -->
+  <rect x="80" y="220" width="280" height="180" rx="8" fill="#fff" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="220" y="248" text-anchor="middle" font-size="13" font-weight="600" fill="#5b21b6">TerraformBridgeProvider</text>
+  <text x="220" y="268" text-anchor="middle" font-size="10" fill="#7c3aed">gRPC go-plugin protocol</text>
+
+  <rect x="100" y="285" width="110" height="36" rx="4" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="155" y="300" text-anchor="middle" font-size="9" font-weight="500" fill="#6d28d9">GoPluginHost</text>
+  <text x="155" y="313" text-anchor="middle" font-size="8" fill="#8b5cf6">mTLS + handshake</text>
+
+  <rect x="230" y="285" width="110" height="36" rx="4" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="285" y="300" text-anchor="middle" font-size="9" font-weight="500" fill="#6d28d9">SchemaTranslator</text>
+  <text x="285" y="313" text-anchor="middle" font-size="8" fill="#8b5cf6">zero-config types</text>
+
+  <rect x="100" y="335" width="110" height="36" rx="4" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="155" y="350" text-anchor="middle" font-size="9" font-weight="500" fill="#6d28d9">CtyEncoder</text>
+  <text x="155" y="363" text-anchor="middle" font-size="8" fill="#8b5cf6">msgpack ser/deser</text>
+
+  <rect x="230" y="335" width="110" height="36" rx="4" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="285" y="350" text-anchor="middle" font-size="9" font-weight="500" fill="#6d28d9">TenantRegistry</text>
+  <text x="285" y="363" text-anchor="middle" font-size="8" fill="#8b5cf6">process pooling</text>
+
+  <!-- Ansible adapter -->
+  <rect x="460" y="220" width="280" height="180" rx="8" fill="#fff" stroke="#059669" stroke-width="1.5"/>
+  <text x="600" y="248" text-anchor="middle" font-size="13" font-weight="600" fill="#065f46">AnsibleBridgeProvider</text>
+  <text x="600" y="268" text-anchor="middle" font-size="10" fill="#059669">CLI subprocess execution</text>
+
+  <rect x="480" y="285" width="110" height="36" rx="4" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="535" y="300" text-anchor="middle" font-size="9" font-weight="500" fill="#047857">PlaybookGen</text>
+  <text x="535" y="313" text-anchor="middle" font-size="8" fill="#10b981">per-operation YAML</text>
+
+  <rect x="610" y="285" width="110" height="36" rx="4" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="665" y="300" text-anchor="middle" font-size="9" font-weight="500" fill="#047857">OutputParser</text>
+  <text x="665" y="313" text-anchor="middle" font-size="8" fill="#10b981">JSON callback</text>
+
+  <rect x="480" y="335" width="110" height="36" rx="4" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="535" y="350" text-anchor="middle" font-size="9" font-weight="500" fill="#047857">InventoryGen</text>
+  <text x="535" y="363" text-anchor="middle" font-size="8" fill="#10b981">host + vars</text>
+
+  <rect x="610" y="335" width="110" height="36" rx="4" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1"/>
+  <text x="665" y="350" text-anchor="middle" font-size="9" font-weight="500" fill="#047857">ErrorClassifier</text>
+  <text x="665" y="363" text-anchor="middle" font-size="8" fill="#10b981">retry policy</text>
+
+  <!-- Arrows from BridgeProvisioner down to both -->
+  <line x1="610" y1="140" x2="220" y2="217" stroke="#0284c7" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+  <line x1="665" y1="140" x2="600" y2="217" stroke="#0284c7" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+  <!-- Caption -->
+  <text x="410" y="428" text-anchor="middle" font-size="11" fill="#475569" font-style="italic">The runtime sees NodeProvisioner. The bridge sees BridgeProvider. Neither knows the other's details.</text>
+</svg>
