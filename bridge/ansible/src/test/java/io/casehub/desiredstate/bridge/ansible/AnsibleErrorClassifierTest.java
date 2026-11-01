@@ -48,4 +48,29 @@ class AnsibleErrorClassifierTest {
         var result = new AnsibleTaskResult("timeout", "Execution timed out", false);
         assertThat(AnsibleErrorClassifier.classify(result)).isEqualTo(BridgeErrorCategory.TRANSIENT);
     }
+
+    @Test
+    void failedWithAlreadyExistsIsPermanent() {
+        var result = new AnsibleTaskResult("failed", "Resource already exists: vpc-123", false);
+        assertThat(AnsibleErrorClassifier.classify(result)).isEqualTo(BridgeErrorCategory.PERMANENT);
+    }
+
+    @Test
+    void failedWithConflictIsPermanent() {
+        var result = new AnsibleTaskResult("failed", "Conflict: resource in use by another process", false);
+        assertThat(AnsibleErrorClassifier.classify(result)).isEqualTo(BridgeErrorCategory.PERMANENT);
+    }
+
+    @Test
+    void failedWithNotSupportedIsPermanent() {
+        var result = new AnsibleTaskResult("failed", "Operation not supported on this instance type", false);
+        assertThat(AnsibleErrorClassifier.classify(result)).isEqualTo(BridgeErrorCategory.PERMANENT);
+    }
+
+    @Test
+    void failedWithNotFoundIsPermanent() {
+        var result = new AnsibleTaskResult("failed", "Resource not found: i-deleted", false);
+        assertThat(AnsibleErrorClassifier.classify(result)).isEqualTo(BridgeErrorCategory.PERMANENT);
+    }
+
 }

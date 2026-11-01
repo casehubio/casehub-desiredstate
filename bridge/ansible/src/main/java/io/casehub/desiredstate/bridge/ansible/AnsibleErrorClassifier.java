@@ -17,17 +17,22 @@ public final class AnsibleErrorClassifier {
         String msg = taskResult.msg() != null ? taskResult.msg().toLowerCase(Locale.ROOT) : "";
 
         if (matchesAny(msg, "auth", "credential", "unauthorized",
-                "accessdenied", "forbidden", "permission denied")) {
+                       "accessdenied", "forbidden", "permission denied")) {
             return BridgeErrorCategory.AUTHENTICATION;
         }
 
         if (matchesAny(msg, "required", "missing parameter", "unknown module",
-                "not found in collection", "invalid")) {
+                       "not found in collection")) {
             return BridgeErrorCategory.CONFIGURATION;
         }
 
         if (matchesAny(msg, "limit", "quota", "exceeded", "capacity", "too many")) {
             return BridgeErrorCategory.QUOTA;
+        }
+
+        if (matchesAny(msg, "already exists", "conflict", "not supported",
+                       "incompatible", "invalid", "not found")) {
+            return BridgeErrorCategory.PERMANENT;
         }
 
         return BridgeErrorCategory.TRANSIENT;
