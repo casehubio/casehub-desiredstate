@@ -16,6 +16,13 @@
 | `engine-adapter/` | `casehub-desiredstate-engine` | `io.casehub.desiredstate.engine` | `CaseTransitionExecutor` displaces `SimpleTransitionExecutor`. `TransitionWorkflowGenerator` generates Serverless Workflow 1.0 definitions. `DesiredStateDispatch` registers `desiredstate:dispatch` via `CallableDispatchRegistry` and handles full PendingApproval lifecycle within workflow steps. `DesiredStateReplanDispatch` registers `desiredstate:replan` for RAS-triggered situation response via `SituationRecompilerEngine`. `DesiredStateExecutionRegistry` tracks per-execution graph/tenancy context and active case IDs. `DesiredStateExecutionContext` record. CTE pre-filters approval-gated nodes before case creation. |
 | `work-adapter/` | `casehub-desiredstate-work` | `io.casehub.desiredstate.work` | `WorkItemPendingApprovalHandler` -- WorkItem-backed approval lifecycle via `WorkItemCreator` SPI. Classpath-activated, displaces `NoOpPendingApprovalHandler`. |
 | `ras-adapter/` | `casehub-desiredstate-ras` | `io.casehub.desiredstate.ras` | `NodeFaultGanglion` (NODE_FAULTED -> detected, NODE_RECOVERED -> anti), `PersistentDriftGanglion` (persistent drift detection), `DesiredStateSituationDefinitionProvider` (3 situations: repeated-failure via Streak(3), persistent-drift via Count(3), zone-degradation via Rate(60%, 10)), `DesiredStateCorrelationKeyExtractor` (extracts `parentNodeId` for zone-level aggregation). |
+| `bridge/api/` | `casehub-desiredstate-bridge-api` | `io.casehub.desiredstate.bridge` | Bridge SPI: `BridgeProvider`, `PlanCapable`, `SuspendCapable`, `ImportCapable`, `BridgeConnector`, `BridgeOperation`, request/response types (`BridgeRequest`, `BridgeResult`, `BridgeImportResult`, `BridgeStateResult`, `BridgePlan`), `BridgeNodeSpec`, descriptor records (`BridgeDescriptor`, `BridgeTypeDescriptor`, `BridgeLifecycleConfig`), enums (`BridgeErrorCategory`, `ChangeAction`, `LifecycleMode`). |
+| `bridge/runtime/` | `casehub-desiredstate-bridge` | `io.casehub.desiredstate.bridge.runtime` | `BridgeProvisioner` (adapts `BridgeProvider` to `NodeProvisioner`, supports `PlanCapable`/`SuspendCapable`/`ImportCapable` mixins), `BridgeActualStateAdapter` (manifest-driven state mapping), `BridgeDiscovery` (manifest → `BeanRegistration`), `BridgeManifestParser` (YAML → `BridgeDescriptor`). |
+| `bridge/deployment/` | `casehub-desiredstate-bridge-deployment` | `io.casehub.desiredstate.bridge.deployment` | Quarkus build extension: `META-INF/desiredstate/bridges/*.yaml` discovery, `BridgeRecorder`, synthetic bean registration, native image resource registration. |
+| `bridge/spring/` | `casehub-desiredstate-bridge-spring` | `io.casehub.desiredstate.bridge.spring` | Spring `@AutoConfiguration` — classpath bridge YAML discovery, `BridgeDiscovery` bean registration via `SmartInitializingSingleton`. |
+| `bridge/testing/` | `casehub-desiredstate-bridge-testing` | `io.casehub.desiredstate.bridge.testing` | `MockBridgeProvider` (with fault injection), `MockPlanCapableBridgeProvider`, `MockSuspendCapableBridgeProvider`, `MockImportCapableBridgeProvider`, TCK contract tests (`BridgeProviderContractTest`, `PlanCapableContractTest`, `SuspendCapableContractTest`, `ImportCapableContractTest`), `BridgeTestExtension` (JUnit5). Test scope only. |
+| `bridge/ansible/` | `casehub-desiredstate-bridge-ansible` | `io.casehub.desiredstate.bridge.ansible` | `AnsibleBridgeProvider` (`BridgeProvider` + `ImportCapable` + `PlanCapable`), `AnsibleManifestExtensionParser`, `PlaybookGenerator`, `AnsibleOutputParser`, `InventoryGenerator`, `AnsibleProcess` (temp file security), `AnsibleErrorClassifier`. CLI-based module execution via `ansible-playbook` with JSON callback. |
+| `bridge/terraform/` | `casehub-desiredstate-bridge-terraform` | `io.casehub.desiredstate.bridge.terraform` | `TerraformBridgeProvider` (`BridgeProvider` + `PlanCapable` + `ImportCapable`), `TenantProviderRegistry` (per-tenant process pooling), `ProviderProcessManager` (binary lifecycle + gRPC), `GoPluginHost` (go-plugin handshake, mTLS, Unix domain socket), `TerraformProtocol`/`TerraformProtocolFactory` (v5/v6), `CtyDecoder`/`CtyEncoder` (cty↔Java msgpack), `SchemaTranslator`, `SchemaCache`, `ProviderRegistryClient` (download + SHA256 + GPG verification), `TerraformErrorClassifier`. |
 | `persistence-jpa/` | `casehub-desiredstate-persistence-jpa` | `io.casehub.desiredstate.persistence.jpa` | `JpaFaultCountStore` -- JPA-backed `FaultCountStore` with Flyway migration V1. `FaultCountEntity` with composite key `(namespace, tenancy_id, node_id)`. `JpaReconciliationStateStore` -- JPA-backed `ReconciliationStateStore` with Flyway migration V2. Stores serialized `DesiredStateGraph` as JSON per tenant for orphan spec resolution across restarts. `ReconciliationStateEntity` with `tenancy_id` PK. `GraphSerializer` (package-private) handles Jackson ser/deser with FQCN discriminator for polymorphic `NodeSpec`. Portable SQL (H2 MODE=PostgreSQL + PostgreSQL). Tier 2 in CDI priority ladder -- classpath-activated, displaces `@DefaultBean` fallbacks. |
 | `examples/dungeon/` | `casehub-desiredstate-example-dungeon` | `io.casehub.desiredstate.example.dungeon` | Dungeon domain: rooms, creatures, traps as nodes; `GoblinProvisioner`, `HeroRaidFaultPolicy`, `DungeonGoalCompiler`, `DungeonVisualizer`. |
 | `examples/pipeline/` | `casehub-desiredstate-example-pipeline` | `io.casehub.desiredstate.example.pipeline` | Data pipeline: medallion-layered (Bronze/Silver/Gold) with schema validation, three-tier fault escalation, pluggable `ExecutionBackend` strategy. Demonstrates engine-adapter integration via `PipelineCaseTransitionTest`. |
@@ -221,6 +228,64 @@ When `casehub-desiredstate-engine` is on the classpath, `CaseTransitionExecutor`
 | `DesiredStateExecutionContext` | Record: `(DesiredStateGraph graph, String tenancyId)`. |
 
 V1 reports outcomes optimistically -- proper case completion observation is a follow-up.
+
+---
+
+## Bridge Adapter Architecture
+
+Bridge adapters connect the desired-state runtime to external infrastructure platforms without requiring Java `NodeProvisioner` implementations. A YAML manifest declares resource types and their lifecycle operations; the bridge runtime wires everything into the reconciliation loop automatically.
+
+### Discovery Pipeline
+
+1. **Manifest scan** -- At build time (Quarkus deployment extension) or startup (Spring auto-config), bridge manifests are discovered at `META-INF/desiredstate/bridges/*.yaml`
+2. **Parsing** -- `BridgeManifestParser` deserializes YAML into `BridgeDescriptor` (protocol, credential ref, type descriptors with lifecycle config)
+3. **Bean registration** -- `BridgeDiscovery` converts descriptors into `BeanRegistration` entries: one `NodeProvisioner` (via `BridgeProvisioner`) and one `ActualStateAdapter` (via `BridgeActualStateAdapter`) per bridge
+4. **Framework wiring** -- Quarkus: `BridgeRecorder` registers synthetic beans at `RUNTIME_INIT`. Spring: `SmartInitializingSingleton` registers beans after context refresh
+
+### BridgeProvisioner Adapter
+
+`BridgeProvisioner` implements `NodeProvisioner` and delegates to the underlying `BridgeProvider`. It transparently handles capability mixins:
+
+- **PlanCapable** -- if the provider implements `PlanCapable`, `BridgeProvisioner` calls `plan()` before `provision()` to preview changes
+- **ImportCapable** -- when `BridgeNodeSpec.importId()` is set and no state exists in `BridgeOutputStateStore`, `BridgeProvisioner` calls `importResource()` instead of provision, seeding the state store from cloud reality
+- **SuspendCapable** -- routes `suspend()`/`resume()` calls to the provider when supported
+
+### Implementing a New BridgeProvider
+
+To add support for a new infrastructure platform:
+
+1. **Create the provider** -- implement `BridgeProvider` with `provision`, `deprovision`, `readState`. Optionally implement `PlanCapable`, `ImportCapable`, `SuspendCapable`
+2. **Error classification** -- implement an error classifier that maps platform-specific errors to `BridgeErrorCategory` (`TRANSIENT`, `PERMANENT`, `AUTH`). TRANSIENT errors are retried; PERMANENT errors are not; AUTH errors trigger credential refresh
+3. **Manifest extension** (optional) -- if the platform needs per-type configuration beyond the standard `BridgeTypeDescriptor`, create an extension parser (see `AnsibleManifestExtensionParser` for the pattern)
+4. **Write a bridge manifest** -- place a YAML file at `META-INF/desiredstate/bridges/` declaring the protocol and types
+
+### Existing Adapters
+
+| Adapter | Protocol | Communication | Key Differentiator |
+|---------|----------|--------------|-------------------|
+| Ansible | CLI | `ansible-playbook` subprocess with JSON callback | Per-type module routing via manifest `ansible:` extension blocks. Playbook + inventory generated per operation |
+| Terraform | gRPC | go-plugin protocol (v5/v6) direct to provider binary | Zero-config schema discovery. Per-tenant process isolation with config-hash routing. Auto-mTLS. GPG signature verification on provider download |
+
+### Testing with bridge/testing TCK
+
+The `bridge/testing` module provides a test framework for validating `BridgeProvider` implementations:
+
+- **Mock providers** -- `MockBridgeProvider`, `MockPlanCapableBridgeProvider`, `MockSuspendCapableBridgeProvider`, `MockImportCapableBridgeProvider` with fault injection for simulating failures
+- **Contract tests** -- `BridgeProviderContractTest` validates the core lifecycle contract. `PlanCapableContractTest`, `SuspendCapableContractTest`, `ImportCapableContractTest` validate each capability mixin independently
+- **BridgeTestExtension** -- JUnit5 extension that wires up the mock infrastructure. Use with `@RegisterExtension`
+
+```java
+@RegisterExtension
+static BridgeTestExtension bridge = BridgeTestExtension.builder()
+    .provider(new MyCustomBridgeProvider())
+    .build();
+
+@Test
+void provisionCreatesResource() {
+    BridgeResult result = bridge.provision("my-node", Map.of("key", "value"));
+    assertThat(result.status()).isEqualTo(BridgeResult.Status.SUCCESS);
+}
+```
 
 ---
 

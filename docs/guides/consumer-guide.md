@@ -32,6 +32,7 @@ The framework is domain-agnostic. It provides graph management, topological tran
 | `bridge/api/` | `casehub-desiredstate-bridge-api` | Bridge SPI for external infrastructure adapters. `BridgeProvider`, `PlanCapable`, `SuspendCapable`, request/response types, and `BridgeDescriptor` (includes `credentialRef` for credential resolution). |
 | `bridge/runtime/` | `casehub-desiredstate-bridge` | Bridge runtime. `BridgeProvisioner` adapts `BridgeProvider` to `NodeProvisioner`. Manifest YAML discovery at `META-INF/desiredstate/bridges/*.yaml`. |
 | `bridge/terraform/` | `casehub-desiredstate-bridge-terraform` | Terraform/OpenTofu bridge adapter. Go-plugin gRPC protocol (v5/v6), zero-config schema discovery, plan/apply/read lifecycle. Per-tenant process isolation via `TenantProviderRegistry`. Credential resolution via platform `CredentialResolver` -- configure `credentialRef` in bridge manifest YAML. |
+| `bridge/ansible/` | `casehub-desiredstate-bridge-ansible` | Ansible collection bridge adapter. CLI-based module execution via `ansible-playbook` with JSON callback. Per-type module config via manifest YAML `ansible:` extension blocks. |
 | `annotations/runtime/` | `casehub-desiredstate-annotations` | Annotation-driven graph declarations. Two models: interface (`@DesiredState` + `@Node`) for centralized graphs, class-based (`@DeclareNode`) for cross-module composition. `@DependsOn` supports string IDs and type-safe `Class<? extends NodeSpec>[]` refs. Graph rewriting via `@GraphRule` (parameterized pattern matching with `@Match`, `@DirectDep`, `@Reaches`, `@NotExists` or imperative with full `DesiredStateGraph` access). Graph validation via `@GraphInvariant` (same pattern vocabulary, universal quantification — fires after rules converge). Standalone rule/invariant containers: `@GraphRule(graph = {"pipeline:*"})` classes with include/exclude matching (`!` prefix for exclusions). `@Tier(nodeType)` eliminates runtime `ReviewSpecFactory` probe. Also: `@FaultPolicyDef`, `@GoalMethod`. The build extension (deployment module, auto-activated) scans annotations and generates `GoalCompiler` + `ThresholdFaultPolicy` CDI beans. |
 
 ---
@@ -611,6 +612,78 @@ tests:
     <scope>test</scope>
 </dependency>
 ```
+
+---
+
+## Bridge Adapters
+
+Bridge adapters connect the desired-state runtime to external infrastructure platforms. Each adapter implements `BridgeProvider` (defined in `bridge/api/`) and is discovered via a YAML manifest at `META-INF/desiredstate/bridges/*.yaml`. The runtime wires `BridgeProvisioner` (from `bridge/runtime/`) as the `NodeProvisioner` for bridge-managed node types.
+
+### Manifest Format
+
+Every bridge adapter starts with a manifest YAML that declares the bridge protocol and the resource types it manages:
+
+```yaml
+bridge:
+  protocol: terraform          # or "ansible"
+  credentialRef: my-creds      # optional -- resolved via platform CredentialResolver
+  types:
+    - nodeType: "my:resource"
+      lifecycle:
+        provision: true
+        deprovision: true
+        readState: true
+```
+
+The exact manifest structure varies by adapter -- Terraform auto-discovers types from the provider schema, while Ansible requires explicit type declarations with `ansible:` extension blocks.
+
+### BridgeProvider SPI
+
+Adapters implement `BridgeProvider` and optionally mix in capability interfaces:
+
+| Interface | Methods | Purpose |
+|-----------|---------|---------|
+| `BridgeProvider` | `provision`, `deprovision`, `readState` | Core lifecycle operations |
+| `PlanCapable` | `plan` | Dry-run: preview changes before applying |
+| `ImportCapable` | `importResource` | Adopt existing cloud resources into management |
+| `SuspendCapable` | `suspend`, `resume` | Pause/resume managed resources |
+
+### Ansible Bridge
+
+The Ansible adapter (`bridge/ansible/`) executes Ansible collection modules via `ansible-playbook` with a JSON callback plugin. Each operation (provision, deprovision, read) maps to a configurable Ansible module.
+
+**Manifest extension:** Add `ansible:` blocks per type to configure module routing:
+
+```yaml
+bridge:
+  protocol: ansible
+  types:
+    - nodeType: "ansible:ec2"
+      ansible:
+        provision:
+          module: amazon.aws.ec2_instance
+          present_state: running
+        deprovision:
+          module: amazon.aws.ec2_instance
+          absent_state: absent
+        info:
+          module: amazon.aws.ec2_instance_info
+        outputKeys:
+          - instance_id
+          - public_ip_address
+        driftKeys:
+          - instance_type
+          - security_groups
+```
+
+- `provision.module` / `deprovision.module` / `info.module` -- Ansible module FQCNs for each operation
+- `present_state` / `absent_state` -- the `state` parameter passed to the module
+- `outputKeys` -- attributes extracted from the module result and stored in `BridgeOutputStateStore`
+- `driftKeys` -- attributes compared on `readState` to detect configuration drift
+
+**Capabilities:** `AnsibleBridgeProvider` implements `BridgeProvider` + `PlanCapable` + `ImportCapable`. Plan compares desired spec against current state and reports what would change. Import reads existing resource state via the info module.
+
+**Error classification:** `AnsibleErrorClassifier` classifies module failures as `TRANSIENT` (default), `PERMANENT` (non-retryable errors like invalid parameters, missing resources, permission denied), or `AUTH` (authentication/credential failures).
 
 ---
 
