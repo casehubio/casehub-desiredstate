@@ -13,6 +13,7 @@ import io.casehub.desiredstate.bridge.ChangeAction;
 import io.casehub.desiredstate.bridge.ImportCapable;
 import io.casehub.desiredstate.bridge.PlanCapable;
 import io.casehub.desiredstate.bridge.ResourceChange;
+import io.casehub.desiredstate.bridge.SuspendCapable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,22 +25,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, PlanCapable {
+public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, PlanCapable, SuspendCapable {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final Map<String, AnsibleModuleConfig> moduleConfigs;
-    private final String binaryPath;
-    private final ProcessExecutor processExecutor;
+    private final String                           binaryPath;
+    private final ProcessExecutor                  processExecutor;
 
     public AnsibleBridgeProvider(Map<String, AnsibleModuleConfig> moduleConfigs, String binaryPath) {
         this(moduleConfigs, binaryPath, AnsibleProcess::execute);
     }
 
     public AnsibleBridgeProvider(Map<String, AnsibleModuleConfig> moduleConfigs,
-                                  String binaryPath, ProcessExecutor processExecutor) {
-        this.moduleConfigs = moduleConfigs;
-        this.binaryPath = binaryPath;
+                                 String binaryPath, ProcessExecutor processExecutor) {
+        this.moduleConfigs   = moduleConfigs;
+        this.binaryPath      = binaryPath;
         this.processExecutor = processExecutor;
     }
 
@@ -55,29 +56,29 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
 
     @Override
     public BridgeResult apply(BridgeRequest request) {
-        var config = requireConfig(request.typeId());
-        var specParts = splitSpec(request.spec());
-        String playbook = PlaybookGenerator.provision(config.fqProvisionModule(), specParts.moduleParams);
+        var    config    = requireConfig(request.typeId());
+        var    specParts = splitSpec(request.spec());
+        String playbook  = PlaybookGenerator.provision(config.fqProvisionModule(), specParts.moduleParams);
 
         return executeAndMapResult(playbook, specParts, config, request.tenancyId());
     }
 
     @Override
     public BridgeResult destroy(BridgeRequest request) {
-        var config = requireConfig(request.typeId());
+        var config    = requireConfig(request.typeId());
         var specParts = splitSpec(request.spec());
 
         String fqModule = "deprovision_module".equals(config.deprovisionStrategy())
-            ? config.fqDeprovisionModule() : config.fqProvisionModule();
+                          ? config.fqDeprovisionModule() : config.fqProvisionModule();
         String playbook = PlaybookGenerator.deprovision(fqModule, specParts.moduleParams,
-            config.deprovisionStrategy());
+                                                        config.deprovisionStrategy());
 
         var pbResult = executePlaybook(playbook, specParts, request.tenancyId());
         if (pbResult.succeeded()) {
             return new BridgeResult.Success(Map.of());
         }
         return new BridgeResult.Failed(pbResult.taskResult().msg(),
-            AnsibleErrorClassifier.classify(pbResult.taskResult()));
+                                       AnsibleErrorClassifier.classify(pbResult.taskResult()));
     }
 
     @Override
@@ -94,7 +95,7 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
 
         var specParts = splitSpec(request.desiredSpec());
         String playbook = PlaybookGenerator.readState(config.fqInfoModule(),
-            config.infoFilterKey(), asList(filterValue));
+                                                      config.infoFilterKey(), asList(filterValue));
 
         var pbResult = executePlaybook(playbook, specParts, request.tenancyId());
         if (!pbResult.succeeded()) {
@@ -107,7 +108,7 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
         }
 
         boolean drifted = AnsibleOutputParser.detectDrift(outputState,
-            request.desiredSpec(), config.driftKeys());
+                                                          request.desiredSpec(), config.driftKeys());
         outputState.put("status", drifted ? "drifted" : "present");
         return new BridgeStateResult.Found(outputState);
     }
@@ -121,7 +122,7 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
 
         var specParts = splitSpec(Map.of());
         String playbook = PlaybookGenerator.readState(config.fqInfoModule(),
-            config.infoFilterKey(), asList(importId));
+                                                      config.infoFilterKey(), asList(importId));
 
         var pbResult = executePlaybook(playbook, specParts, tenancyId);
         if (!pbResult.succeeded()) {
@@ -162,25 +163,67 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
         return apply(ctx.originalRequest());
     }
 
+    @Override
+    public BridgeResult suspend(BridgeRequest request) {
+        var config = requireConfig(request.typeId());
+        if (!config.supportsSuspend()) {
+            return new BridgeResult.Failed(
+                    "Suspend not supported for type: " + request.typeId(),
+                    BridgeErrorCategory.CONFIGURATION);
+        }
+        var specParts = splitSpec(request.spec());
+        String playbook = PlaybookGenerator.suspend(
+                config.fqSuspendModule(), specParts.moduleParams,
+                config.suspendStateParam(), config.suspendStateValue());
+
+        var pbResult = executePlaybook(playbook, specParts, request.tenancyId());
+        if (pbResult.succeeded()) {
+            return new BridgeResult.Success(Map.of());
+        }
+        return new BridgeResult.Failed(pbResult.taskResult().msg(),
+                                       AnsibleErrorClassifier.classify(pbResult.taskResult()));
+    }
+
+    @Override
+    public BridgeResult resume(BridgeRequest request) {
+        var config = requireConfig(request.typeId());
+        if (!config.supportsSuspend()) {
+            return new BridgeResult.Failed(
+                    "Resume not supported for type: " + request.typeId(),
+                    BridgeErrorCategory.CONFIGURATION);
+        }
+        var specParts = splitSpec(request.spec());
+        String playbook = PlaybookGenerator.resume(
+                config.fqResumeModule(), specParts.moduleParams,
+                config.effectiveResumeStateParam(), config.resumeStateValue());
+
+        var pbResult = executePlaybook(playbook, specParts, request.tenancyId());
+        if (pbResult.succeeded()) {
+            return new BridgeResult.Success(Map.of());
+        }
+        return new BridgeResult.Failed(pbResult.taskResult().msg(),
+                                       AnsibleErrorClassifier.classify(pbResult.taskResult()));
+    }
+
     record AnsiblePlanContext(BridgeRequest originalRequest, AnsiblePlaybookResult checkResult) {}
 
     private BridgeResult executeAndMapResult(String playbook, SpecParts specParts,
-                                              AnsibleModuleConfig config, String tenancyId) {
+                                             AnsibleModuleConfig config, String tenancyId) {
         var pbResult = executePlaybook(playbook, specParts, tenancyId);
         if (pbResult.succeeded()) {
             var outputState = AnsibleOutputParser.extractOutputState(pbResult.taskResult(), config);
             return new BridgeResult.Success(outputState);
         }
         return new BridgeResult.Failed(pbResult.taskResult().msg(),
-            AnsibleErrorClassifier.classify(pbResult.taskResult()));
+                                       AnsibleErrorClassifier.classify(pbResult.taskResult()));
     }
 
     private AnsiblePlaybookResult executePlaybook(String playbook, SpecParts specParts,
-                                                   String tenancyId) {
+                                                  String tenancyId) {
         Path tempDir = null;
         try {
             tempDir = AnsibleProcess.createTempDir();
-            Path playbookFile = tempDir.resolve("playbook.yml");
+            Path playbookFile  = tempDir.resolve("playbook.yml");
             Path inventoryFile = tempDir.resolve("inventory.json");
             Files.writeString(playbookFile, playbook);
             Files.writeString(inventoryFile, InventoryGenerator.generate(specParts.reservedKeys));
@@ -199,18 +242,18 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
                 specParts.environment.forEach((k, v) -> env.put(k, String.valueOf(v)));
             }
 
-            int timeout = specParts.timeout;
+            int timeout       = specParts.timeout;
             var processResult = processExecutor.execute(tempDir, command, env, timeout);
 
             if (processResult.exitCode() == -1 && processResult.stderr().contains("timed out")) {
                 return new AnsiblePlaybookResult(
-                    new AnsibleTaskResult("timeout", processResult.stderr(), false), false);
+                        new AnsibleTaskResult("timeout", processResult.stderr(), false), false);
             }
 
             return AnsibleOutputParser.parse(processResult.stdout());
         } catch (IOException e) {
             return new AnsiblePlaybookResult(
-                new AnsibleTaskResult("failed", "IO error: " + e.getMessage(), false), false);
+                    new AnsibleTaskResult("failed", "IO error: " + e.getMessage(), false), false);
         } finally {
             AnsibleProcess.cleanupTempDir(tempDir);
         }
@@ -225,25 +268,29 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
     }
 
     private String extractResourceIdKey(AnsibleModuleConfig config) {
-        if (config.outputKeys().isEmpty()) return config.infoFilterKey();
+        if (config.outputKeys().isEmpty()) {return config.infoFilterKey();}
         return config.outputKeys().get(0);
     }
 
     @SuppressWarnings("unchecked")
     private SpecParts splitSpec(Map<String, Object> spec) {
-        Map<String, Object> reserved = new LinkedHashMap<>();
+        Map<String, Object> reserved     = new LinkedHashMap<>();
         Map<String, Object> moduleParams = new LinkedHashMap<>();
-        Map<String, Object> extraVars = null;
-        Map<String, Object> environment = null;
-        int timeout = 300;
+        Map<String, Object> extraVars    = null;
+        Map<String, Object> environment  = null;
+        int                 timeout      = 300;
 
         for (var entry : spec.entrySet()) {
             if (entry.getKey().startsWith("_")) {
                 reserved.put(entry.getKey(), entry.getValue());
                 switch (entry.getKey()) {
-                    case "_extra_vars" -> { if (entry.getValue() instanceof Map<?,?> m) extraVars = (Map<String, Object>) m; }
-                    case "_environment" -> { if (entry.getValue() instanceof Map<?,?> m) environment = (Map<String, Object>) m; }
-                    case "_timeout" -> { if (entry.getValue() instanceof Number n) timeout = n.intValue(); }
+                    case "_extra_vars" -> {
+                        if (entry.getValue() instanceof Map<?, ?> m) {extraVars = (Map<String, Object>) m;}
+                    }
+                    case "_environment" -> {
+                        if (entry.getValue() instanceof Map<?, ?> m) {environment = (Map<String, Object>) m;}
+                    }
+                    case "_timeout" -> {if (entry.getValue() instanceof Number n) {timeout = n.intValue();}}
                 }
             } else {
                 moduleParams.put(entry.getKey(), entry.getValue());
@@ -254,7 +301,7 @@ public class AnsibleBridgeProvider implements BridgeProvider, ImportCapable, Pla
     }
 
     private static Object asList(Object value) {
-        if (value instanceof List) return value;
+        if (value instanceof List) {return value;}
         return List.of(value);
     }
 

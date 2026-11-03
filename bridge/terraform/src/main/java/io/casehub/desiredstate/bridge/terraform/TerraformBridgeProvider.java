@@ -12,6 +12,7 @@ import io.casehub.desiredstate.bridge.ChangeAction;
 import io.casehub.desiredstate.bridge.ImportCapable;
 import io.casehub.desiredstate.bridge.PlanCapable;
 import io.casehub.desiredstate.bridge.ResourceChange;
+import io.casehub.desiredstate.bridge.SuspendCapable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -19,13 +20,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, ImportCapable {
+public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, ImportCapable, SuspendCapable {
 
-    private final TenantProviderRegistry registry;
-    private Set<String> supportedTypes;
+    private final TenantProviderRegistry              registry;
+    private final Map<String, TerraformSuspendConfig> suspendConfigs;
+    private       Set<String>                         supportedTypes;
 
     public TerraformBridgeProvider(TenantProviderRegistry registry) {
-        this.registry = registry;
+        this(registry, Map.of());
+    }
+
+    public TerraformBridgeProvider(TenantProviderRegistry registry,
+                                   Map<String, TerraformSuspendConfig> suspendConfigs) {
+        this.registry       = registry;
+        this.suspendConfigs = suspendConfigs;
     }
 
     @Override
@@ -37,8 +45,8 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
     public Set<String> supportedTypes() {
         if (supportedTypes == null) {
             supportedTypes = registry.discoverTypes().stream()
-                .map(dt -> dt.nodeType().value())
-                .collect(Collectors.toSet());
+                                     .map(dt -> dt.nodeType().value())
+                                     .collect(Collectors.toSet());
         }
         return supportedTypes;
     }
@@ -97,6 +105,66 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
         return withAuthRetry(tenancyId, () -> doImport(typeId, importId, tenancyId));
     }
 
+    @Override
+    public BridgeResult suspend(BridgeRequest request) {
+        var config = suspendConfigs.get(request.typeId());
+        if (config == null) {
+            return new BridgeResult.Failed(
+                    "Suspend not supported for type: " + request.typeId(),
+                    BridgeErrorCategory.CONFIGURATION);
+        }
+        return withAuthRetry(request.tenancyId(),
+                             () -> doSuspendResume(request, config.attribute(), config.suspendValue()));
+    }
+
+    @Override
+    public BridgeResult resume(BridgeRequest request) {
+        var config = suspendConfigs.get(request.typeId());
+        if (config == null) {
+            return new BridgeResult.Failed(
+                    "Resume not supported for type: " + request.typeId(),
+                    BridgeErrorCategory.CONFIGURATION);
+        }
+        return withAuthRetry(request.tenancyId(),
+                             () -> doSuspendResume(request, config.attribute(), config.resumeValue()));
+    }
+
+    private BridgeResult doSuspendResume(BridgeRequest request,
+                                         String attribute, String targetValue) {
+        var protocol = registry.getProtocol(request.tenancyId());
+        Map<String, Object> currentState = request.previousState().isEmpty()
+                                           ? protocol.read(stripNamespace(request.typeId()), Map.of()).currentState()
+                                           : request.previousState();
+
+        if (currentState == null || currentState.isEmpty()) {
+            return new BridgeResult.Failed(
+                    "Cannot read current state for " + request.resourceId(),
+                    BridgeErrorCategory.PERMANENT);
+        }
+
+        Map<String, Object> proposedState = new HashMap<>(currentState);
+        proposedState.put(attribute, targetValue);
+
+        var planResp = protocol.plan(
+                stripNamespace(request.typeId()), currentState, proposedState);
+        if (hasErrors(planResp.diagnostics())) {
+            return new BridgeResult.Failed(
+                    formatErrors(planResp.diagnostics()),
+                    TerraformErrorClassifier.classify(planResp.diagnostics()));
+        }
+
+        var applyResp = protocol.apply(
+                stripNamespace(request.typeId()), currentState,
+                planResp.plannedPrivate());
+        if (hasErrors(applyResp.diagnostics())) {
+            return new BridgeResult.Failed(
+                    formatErrors(applyResp.diagnostics()),
+                    TerraformErrorClassifier.classify(applyResp.diagnostics()));
+        }
+
+        return new BridgeResult.Success(applyResp.newState());
+    }
+
     private BridgeImportResult doImport(String typeId, String importId, String tenancyId) {
         var protocol = registry.getProtocol(tenancyId);
         var response = protocol.importResource(stripNamespace(typeId), importId);
@@ -109,26 +177,25 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
         return new BridgeImportResult.Success(response.state());
     }
 
-
     private BridgeResult doApply(BridgeRequest request) {
         var protocol = registry.getProtocol(request.tenancyId());
         var planResp = protocol.plan(
-            stripNamespace(request.typeId()),
-            request.previousState(),
-            request.spec());
+                stripNamespace(request.typeId()),
+                request.previousState(),
+                request.spec());
         if (hasErrors(planResp.diagnostics())) {
             return new BridgeResult.Failed(
-                formatErrors(planResp.diagnostics()),
-                TerraformErrorClassifier.classify(planResp.diagnostics()));
+                    formatErrors(planResp.diagnostics()),
+                    TerraformErrorClassifier.classify(planResp.diagnostics()));
         }
         var applyResp = protocol.apply(
-            stripNamespace(request.typeId()),
-            request.previousState(),
-            planResp.plannedPrivate());
+                stripNamespace(request.typeId()),
+                request.previousState(),
+                planResp.plannedPrivate());
         if (hasErrors(applyResp.diagnostics())) {
             return new BridgeResult.Failed(
-                formatErrors(applyResp.diagnostics()),
-                TerraformErrorClassifier.classify(applyResp.diagnostics()));
+                    formatErrors(applyResp.diagnostics()),
+                    TerraformErrorClassifier.classify(applyResp.diagnostics()));
         }
         return new BridgeResult.Success(applyResp.newState());
     }
@@ -136,22 +203,22 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
     private BridgeResult doDestroy(BridgeRequest request) {
         var protocol = registry.getProtocol(request.tenancyId());
         var planResp = protocol.plan(
-            stripNamespace(request.typeId()),
-            request.previousState(),
-            null);
+                stripNamespace(request.typeId()),
+                request.previousState(),
+                null);
         if (hasErrors(planResp.diagnostics())) {
             return new BridgeResult.Failed(
-                formatErrors(planResp.diagnostics()),
-                TerraformErrorClassifier.classify(planResp.diagnostics()));
+                    formatErrors(planResp.diagnostics()),
+                    TerraformErrorClassifier.classify(planResp.diagnostics()));
         }
         var applyResp = protocol.apply(
-            stripNamespace(request.typeId()),
-            request.previousState(),
-            planResp.plannedPrivate());
+                stripNamespace(request.typeId()),
+                request.previousState(),
+                planResp.plannedPrivate());
         if (hasErrors(applyResp.diagnostics())) {
             return new BridgeResult.Failed(
-                formatErrors(applyResp.diagnostics()),
-                TerraformErrorClassifier.classify(applyResp.diagnostics()));
+                    formatErrors(applyResp.diagnostics()),
+                    TerraformErrorClassifier.classify(applyResp.diagnostics()));
         }
         return new BridgeResult.Success(Map.of());
     }
@@ -159,17 +226,17 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
     private BridgeStateResult doReadState(BridgeReadRequest request) {
         var protocol = registry.getProtocol(request.tenancyId());
         var response = protocol.read(
-            stripNamespace(request.typeId()),
-            request.previousState());
+                stripNamespace(request.typeId()),
+                request.previousState());
         if (response.currentState() == null || response.currentState().isEmpty()) {
             return new BridgeStateResult.NotFound();
         }
         var planResp = protocol.plan(
-            stripNamespace(request.typeId()),
-            response.currentState(),
-            request.desiredSpec());
-        boolean drifted = hasErrors(planResp.diagnostics()) || planResp.requiresReplace();
-        Map<String, Object> state = new HashMap<>(response.currentState());
+                stripNamespace(request.typeId()),
+                response.currentState(),
+                request.desiredSpec());
+        boolean             drifted = hasErrors(planResp.diagnostics()) || planResp.requiresReplace();
+        Map<String, Object> state   = new HashMap<>(response.currentState());
         state.put("status", drifted ? "drifted" : "present");
         return new BridgeStateResult.Found(state);
     }
@@ -213,8 +280,8 @@ public class TerraformBridgeProvider implements BridgeProvider, PlanCapable, Imp
 
     private String formatErrors(List<TfDiagnostic> diagnostics) {
         return diagnostics.stream()
-            .filter(d -> d.severity() == TfDiagnostic.Severity.ERROR)
-            .map(d -> d.summary() + ": " + d.detail())
-            .collect(Collectors.joining("; "));
+                          .filter(d -> d.severity() == TfDiagnostic.Severity.ERROR)
+                          .map(d -> d.summary() + ": " + d.detail())
+                          .collect(Collectors.joining("; "));
     }
 }

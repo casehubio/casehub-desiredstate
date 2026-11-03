@@ -38,6 +38,21 @@ public final class PlaybookGenerator {
         return buildPlaybook("check", fqModule, params, true);
     }
 
+    public static String suspend(String fqModule, Map<String, Object> params,
+                                 String stateParam, String stateValue) {
+        Map<String, Object> taskParams = new LinkedHashMap<>(params);
+        taskParams.put(stateParam, stateValue);
+        return buildPlaybook("suspend", fqModule, taskParams, false);
+    }
+
+    public static String resume(String fqModule, Map<String, Object> params,
+                                String stateParam, String stateValue) {
+        Map<String, Object> taskParams = new LinkedHashMap<>(params);
+        taskParams.put(stateParam, stateValue);
+        return buildPlaybook("resume", fqModule, taskParams, false);
+    }
+
+
     private static String buildPlaybook(String taskName, String module,
                                          Map<String, Object> params, boolean checkMode) {
         Map<String, Object> task = new LinkedHashMap<>();

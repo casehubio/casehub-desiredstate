@@ -67,4 +67,31 @@ class PlaybookGeneratorTest {
         assertThat(yaml).contains("check_mode: true");
         assertThat(yaml).contains("amazon.aws.ec2_instance:");
     }
+
+    @Test
+    void suspendPlaybookContainsModuleAndStateParam() {
+        String yaml = PlaybookGenerator.suspend(
+                "amazon.aws.ec2_instance",
+                Map.of("instance_type", "t3.micro"),
+                "state", "stopped");
+
+        assertThat(yaml).contains("amazon.aws.ec2_instance:");
+        assertThat(yaml).contains("state:");
+        assertThat(yaml).contains("stopped");
+        assertThat(yaml).contains("instance_type:");
+        assertThat(yaml).contains("gather_facts: false");
+        assertThat(yaml).contains("register:");
+    }
+
+    @Test
+    void resumePlaybookContainsModuleAndStateParam() {
+        String yaml = PlaybookGenerator.resume(
+                "amazon.aws.ec2_instance",
+                Map.of("instance_type", "t3.micro"),
+                "state", "running");
+
+        assertThat(yaml).contains("amazon.aws.ec2_instance:");
+        assertThat(yaml).contains("state:");
+        assertThat(yaml).contains("running");
+    }
 }

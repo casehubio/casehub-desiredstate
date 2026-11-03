@@ -26,6 +26,10 @@ bridge:
         drift_keys:
           - instance_type
           - security_groups
+        suspend_module: ec2_instance
+        suspend_state_param: state
+        suspend_state_value: stopped
+        resume_state_value: running
       stateMapping:
         _default: PRESENT
         _notFound: ABSENT

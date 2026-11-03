@@ -41,7 +41,8 @@ class AnsibleOutputParserTest {
                 "private_ip", "10.0.0.1"))));
         var config = new AnsibleModuleConfig("amazon.aws", "ec2_instance", "state_absent",
             null, "ec2_instance_info", "instance_ids", "instances",
-            List.of("instance_id", "public_ip_address", "instance_type"), List.of());
+            List.of("instance_id", "public_ip_address", "instance_type"), List.of(),
+            null, null, null, null, null, null);
 
         var outputState = AnsibleOutputParser.extractOutputState(taskResult, config);
 
@@ -78,7 +79,8 @@ class AnsibleOutputParserTest {
             Map.of("instance_id", "i-123", "instance_type", "t3.micro"));
         var config = new AnsibleModuleConfig("amazon.aws", "ec2_instance", "state_absent",
             null, null, null, null,
-            List.of("instance_id"), List.of());
+            List.of("instance_id"), List.of(),
+            null, null, null, null, null, null);
 
         var outputState = AnsibleOutputParser.extractOutputState(taskResult, config);
 

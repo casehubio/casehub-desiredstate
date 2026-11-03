@@ -58,7 +58,8 @@ class AnsibleBridgeProviderTest {
             new AnsibleModuleConfig("amazon.aws", "ec2_instance", "state_absent",
                 null, "ec2_instance_info", "instance_ids", "instances",
                 List.of("instance_id", "public_ip_address", "instance_type"),
-                List.of("instance_type")));
+                List.of("instance_type"),
+                null, null, null, null, null, null));
         capturedStdout = SUCCESS_JSON;
         provider = new AnsibleBridgeProvider(configs, "ansible-playbook",
             (workDir, cmd, env, timeout) ->

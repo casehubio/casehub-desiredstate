@@ -1,0 +1,27 @@
+bridge:
+  protocol: terraform
+  version: "1.0"
+
+  types:
+    - id: tf:hashicorp/aws:aws_instance
+      terraform:
+        suspend_attribute: instance_state
+        suspend_value: stopped
+        resume_value: running
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT
+
+    - id: tf:hashicorp/aws:aws_s3_bucket
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT
+
+    - id: tf:hashicorp/aws:aws_rds_cluster
+      terraform:
+        suspend_attribute: engine_lifecycle_support
+        suspend_value: stop
+        resume_value: start
+      stateMapping:
+        _default: PRESENT
+        _notFound: ABSENT

@@ -20,7 +20,8 @@ class AnsibleImportCapableContractTest extends ImportCapableContractTest {
             Map.of("ansible:test.collection.resource",
                 new AnsibleModuleConfig("test.collection", "resource", "state_absent",
                     null, "resource_info", "resource_ids", "instances",
-                    List.of("instance_id"), List.of())),
+                    List.of("instance_id"), List.of(),
+                    null, null, null, null, null, null)),
             "ansible-playbook",
             (workDir, cmd, env, timeout) -> new AnsibleProcessResult(0, INFO_JSON, ""));
     }

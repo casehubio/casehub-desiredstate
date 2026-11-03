@@ -19,7 +19,8 @@ class AnsiblePlanCapableContractTest extends PlanCapableContractTest {
         return new AnsibleBridgeProvider(
             Map.of("ansible:test.collection.resource",
                 new AnsibleModuleConfig("test.collection", "resource", "state_absent",
-                    null, null, null, null, List.of(), List.of())),
+                    null, null, null, null, List.of(), List.of(),
+                    null, null, null, null, null, null)),
             "ansible-playbook",
             (workDir, cmd, env, timeout) -> new AnsibleProcessResult(0, CHECK_JSON, ""));
     }

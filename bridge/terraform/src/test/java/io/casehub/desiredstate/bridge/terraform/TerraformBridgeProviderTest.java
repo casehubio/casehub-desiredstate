@@ -1,5 +1,6 @@
 package io.casehub.desiredstate.bridge.terraform;
 
+import io.casehub.desiredstate.bridge.BridgeErrorCategory;
 import io.casehub.desiredstate.bridge.BridgeReadRequest;
 import io.casehub.desiredstate.bridge.BridgeRequest;
 import io.casehub.desiredstate.bridge.BridgeResult;
@@ -268,6 +269,77 @@ class TerraformBridgeProviderTest {
 
         assertThat(result).isInstanceOf(io.casehub.desiredstate.bridge.BridgeImportResult.Failed.class);
     }
+
+    @Test
+    void suspendModifiesAttributeAndApplies() {
+        var suspendProvider = new TerraformBridgeProvider(
+                mockRegistry,
+                Map.of("tf:hashicorp/aws:aws_instance",
+                       new TerraformSuspendConfig("instance_state", "stopped", "running")));
+
+        mockProtocol.planResponse  = new PlanResponse(
+                Map.of("id", "i-123", "instance_state", "stopped"),
+                new byte[]{1}, false, List.of());
+        mockProtocol.applyResponse = new ApplyResponse(
+                Map.of("id", "i-123", "instance_state", "stopped"), new byte[0], List.of());
+
+        var request = new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                        Map.of("ami", "ami-123"), "tenant-1",
+                                        Map.of("id", "i-123", "instance_state", "running"));
+        var result = suspendProvider.suspend(request);
+
+        assertThat(result).isInstanceOf(BridgeResult.Success.class);
+        assertThat(mockProtocol.lastPlanProposedState)
+                .containsEntry("instance_state", "stopped");
+    }
+
+    @Test
+    void resumeModifiesAttributeAndApplies() {
+        var suspendProvider = new TerraformBridgeProvider(
+                mockRegistry,
+                Map.of("tf:hashicorp/aws:aws_instance",
+                       new TerraformSuspendConfig("instance_state", "stopped", "running")));
+
+        mockProtocol.planResponse  = new PlanResponse(
+                Map.of("id", "i-123", "instance_state", "running"),
+                new byte[]{1}, false, List.of());
+        mockProtocol.applyResponse = new ApplyResponse(
+                Map.of("id", "i-123", "instance_state", "running"), new byte[0], List.of());
+
+        var request = new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                        Map.of("ami", "ami-123"), "tenant-1",
+                                        Map.of("id", "i-123", "instance_state", "stopped"));
+        var result = suspendProvider.resume(request);
+
+        assertThat(result).isInstanceOf(BridgeResult.Success.class);
+        assertThat(mockProtocol.lastPlanProposedState)
+                .containsEntry("instance_state", "running");
+    }
+
+    @Test
+    void suspendReturnsFailedForUnsupportedType() {
+        var result = provider.suspend(
+                new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                  Map.of(), "tenant-1"));
+
+        assertThat(result).isInstanceOf(BridgeResult.Failed.class);
+        assertThat(((BridgeResult.Failed) result).reason())
+                .contains("Suspend not supported");
+        assertThat(((BridgeResult.Failed) result).category())
+                .isEqualTo(BridgeErrorCategory.CONFIGURATION);
+    }
+
+    @Test
+    void resumeReturnsFailedForUnsupportedType() {
+        var result = provider.resume(
+                new BridgeRequest("tf:hashicorp/aws:aws_instance", "web-1",
+                                  Map.of(), "tenant-1"));
+
+        assertThat(result).isInstanceOf(BridgeResult.Failed.class);
+        assertThat(((BridgeResult.Failed) result).reason())
+                .contains("Resume not supported");
+    }
+
 
     static class MockTerraformProtocol implements TerraformProtocol {
         PlanResponse planResponse;

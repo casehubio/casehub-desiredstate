@@ -23,7 +23,8 @@ class AnsibleBridgeProviderContractTest extends BridgeProviderContractTest {
             Map.of("ansible:test.collection.resource",
                 new AnsibleModuleConfig("test.collection", "resource", "state_absent",
                     null, "resource_info", "resource_ids", "instances",
-                    List.of("instance_id", "instance_type"), List.of())),
+                    List.of("instance_id", "instance_type"), List.of(),
+                    null, null, null, null, null, null)),
             "ansible-playbook",
             (workDir, cmd, env, timeout) -> new AnsibleProcessResult(0, SUCCESS_JSON, ""));
     }

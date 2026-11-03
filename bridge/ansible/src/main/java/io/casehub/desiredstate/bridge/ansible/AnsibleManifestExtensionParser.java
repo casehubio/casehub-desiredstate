@@ -44,15 +44,21 @@ public final class AnsibleManifestExtensionParser {
 
     private static AnsibleModuleConfig toModuleConfig(JsonNode node) {
         return new AnsibleModuleConfig(
-            node.path("collection").asText(null),
-            node.path("provision_module").asText(null),
-            node.path("deprovision_strategy").asText("state_absent"),
-            node.path("deprovision_module").asText(null),
-            node.path("info_module").asText(null),
-            node.path("info_filter_key").asText(null),
-            node.path("result_key").asText(null),
-            toStringList(node.path("output_keys")),
-            toStringList(node.path("drift_keys"))
+                node.path("collection").asText(null),
+                node.path("provision_module").asText(null),
+                node.path("deprovision_strategy").asText("state_absent"),
+                node.path("deprovision_module").asText(null),
+                node.path("info_module").asText(null),
+                node.path("info_filter_key").asText(null),
+                node.path("result_key").asText(null),
+                toStringList(node.path("output_keys")),
+                toStringList(node.path("drift_keys")),
+                node.path("suspend_module").asText(null),
+                node.path("suspend_state_param").asText(null),
+                node.path("suspend_state_value").asText(null),
+                node.path("resume_module").asText(null),
+                node.path("resume_state_param").asText(null),
+                node.path("resume_state_value").asText(null)
         );
     }
 
