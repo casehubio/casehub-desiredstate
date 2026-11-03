@@ -172,6 +172,16 @@ C4Container
     Container(ras_emitter, "ReconciliationEventEmitter", "@ApplicationScoped", "Emits CloudEvents for cycle completion, faults, drift, recovery")
   }
 
+  Container_Boundary(b10, "Layer: L10 Bridge Adapter") {
+    Container(bridge_api, "Bridge SPI", "Java", "BridgeProvider, PlanCapable, ImportCapable, SuspendCapable, BridgeNodeSpec, BridgeDescriptor, BridgeErrorCategory")
+    Container(bridge_runtime, "Bridge Runtime", "Java", "BridgeProvisioner, BridgeActualStateAdapter, BridgeDiscovery, BridgeManifestParser")
+    Container(bridge_deploy, "Bridge Deployment", "Quarkus Build Extension", "META-INF/desiredstate/bridges/*.yaml discovery, BridgeRecorder, synthetic bean registration")
+    Container(bridge_spring, "Bridge Spring", "Spring AutoConfiguration", "Classpath bridge YAML discovery, SmartInitializingSingleton bean registration")
+    Container(bridge_testing, "Bridge Testing", "JUnit5", "MockBridgeProvider variants, TCK contract tests, BridgeTestExtension")
+    Container(bridge_terraform, "Terraform Adapter", "gRPC + go-plugin", "TerraformBridgeProvider, TenantProviderRegistry, GoPluginHost, CtyDecoder/CtyEncoder, SchemaTranslator, auto-mTLS, GPG verification")
+    Container(bridge_ansible, "Ansible Adapter", "CLI subprocess", "AnsibleBridgeProvider, PlaybookGenerator, InventoryGenerator, AnsibleOutputParser, AnsibleErrorClassifier")
+  }
+
   Container_Boundary(b9, "Layer: L9 Declaration Surfaces") {
     Container(ann_runtime, "Annotations Runtime", "Java", "@DesiredState, @Node, @DeclareNode, @DependsOn, @FaultPolicyDef, @DesiredStateQualifier, @GraphRule, @GraphInvariant, GraphRuleEngine, GraphInvariantEngine, PatternMatchingSupport, GraphPatternMatcher, GoalCompilerFactory, FaultPolicyFactory, descriptors, recorder")
     Container(ann_core, "Annotations Core", "Java", "Framework-neutral Jandex scanner — DescriptorScanner builds GraphDescriptor and FaultPolicyDescriptor from IndexView")
@@ -195,6 +205,10 @@ C4Container
   Rel(case_exec, api_exec, "Implements TransitionExecutor")
   Rel(work_approval, api_spis, "Implements PendingApprovalHandler")
   Rel(loop, ras_emitter, "Emits CloudEvents")
+  Rel(bridge_runtime, api_spis, "Implements NodeProvisioner + ActualStateAdapter")
+  Rel(bridge_runtime, bridge_api, "Delegates to BridgeProvider")
+  Rel(bridge_terraform, bridge_api, "Implements BridgeProvider + PlanCapable + ImportCapable")
+  Rel(bridge_ansible, bridge_api, "Implements BridgeProvider + PlanCapable + ImportCapable")
   Rel(ann_deploy, ann_runtime, "Reads descriptors")
   Rel(ann_deploy, api_spis, "Generates GoalCompiler + FaultPolicy beans")
 ```
@@ -230,6 +244,13 @@ C4Container
 | plugin/deployment/ | casehub-desiredstate-plugin-deployment | io.casehub.desiredstate.plugin.deployment |
 | plugin/spring/ | casehub-desiredstate-plugin-spring | io.casehub.desiredstate.plugin.spring |
 | plugin/testing/ | casehub-desiredstate-plugin-testing | io.casehub.desiredstate.plugin.testing |
+| bridge/api/ | casehub-desiredstate-bridge-api | io.casehub.desiredstate.bridge |
+| bridge/runtime/ | casehub-desiredstate-bridge | io.casehub.desiredstate.bridge.runtime |
+| bridge/deployment/ | casehub-desiredstate-bridge-deployment | io.casehub.desiredstate.bridge.deployment |
+| bridge/spring/ | casehub-desiredstate-bridge-spring | io.casehub.desiredstate.bridge.spring |
+| bridge/testing/ | casehub-desiredstate-bridge-testing | io.casehub.desiredstate.bridge.testing |
+| bridge/ansible/ | casehub-desiredstate-bridge-ansible | io.casehub.desiredstate.bridge.ansible |
+| bridge/terraform/ | casehub-desiredstate-bridge-terraform | io.casehub.desiredstate.bridge.terraform |
 | examples/dungeon/ | casehub-desiredstate-example-dungeon | io.casehub.desiredstate.example.dungeon |
 | examples/pipeline/ | casehub-desiredstate-example-pipeline | io.casehub.desiredstate.example.pipeline |
 | examples/spatial/ | casehub-desiredstate-example-spatial | io.casehub.desiredstate.example.spatial |
@@ -319,7 +340,7 @@ casehub-desiredstate is a library, not a standalone application. It deploys as M
 
 | Journey | Description | Chapters | Status |
 |---|---|---|---|
-| Generic Desired-State Runtime | Build a domain-agnostic desired-state management system, prove genericity through distinct domains, evolve toward production capability | 10 | In progress |
+| Generic Desired-State Runtime | Build a domain-agnostic desired-state management system, prove genericity through distinct domains, evolve toward production capability | 11 | In progress |
 
 ```mermaid
 flowchart LR
@@ -332,6 +353,7 @@ flowchart LR
   C5 --> C8["C8: Approval-Gated\nProvisioning\nL1,L2,L3,L5,L7"]
   C8 --> C9["C9: Lifecycle Management\nL1,L2,L6"]
   C9 --> C10["C10: Declaration\nSurfaces\nL9,L6"]
+  C10 --> C11["C11: Bridge Adapter\nArchitecture\nL10"]
 
   style C1 fill:#90EE90,color:#000
   style C2 fill:#90EE90,color:#000
@@ -343,6 +365,7 @@ flowchart LR
   style C8 fill:#FFD700,color:#000
   style C9 fill:#FFD700,color:#000
   style C10 fill:#ADD8E6,color:#000
+  style C11 fill:#90EE90,color:#000
 ```
 
 ### §9.2 Chapter Index
@@ -359,19 +382,21 @@ flowchart LR
 | 8 | Approval-Gated Provisioning | Generic DSR | L1, L2, L3, L5, L7 | Medium, Medium, Medium, Low, Medium | 🚧 |
 | 9 | Lifecycle Management | Generic DSR | L1, L2, L6 | Medium, Medium, High | 🚧 |
 | 10 | Declaration Surfaces | Generic DSR | L9, L6 | High, Medium | 📋 |
+| 11 | Bridge Adapter Architecture | Generic DSR | L10 | High | ✅ |
 
 **Layer x Chapter matrix**
 
-| Layer | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | C10 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| L1 Core API | High | — | — | — | — | — | Medium | Medium | Medium | — |
-| L2 Runtime Engine | High | Low | Low | — | — | — | Low | Medium | Medium | — |
-| L3 Engine Adapter | High | — | — | — | Medium | — | — | Medium | — | — |
-| L4 Observability | — | — | High | — | — | — | — | — | — | — |
-| L5 Testing | High | — | — | — | — | — | — | Low | — | — |
-| L6 Domain Examples | High | High | — | Medium | — | Medium | Low | — | High | Medium |
-| L7 Work Adapter | — | — | — | — | — | — | — | Medium | — | — |
-| L9 Declaration Surfaces | — | — | — | — | — | — | — | — | — | High |
+| Layer | C1 | C2 | C3 | C4 | C5 | C6 | C7 | C8 | C9 | C10 | C11 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| L1 Core API | High | — | — | — | — | — | Medium | Medium | Medium | — | — |
+| L2 Runtime Engine | High | Low | Low | — | — | — | Low | Medium | Medium | — | — |
+| L3 Engine Adapter | High | — | — | — | Medium | — | — | Medium | — | — | — |
+| L4 Observability | — | — | High | — | — | — | — | — | — | — | — |
+| L5 Testing | High | — | — | — | — | — | — | Low | — | — | — |
+| L6 Domain Examples | High | High | — | Medium | — | Medium | Low | — | High | Medium | — |
+| L7 Work Adapter | — | — | — | — | — | — | — | Medium | — | — | — |
+| L9 Declaration Surfaces | — | — | — | — | — | — | — | — | — | High | — |
+| L10 Bridge Adapter | — | — | — | — | — | — | — | — | — | — | High |
 
 L1 and L2 appear across multiple columns — they are foundational and bear cross-cutting responsibility. L6 has the most High entries — each new capability is validated through domain examples.
 
@@ -384,6 +409,7 @@ L1 and L2 appear across multiple columns — they are foundational and bear cros
 - C7 after C6: Worker foundation extraction builds on the execution model; depends on casehub-worker existing (cross-repo)
 - C8 after C5: approval-gated provisioning extends HITL from static `requiresHuman` flags to provisioner-initiated runtime approval; independent of C6/C7
 - C9 after C8: lifecycle management introduces multi-phase desired states; requires full reconciliation cycle and SituationRecompiler integration from C8/RAS
+- C11 after C10: bridge adapters consume declaration surfaces (YAML manifests compile to descriptors) and the full SPI surface (NodeProvisioner, ActualStateAdapter, NodeType routing); requires the framework-neutral discovery pattern established in C10
 
 ### §9.3 Chapter Entries
 
@@ -1048,6 +1074,143 @@ What this layer adds:
 
 ---
 
+### Layer — L10 Bridge Adapter
+
+**Participates in chapters:** C11
+**Architectural patterns:** Two-SPI delegation (NodeProvisioner above the line, BridgeProvider below), capability mixins via interfaces, manifest-driven discovery, framework-neutral bean registration, per-tenant process isolation, error classification strategy
+**Design refs:** #183 (design: bridge adapter SPI and execution model)
+**Issues:** #182 (epic), #183, #184, #185, #186, #190 (epic), #191–#197, #200–#206
+**Navigation:** `git log --grep="#182\|#183\|#184\|#185\|#186\|#190\|bridge" --oneline`
+**Blog:** `2026-11-01-mdp01-six-bugs-at-the-seams`, `2026-11-01-mdp02-the-bridge-between-graphs-and-infrastructure`
+**Completed:** ✅
+
+#### What it adds
+
+**Before:** External infrastructure platforms require Java `NodeProvisioner` implementations. Operators must write Java code to provision Terraform or Ansible-managed resources.
+**After:** A YAML manifest at `META-INF/desiredstate/bridges/*.yaml` declares resource types and lifecycle operations. `BridgeProvisioner` and `BridgeActualStateAdapter` are wired automatically into the reconciliation loop — no Java required.
+
+What this layer adds:
+- **Two-SPI architecture** — `NodeProvisioner` (runtime contract: `DesiredNode`, `ProvisionContext`, `ProvisionResult`) delegates to `BridgeProvider` (infrastructure contract: `typeId`, `resourceId`, `Map<String, Object>` spec, output state). Infrastructure concerns (gRPC, process management, temp files) stay below the line
+- **Capability mixins** — `PlanCapable` (plan before apply), `ImportCapable` (adopt existing cloud resources), `SuspendCapable` (pause/resume managed resources). `BridgeProvisioner` detects implemented mixins via `instanceof` at construction and adapts delegation path accordingly
+- **Manifest-driven discovery** — `BridgeManifestParser` (YAML → `BridgeDescriptor`) → `BridgeDiscovery` (descriptor → `BeanRegistration`). One `NodeProvisioner` + one `ActualStateAdapter` per bridge. Reuses the `BeanRegistration` pattern from `AnnotationsDiscovery`, `YamlDiscovery`, `TsDslDiscovery`
+- **Error classification** — `BridgeErrorCategory` (TRANSIENT, PERMANENT, CONFIGURATION, AUTHENTICATION, QUOTA). Adapter-specific classifiers map platform errors to categories. TRANSIENT default — false-positive retries waste cycles; false-negative permanent classification means the system gives up on recoverable errors
+- **BridgeOutputStateStore** — per-node output state persistence between reconciliation cycles. Terraform providers need prior state to compute diffs; without it, every `readState` returns "not found"
+- **Terraform adapter** — go-plugin gRPC protocol (v5/v6), zero-config schema discovery via `GetProviderSchema`, per-tenant process isolation via `TenantProviderRegistry` with config-hash routing and idle eviction, auto-mTLS via `PluginCertificateGenerator` (ECDSA P-521 ephemeral certs), GPG signature verification on provider download, `CtyDecoder`/`CtyEncoder` for cty↔Java msgpack translation
+- **Ansible adapter** — CLI-based execution via `ansible-playbook` with JSON callback, per-type module routing via manifest `ansible:` extension blocks, `PlaybookGenerator` + `InventoryGenerator` for operation-specific playbook/inventory generation, ephemeral temp directories with restricted permissions
+- **Testing TCK** — `MockBridgeProvider` with fault injection (`failNextN()`), capability-specific mock variants (`MockPlanCapableBridgeProvider`, `MockSuspendCapableBridgeProvider`, `MockImportCapableBridgeProvider`), abstract contract tests per capability (`BridgeProviderContractTest`, `PlanCapableContractTest`, etc.), `BridgeTestExtension` (JUnit5 `@RegisterExtension`)
+- **Framework parity** — Quarkus: `BridgeProcessor` build-time scan + `BridgeRecorder` synthetic bean registration at `RUNTIME_INIT`. Spring: `BridgeAutoConfiguration` with `SmartInitializingSingleton` for late registration (providers must exist first) + `PathMatchingResourcePatternResolver` for fat JAR classpath scanning
+
+#### Key files
+
+- `bridge/api/src/.../BridgeProvider.java` — core SPI: `apply`, `destroy`, `readState`, `protocolId`, `supportedTypes`
+- `bridge/api/src/.../PlanCapable.java` — mixin: `plan(BridgeRequest) → BridgePlan`, `applyPlan(BridgePlan) → BridgeResult`
+- `bridge/api/src/.../ImportCapable.java` — mixin: `importResource(typeId, importId, tenancyId) → BridgeImportResult`
+- `bridge/api/src/.../SuspendCapable.java` — mixin: `suspend`, `resume`
+- `bridge/api/src/.../BridgeNodeSpec.java` — NodeSpec implementation wrapping `Map<String, Object>` with `importId()` accessor
+- `bridge/api/src/.../BridgeDescriptor.java` — descriptor record: protocolId, typeDescriptors, lifecycleConfig, credentialRef, trustedKeyIds
+- `bridge/api/src/.../BridgeErrorCategory.java` — TRANSIENT, PERMANENT, CONFIGURATION, AUTHENTICATION, QUOTA
+- `bridge/api/src/.../BridgeOutputStateStore.java` — per-node output state persistence SPI
+- `bridge/runtime/src/.../BridgeProvisioner.java` — adapts BridgeProvider to NodeProvisioner with import/plan/suspend delegation
+- `bridge/runtime/src/.../BridgeActualStateAdapter.java` — manifest-driven state mapping: provider status strings → NodeStatus
+- `bridge/runtime/src/.../BridgeDiscovery.java` — framework-neutral: descriptors + providers → `List<BeanRegistration>`
+- `bridge/runtime/src/.../BridgeManifestParser.java` — YAML → BridgeDescriptor with state mapping, lifecycle config, pool config
+- `bridge/terraform/src/.../TerraformBridgeProvider.java` — `BridgeProvider` + `PlanCapable` + `ImportCapable`, `withAuthRetry()` for credential rotation
+- `bridge/terraform/src/.../TenantProviderRegistry.java` — per-tenant process pool: config-hash routing, LRU eviction, idle timeout
+- `bridge/terraform/src/.../GoPluginHost.java` — go-plugin handshake, mTLS setup, Unix domain socket / TCP transport
+- `bridge/terraform/src/.../ProviderProcessManager.java` — provider binary lifecycle + gRPC channel, lazy start, health checks
+- `bridge/terraform/src/.../TerraformProtocol.java` — interface: getSchema, configure, plan, apply, read, importResource
+- `bridge/terraform/src/.../TerraformProtocolFactory.java` — dispatches to `ProtocolV5Adapter` or `ProtocolV6Adapter` based on handshake
+- `bridge/terraform/src/.../CtyDecoder.java` — Terraform cty-typed msgpack → Java `Map<String, Object>`
+- `bridge/terraform/src/.../SchemaTranslator.java` — `ProviderSchema` → `DiscoveredType` with NodeType `tf:namespace/type:resource`
+- `bridge/terraform/src/.../SchemaCache.java` — filesystem JSON cache, avoids re-running GetProviderSchema on restart
+- `bridge/terraform/src/.../ProviderRegistryClient.java` — registry download + SHA-256 + GPG verification + zip path traversal prevention
+- `bridge/terraform/src/.../GpgSignatureVerifier.java` — OpenPGP detached signature verification
+- `bridge/terraform/src/.../PluginCertificateGenerator.java` — ECDSA P-521 ephemeral cert generation for auto-mTLS
+- `bridge/terraform/src/.../TerraformErrorClassifier.java` — diagnostic keyword scan → BridgeErrorCategory
+- `bridge/ansible/src/.../AnsibleBridgeProvider.java` — `BridgeProvider` + `PlanCapable` + `ImportCapable`, CLI subprocess execution
+- `bridge/ansible/src/.../PlaybookGenerator.java` — generates YAML playbook per operation (provision, deprovision, readState, check)
+- `bridge/ansible/src/.../InventoryGenerator.java` — generates JSON dynamic inventory from reserved spec keys (`_host`, `_connection`, etc.)
+- `bridge/ansible/src/.../AnsibleOutputParser.java` — parses JSON callback output, extracts output state, detects drift via key comparison
+- `bridge/ansible/src/.../AnsibleProcess.java` — temp dir with rwx------ permissions, shutdown hook cleanup, process timeout
+- `bridge/ansible/src/.../AnsibleErrorClassifier.java` — message keyword classification: auth → AUTHENTICATION, invalid → PERMANENT, default → TRANSIENT
+
+#### Key wiring
+
+**`BridgeProvisioner` adapts the full SPI surface.** `provision()` has three delegation paths: import (if `ImportCapable` + `importId` set + no stored state → `importResource()` → seed state store), plan-then-apply (if `PlanCapable` + no prior approval → `plan()` then `applyPlan()`), and direct apply (fallback → `apply()`). `deprovision()` calls `destroy()` and removes stored state. Output state is stored after every successful operation and passed as `previousState` on every subsequent request.
+
+**Import seeding is one-to-one.** When `BridgeNodeSpec.importId()` is set and `BridgeOutputStateStore` has no state for the node, `BridgeProvisioner` calls `importResource()` instead of provision — seeding the store from cloud reality. The `importId` stays permanently on the spec as provenance; if stored state is lost, the next cycle re-imports automatically.
+
+**Per-tenant process isolation (Terraform).** `TenantProviderRegistry` routes by `ConfigHasher` SHA-256 of the credential map — tenants with identical credentials share a process, tenants with different credentials get separate processes. Pool capacity enforcement via LRU eviction of zero-ref entries, idle timeout via scheduled sweep every 30s. On auth error, `withAuthRetry()` evicts the tenant's pool entry (forces credential re-resolve from `CredentialResolver`), starts a fresh process, and retries once.
+
+**Ephemeral subprocess (Ansible).** Each operation generates a fresh playbook and inventory, writes them to a temp directory with `rwx------` permissions, runs `ansible-playbook` with JSON callback, and cleans up. No persistent state between operations — statelessness is an explicit design choice matching Ansible's execution model.
+
+**State mapping is declarative.** `BridgeTypeDescriptor` carries a `stateMapping` (`Map<String, NodeStatus>`) plus `defaultState`, `notFoundState`, and `defaultErrorCategory`. `BridgeActualStateAdapter.readActual()` reads the provider's status string and looks it up in the mapping — no per-adapter state mapping code. Unmapped status strings fall through to `defaultState`.
+
+**Framework parity converges on `BridgeDiscovery`.** Both Quarkus and Spring surface modules call `BridgeDiscovery.discoverAll()` with parsed descriptors and discovered providers. The only differences: Quarkus scans at build time (Jandex), registers via `BridgeRecorder` + `SyntheticBeanBuildItem` at `RUNTIME_INIT`. Spring scans at startup (`PathMatchingResourcePatternResolver`), registers via `SmartInitializingSingleton` + `ConfigurableListableBeanFactory`.
+
+#### Architectural decisions
+
+**Why two SPI layers (NodeProvisioner above, BridgeProvider below) rather than one:** `NodeProvisioner` knows about `DesiredNode`, `ProvisionContext`, `ProvisionResult` — runtime types. `BridgeProvider` knows about `typeId`, `resourceId`, `Map<String, Object>` — infrastructure types. Merging them forces infrastructure adapters to understand the runtime's graph model, or forces the runtime to understand infrastructure protocols. The split lets each side evolve independently. `BridgeProvisioner` is the adapter between them — it translates types, manages state stores, and dispatches capability-specific paths.
+
+**Why capability mixins rather than base methods with boolean flags:** Not all platforms support planning (Ansible's check mode is limited), import (some APIs can't introspect existing resources), or suspend/resume. Boolean flags (`provider.supportsPlan()`) force all implementations to declare support for all capabilities, create a fragile API surface (what does `plan()` do when `supportsPlan()` returns false?), and prevent compile-time type safety. Mixins via interfaces let `BridgeProvisioner` use `instanceof` checks at construction — the capability path is determined once, not per-call.
+
+**Why per-tenant process isolation (Terraform) vs ephemeral subprocess (Ansible):** Terraform providers are long-lived gRPC processes that hold configured state (credentials, endpoint caches, mTLS certificates). Different tenants have different credentials → different process instances. Config-hash routing shares processes between tenants with identical credentials — the pool key is the credential map's SHA-256, not the tenancyId. Ansible playbooks are stateless subprocess invocations — each starts fresh with its own temp directory. No process reuse, no shared state, no isolation concern.
+
+**Why TRANSIENT as default error category:** Both classifiers default to TRANSIENT for unrecognized errors. False-positive retries (retrying a permanent error) waste cycles but are bounded by the fault policy's escalation budget. False-negative permanent classification (giving up on a recoverable error) leaves the system in a permanently degraded state with no self-healing path. The reconciliation loop's retry count + fault escalation policy handles the cost of transient retries.
+
+**Why BridgeOutputStateStore rather than relying on ActualStateAdapter alone:** Terraform providers need prior state to compute diffs — without it, `protocol.read()` returns empty and every provision appears to be create-from-scratch. The state store bridges Terraform's stateful model and the desired-state runtime's stateless reconciliation loop. For Ansible (stateless), the store is a no-op — `readState` always calls the info module fresh.
+
+**Why auto-mTLS rather than optional mTLS:** Terraform CLI enables mTLS by default since go-plugin v5 — providers expect it. Skipping mTLS means one-way trust: the host trusts the provider, but the provider has no guarantee it's talking to a legitimate host. Ephemeral ECDSA P-521 certificates regenerated on every provider restart mean no certificate management, no rotation policy, no PKI infrastructure. Providers that predate go-plugin v5 fall back to plaintext automatically.
+
+#### Pattern introduced
+
+Two-SPI delegation with capability mixins for external platform integration.
+
+#### Pattern anchor
+
+`BridgeProvisioner.provision()` — the three-path delegation: import, plan-then-apply, direct apply. Each path adapts `BridgeProvider` capabilities to `NodeProvisioner` contracts.
+
+#### Gotchas
+
+**Symptom:** `doReadState()` returns NotFound for every node even though resources exist in the cloud.
+**Cause:** `previousState` was not passed to `readState()`. Terraform's `protocol.read()` needs prior state to locate the resource — without it, the read returns empty.
+**Fix:** `BridgeProvisioner` stores output state via `BridgeOutputStateStore` after every successful operation and passes it as `previousState` on every subsequent request. See initial bridge runtime implementation.
+
+**Symptom:** `applyPlan()` fails with routing error — cannot find the provider process.
+**Cause:** `BridgePlan` was constructed without `tenancyId` and `typeId`. `TerraformBridgeProvider.applyPlan()` needs both for `TenantProviderRegistry` lookup and type prefix stripping.
+**Fix:** `BridgePlan` carries `tenancyId` and `typeId` — they are required constructor parameters. See #200.
+
+**Symptom:** Ansible `plan()` returns `ChangeAction.CREATE` when the resource already exists and matches desired spec.
+**Cause:** `AnsibleBridgeProvider.plan()` always reported CREATE because it compared desired spec against empty state rather than actual state.
+**Fix:** `plan()` calls `readState()` first, compares result against desired spec. No diff → empty changes. Diff → UPDATE. Not found → CREATE. See #201.
+
+**Symptom:** `AnsibleErrorClassifier` never returns PERMANENT — all errors classified as TRANSIENT.
+**Cause:** Error classification checked status codes but not error message content. Module failures with "already exists", "invalid", "conflict" are permanent.
+**Fix:** Message keyword matching for `PERMANENT` patterns (already exists, conflict, invalid, missing required). Default remains TRANSIENT. See #205.
+
+**Symptom:** Spring bridge discovery fails in Spring Boot fat JARs — no manifests found.
+**Cause:** `ClassLoader.getResources()` returns directory URLs that can't be opened as streams in Spring Boot's nested JAR layout.
+**Fix:** Switch to `PathMatchingResourcePatternResolver` which handles `classpath*:` scanning properly across fat JARs, exploded directories, and regular JARs. See #202.
+
+**Symptom:** Terraform `doReadState()` reports drift when only warnings exist (no actual state difference).
+**Cause:** `doReadState()` checked `diagnostics().isEmpty()` — warnings are diagnostics too. Any warning triggered the "has errors" path.
+**Fix:** Use `hasErrors()` instead of `diagnostics().isEmpty()` — warnings are informational, not errors. See #204.
+
+#### Pattern to replicate
+
+1. Define a platform-specific provider SPI (`BridgeProvider`) with core lifecycle operations (create, destroy, read) and the minimum shared types (`typeId`, `resourceId`, `Map<String, Object>` spec)
+2. Define capability mixins as interfaces (`PlanCapable`, `ImportCapable`, `SuspendCapable`) — each adds one or two methods for an optional capability
+3. Create an adapter (`BridgeProvisioner`) that implements the runtime SPI (`NodeProvisioner`) and delegates to the provider SPI, using `instanceof` checks to activate capability-specific paths
+4. Define a manifest format (YAML) for declaring resource types, lifecycle operations, state mappings, and lifecycle config
+5. Create a framework-neutral discovery class (`BridgeDiscovery`) that converts descriptors + providers into `BeanRegistration` entries
+6. Wire discovery into both Quarkus (build-time scan + `@Recorder`) and Spring (`SmartInitializingSingleton` for late registration)
+7. Define an error classification enum and per-adapter classifiers — default to TRANSIENT for unrecognized errors
+8. Create a testing TCK with mock providers per capability combination and abstract contract tests per capability
+9. For long-lived process adapters: per-tenant isolation with config-hash pool routing, idle eviction, credential rotation via pool entry eviction
+10. For subprocess adapters: ephemeral execution with temp directory isolation, restricted permissions, shutdown hook cleanup
+
+---
+
 ### Chapter 9 — Lifecycle Management
 
 **Journey:** Generic DSR | **Sequence:** 9 of 9 | **Status:** ✅
@@ -1098,6 +1261,44 @@ Multi-surface graph declaration language covering the use cases currently addres
 | L6 Domain Examples | Medium — CaseHub self-management example, YAML-driven pipeline example |
 
 **Sequencing:** C10 after C9 — requires lifecycle phases, fault policies, graph rules, and invariants to be in place. The declaration language surfaces these capabilities; it does not introduce them.
+
+---
+
+### Chapter 11 — Bridge Adapter Architecture
+
+**Journey:** Generic DSR | **Sequence:** 11 of 11 | **Status:** ✅
+**Delivered:** ✅ | **Issues:** #182 (epic), #183, #184, #185, #186, #190 (epic), #191–#197, #200–#206 | **Blog:** `2026-11-01-mdp01-six-bugs-at-the-seams`, `2026-11-01-mdp02-the-bridge-between-graphs-and-infrastructure`
+
+**What this delivers**
+External infrastructure platforms (Terraform providers, Ansible collections) participate in the reconciliation loop without Java `NodeProvisioner` implementations. A two-SPI architecture separates runtime integration (NodeProvisioner, above the line) from platform protocol adaptation (BridgeProvider, below the line). YAML manifests at `META-INF/desiredstate/bridges/*.yaml` declare resource types and lifecycle operations; the runtime wires `BridgeProvisioner` and `BridgeActualStateAdapter` beans automatically via framework-neutral `BridgeDiscovery`.
+
+Capability mixins (`PlanCapable`, `ImportCapable`, `SuspendCapable`) extend the base `BridgeProvider` contract without forcing all adapters to implement every operation. `BridgeProvisioner` detects implemented mixins at construction and adapts its delegation path accordingly — plan-before-apply when `PlanCapable`, import-on-first-contact when `ImportCapable`, suspend/resume routing when `SuspendCapable`.
+
+Two structurally distinct adapters validate the SPI: Terraform (long-running gRPC process with per-tenant isolation, binary protocol, zero-config schema discovery) and Ansible (ephemeral CLI subprocess per operation, human-readable playbook generation, per-type module routing). The design question is not "how do we talk to Terraform" — it is "what is the minimal SPI that accommodates both gRPC-process and CLI-subprocess communication patterns."
+
+**Accountability gaps closed**
+- ✅ No external provider integration — `BridgeProvider` SPI with `provision`, `deprovision`, `readState` (#183)
+- ✅ No optional capability model — `PlanCapable`, `ImportCapable`, `SuspendCapable` mixins (#183, #192)
+- ✅ No manifest-driven discovery — `BridgeManifestParser` + `BridgeDiscovery` → `BeanRegistration` (#183)
+- ✅ No Terraform provider support — `TerraformBridgeProvider` with go-plugin gRPC protocol v5/v6 (#184)
+- ✅ No per-tenant process isolation — `TenantProviderRegistry` with config-hash routing and idle eviction (#194)
+- ✅ No provider binary verification — GPG signature verification + SHA-256 checksum via `ProviderRegistryClient` (#197)
+- ✅ No auto-mTLS — `PluginCertificateGenerator` with ECDSA P-521 ephemeral certs, `GoPluginHost` handshake (#193)
+- ✅ No zero-config type discovery — `SchemaTranslator` converts `GetProviderSchema` response to `DiscoveredType` with `NodeType` `tf:namespace/type:resource` (#184)
+- ✅ No Ansible collection support — `AnsibleBridgeProvider` with CLI-based execution, per-type module config via manifest `ansible:` extension (#185)
+- ✅ No error classification strategy — `BridgeErrorCategory` (TRANSIENT/PERMANENT/AUTH) with adapter-specific classifiers (#185, #205)
+- ✅ No bridge testing TCK — `MockBridgeProvider` variants + `BridgeProviderContractTest` per capability (#186)
+- ✅ No framework parity — Quarkus deployment extension (#203) + Spring auto-config (#202)
+- ✅ No credential resolution — `credentialRef` in manifest, platform `CredentialResolver` SPI integration (#191)
+- ✅ No resource import — `ImportCapable.importResource()` + `BridgeOutputStateStore` seeding (#192)
+
+**Layer Impact**
+
+| Layer | Delta |
+|---|---|
+| L10 Bridge Adapter | High — 8 modules: bridge SPI (api), adapter runtime (BridgeProvisioner, BridgeActualStateAdapter, BridgeDiscovery), Quarkus deployment, Spring auto-config, testing TCK, Terraform adapter (gRPC + go-plugin), Ansible adapter (CLI subprocess) |
+
+**Sequencing:** C11 after C10 — bridge adapters consume the declaration surface pattern (YAML manifest → descriptor → bean registration) and the full SPI surface (NodeProvisioner, ActualStateAdapter, NodeType routing). The framework-neutral `BeanRegistration` pattern established in C10 (used by `AnnotationsDiscovery`, `YamlDiscovery`, `TsDslDiscovery`) is reused by `BridgeDiscovery`.
 
 ---
 
