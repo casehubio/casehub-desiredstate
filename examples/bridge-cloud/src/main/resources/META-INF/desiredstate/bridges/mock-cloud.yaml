@@ -1,0 +1,28 @@
+bridge:
+  protocol: mock-cloud
+  types:
+    - id: "cloud:vm"
+      stateMapping:
+        running: PRESENT
+        stopped: SUSPENDED
+        terminated: ABSENT
+        _notFound: ABSENT
+        _default: UNKNOWN
+      errorMapping:
+        _default: { category: TRANSIENT }
+    - id: "cloud:network"
+      stateMapping:
+        active: PRESENT
+        deleted: ABSENT
+        _notFound: ABSENT
+        _default: UNKNOWN
+      errorMapping:
+        _default: { category: TRANSIENT }
+    - id: "cloud:storage"
+      stateMapping:
+        available: PRESENT
+        deleted: ABSENT
+        _notFound: ABSENT
+        _default: UNKNOWN
+      errorMapping:
+        _default: { category: TRANSIENT }

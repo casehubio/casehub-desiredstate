@@ -48,6 +48,7 @@
         <module>examples/webapp-yaml</module>
         <module>examples/pipeline-ts</module>
         <module>examples/plugin-yaml</module>
+        <module>examples/bridge-cloud</module>
         <module>eidos</module>
         <module>spring-integration-test</module>
     </modules>
