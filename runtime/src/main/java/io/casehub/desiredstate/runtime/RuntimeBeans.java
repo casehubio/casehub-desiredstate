@@ -21,11 +21,15 @@ import io.casehub.desiredstate.api.SituationRecompiler;
 import io.casehub.desiredstate.api.TransitionExecutor;
 import io.casehub.platform.api.preferences.PreferenceProvider;
 import io.cloudevents.CloudEvent;
+import io.quarkus.arc.Arc;
 import io.quarkus.arc.DefaultBean;
+import io.quarkus.arc.ManagedContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
+
+import java.util.function.Consumer;
 
 @ApplicationScoped
 public class RuntimeBeans {
@@ -172,8 +176,26 @@ public class RuntimeBeans {
                                       listeners.stream().toList(), stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
                                       driftPolicyEngine, exemptionStore, approvalGate,
-                                      historyStore, null, preferenceProvider);
+                                      historyStore, null, preferenceProvider,
+                                      cdiRequestContextRunner());
     }
+
+    private static Consumer<Runnable> cdiRequestContextRunner() {
+        return task -> {
+            ManagedContext requestContext = Arc.container().requestContext();
+            if (requestContext.isActive()) {
+                task.run();
+            } else {
+                requestContext.activate();
+                try {
+                    task.run();
+                } finally {
+                    requestContext.deactivate();
+                }
+            }
+        };
+    }
+
 
     @Produces
     @DefaultBean

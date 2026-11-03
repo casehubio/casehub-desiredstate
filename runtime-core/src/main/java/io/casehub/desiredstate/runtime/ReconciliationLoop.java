@@ -122,6 +122,7 @@ public class ReconciliationLoop {
     private final io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore;
     private final io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller;
     private final io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider;
+    private final Consumer<Runnable>                                     schedulerContextRunner;
 
 
     private final int                      nodeOutcomesThreshold;
@@ -138,7 +139,7 @@ public class ReconciliationLoop {
             MergedEventSource mergedEventSource) {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              null, DEFAULT_DEBOUNCE, DEFAULT_RESYNC, null, null, List.of(), null,
-             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null, null, null, null);
+             ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD, null, null, null, null, null, null, null);
     }
 
 
@@ -164,7 +165,7 @@ public class ReconciliationLoop {
         this(planner, executor, actualStateAdapterRouter, faultPolicyEngine, mergedEventSource,
              router, debounceWindow, resyncOverride, cloudEventSink, cbrTracker, globalListeners,
              reconciliationStateStore, nodeOutcomesThreshold, driftPolicyEngine, exemptionStore,
-             approvalGate, historyStore, lifecycleCanceller, null);
+             approvalGate, historyStore, lifecycleCanceller, null, null);
     }
 
     public ReconciliationLoop(
@@ -186,7 +187,8 @@ public class ReconciliationLoop {
             PlanApprovalGate approvalGate,
             io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore,
             io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller,
-            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
+            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider,
+            Consumer<Runnable> schedulerContextRunner) {
         this.planner                  = planner;
         this.executor                 = executor;
         this.actualStateAdapterRouter = actualStateAdapterRouter;
@@ -207,6 +209,7 @@ public class ReconciliationLoop {
         this.historyStore             = historyStore;
         this.lifecycleCanceller       = lifecycleCanceller;
         this.preferenceProvider       = preferenceProvider;
+        this.schedulerContextRunner   = schedulerContextRunner != null ? schedulerContextRunner : Runnable::run;
 
         int poolSize = computeSchedulerPoolSize();
         this.scheduler = Executors.newScheduledThreadPool(poolSize, r -> {
@@ -521,6 +524,7 @@ public class ReconciliationLoop {
         private       io.casehub.desiredstate.api.DesiredStateHistoryStore historyStore;
         private       io.casehub.desiredstate.api.LifecycleCanceller lifecycleCanceller;
         private       io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider;
+        private       Consumer<Runnable>                                     schedulerContextRunner;
 
 
         private Builder(TransitionPlanner planner, TransitionExecutor executor,
@@ -606,6 +610,11 @@ public class ReconciliationLoop {
             return this;
         }
 
+        public Builder schedulerContextRunner(Consumer<Runnable> schedulerContextRunner) {
+            this.schedulerContextRunner = schedulerContextRunner;
+            return this;
+        }
+
 
         public ReconciliationLoop build() {
             return new ReconciliationLoop(planner, executor, actualStateAdapterRouter,
@@ -613,7 +622,8 @@ public class ReconciliationLoop {
                                           resyncInterval, cloudEventSink, cbrTracker, globalListeners,
                                           reconciliationStateStore, nodeOutcomesThreshold,
                                           driftPolicyEngine, exemptionStore, approvalGate,
-                                          historyStore, lifecycleCanceller, preferenceProvider);
+                                          historyStore, lifecycleCanceller, preferenceProvider,
+                                          schedulerContextRunner);
         }
     }
 
@@ -654,14 +664,14 @@ public class ReconciliationLoop {
 
         void start() {
             // Immediate initial full-graph reconciliation
-            reconcile();
+            schedulerContextRunner.accept(this::reconcile);
 
             // Event-driven: subscribe with debounce
             eventSubscription = mergedEventSource.stream()
                 .group().intoLists().every(debounceWindow)
                 .filter(batch -> !batch.isEmpty())
                 .subscribe().with(
-                    batch -> reconcile(),
+                    batch -> schedulerContextRunner.accept(this::reconcile),
                     failure -> LOG.log(Level.WARNING,
                         "Event stream error for tenant " + tenancyId, failure)
                 );
@@ -671,7 +681,7 @@ public class ReconciliationLoop {
                 // Test mode: single timer at override interval
                 long resyncMillis = resyncOverride.toMillis();
                 resyncFuture = scheduler.scheduleAtFixedRate(
-                    this::reconcile,
+                    () -> schedulerContextRunner.accept(this::reconcile),
                     resyncMillis, resyncMillis, TimeUnit.MILLISECONDS);
             } else if (router != null) {
                 // Production mode: interval-grouped timers
@@ -680,7 +690,7 @@ public class ReconciliationLoop {
                 // Legacy fallback: single timer at default interval
                 long resyncMillis = DEFAULT_RESYNC.toMillis();
                 resyncFuture = scheduler.scheduleAtFixedRate(
-                    this::reconcile,
+                    () -> schedulerContextRunner.accept(this::reconcile),
                     resyncMillis, resyncMillis, TimeUnit.MILLISECONDS);
             }
         }
@@ -691,7 +701,7 @@ public class ReconciliationLoop {
                 long millis = group.getKey().toMillis();
                 Set<NodeType> types = Set.copyOf(group.getValue());
                 ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(
-                    () -> reconcileTypes(types),
+                    () -> schedulerContextRunner.accept(() -> reconcileTypes(types)),
                     millis, millis, TimeUnit.MILLISECONDS);
                 resyncFutures.put(group.getKey(), future);
             }
@@ -780,10 +790,9 @@ public class ReconciliationLoop {
                     requestedReconciliation.cancel(false);
                 }
                 requestedReconciliation = scheduler.schedule(
-                    this::reconcile,
+                    () -> schedulerContextRunner.accept(this::reconcile),
                     debounceWindow.toMillis(),
-                    TimeUnit.MILLISECONDS
-                );
+                    TimeUnit.MILLISECONDS);
             }
         }
 

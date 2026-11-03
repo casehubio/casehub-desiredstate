@@ -196,7 +196,7 @@ public class DesiredStateRuntimeAutoConfiguration {
                                       cloudEventSink, cbrTracker, listeners, stateStore,
                                       ReconciliationCompletedData.NODE_OUTCOMES_THRESHOLD,
                                       driftPolicyEngine, exemptionStore, approvalGate,
-                                      historyStore, null, preferenceProvider);
+                                      historyStore, null, preferenceProvider, null);
     }
 
     @Bean
