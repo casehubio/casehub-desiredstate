@@ -1,5 +1,5 @@
 export type {
-    GraphDef, NodeDef, DependencyRef, HumanGating,
+    GraphDef, NodeDef, DependencyRef, HumanGating, TargetStatus,
     NodeHooks, HookBlock, HookStep, VerifyStep, NotifyStep, WaitStep,
     LifecycleDef, PhaseDef, CompletionCondition, DependencyDef,
     GraphEnvelope, LifecycleEnvelope, EnvelopeNode, EnvelopePhase,
@@ -62,7 +62,7 @@ export function defineLifecycle(def: LifecycleDef): LifecycleEnvelope {
 export function node<T extends keyof NodeTypeMap>(
     type: T,
     spec: NodeTypeMap[T],
-    opts?: { dependsOn?: string[]; humanGating?: 'NONE' | 'PROVISION_ONLY' | 'DEPROVISION_ONLY' | 'ALL' },
+    opts?: { dependsOn?: string[]; humanGating?: 'NONE' | 'PROVISION_ONLY' | 'DEPROVISION_ONLY' | 'ALL'; targetStatus?: 'ACTIVE' | 'SUSPENDED' },
 ): NodeDef {
     return { type, spec, ...opts } as NodeDef;
 }

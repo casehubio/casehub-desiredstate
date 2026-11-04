@@ -136,7 +136,8 @@ public class YamlGraphRecorder {
                     NodeSpec spec = mapper.convertValue(expYamlNode.spec(), specClass);
                     VariableResolver nodeResolver = adapter.resolverFor(expNodeId);
                     expNodes.add(new DesiredNode(NodeId.of(expNodeId), spec, expYamlNode.humanGating(),
-                            HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId)));
+                            HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId),
+                            expYamlNode.targetStatus()));
                     for (Object dep : expYamlNode.dependsOn()) {
                         String depId = io.casehub.desiredstate.yaml.model.YamlNode.dependencyNodeId(dep);
                         if (!expanded.excludedIds().contains(depId)) {
@@ -178,10 +179,13 @@ public class YamlGraphRecorder {
                         }
 
                         io.casehub.desiredstate.api.HookDescriptor hooks = null;
+                        io.casehub.desiredstate.api.TargetStatus targetStatus = io.casehub.desiredstate.api.TargetStatus.ACTIVE;
                         if (yamlGraph != null && yamlGraph.nodes().containsKey(in.id())) {
-                            hooks = HookResolver.resolveHooks(yamlGraph.nodes().get(in.id()), resolver, in.id());
+                            io.casehub.desiredstate.yaml.model.YamlNode overlay = yamlGraph.nodes().get(in.id());
+                            hooks = HookResolver.resolveHooks(overlay, resolver, in.id());
+                            targetStatus = overlay.targetStatus();
                         }
-                        nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), hooks));
+                        nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), hooks, targetStatus));
                     }
                 }
 
@@ -319,7 +323,8 @@ public class YamlGraphRecorder {
                         NodeSpec spec = mapper.convertValue(expYamlNode.spec(), specClass);
                         VariableResolver nodeResolver = adapter.resolverFor(expNodeId);
                         phaseNodes.add(new DesiredNode(NodeId.of(expNodeId), spec, expYamlNode.humanGating(),
-                                HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId)));
+                                HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId),
+                                expYamlNode.targetStatus()));
                         phaseNodeIds.add(expNodeId);
                         for (Object dep : expYamlNode.dependsOn()) {
                             String depId = io.casehub.desiredstate.yaml.model.YamlNode.dependencyNodeId(dep);
@@ -351,7 +356,8 @@ public class YamlGraphRecorder {
                                 yamlNode.spec() != null ? yamlNode.spec() : Map.of(), nodeId);
                         NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
                         phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating(),
-                                HookResolver.resolveHooks(yamlNode, resolver, nodeId)));
+                                HookResolver.resolveHooks(yamlNode, resolver, nodeId),
+                                yamlNode.targetStatus()));
                         phaseNodeIds.add(nodeId);
                     }
 

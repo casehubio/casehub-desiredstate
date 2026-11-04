@@ -1,6 +1,7 @@
 package io.casehub.desiredstate.annotations;
 
 import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.TargetStatus;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -10,5 +11,8 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 public @interface Node {
     String value();
+
     HumanGating humanGating() default HumanGating.NONE;
+
+    TargetStatus targetStatus() default TargetStatus.ACTIVE;
 }

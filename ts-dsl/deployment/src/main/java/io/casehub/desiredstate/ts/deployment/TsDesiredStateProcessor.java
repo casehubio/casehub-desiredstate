@@ -269,7 +269,7 @@ public class TsDesiredStateProcessor {
         List<NodeDescriptor> nodes = new ArrayList<>();
         for (TsEnvelopeNode en : envelope.nodes()) {
             nodes.add(new NodeDescriptor.InlineNode(
-                    en.id(), typeRegistry.get(en.type()), en.spec(), en.humanGating()));
+                    en.id(), typeRegistry.get(en.type()), en.spec(), en.humanGating(), en.targetStatus()));
         }
         return new GraphDescriptor(
                 envelope.namespace(), envelope.name(), null, null,

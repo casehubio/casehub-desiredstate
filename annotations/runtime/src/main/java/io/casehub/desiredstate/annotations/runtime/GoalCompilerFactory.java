@@ -301,7 +301,7 @@ public final class GoalCompilerFactory {
                 case NodeDescriptor.InterfaceNode in -> {
                     Method method = implClass.getMethod(in.methodName());
                     NodeSpec spec = (NodeSpec) method.invoke(instance);
-                    nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating()));
+                    nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), null, in.targetStatus()));
                 }
                 case NodeDescriptor.ClassNode cn -> {
                     Class<?> nodeClass = classLoader.loadClass(cn.className());

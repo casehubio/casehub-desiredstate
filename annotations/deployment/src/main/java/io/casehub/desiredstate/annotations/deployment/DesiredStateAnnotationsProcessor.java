@@ -15,6 +15,7 @@ import io.casehub.desiredstate.annotations.runtime.PatternParameterDescriptor;
 import io.casehub.desiredstate.annotations.runtime.TierDescriptor;
 import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.TargetStatus;
 import io.casehub.desiredstate.api.ThresholdFaultPolicy;
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.deployment.GeneratedClassGizmoAdaptor;
@@ -375,8 +376,9 @@ public class DesiredStateAnnotationsProcessor {
                 String      nodeId = nodeAnn.value().asString();
                 HumanGating gating = resolveHumanGating(nodeAnn, index);
 
+                TargetStatus targetStatus = resolveTargetStatus(nodeAnn, index);
                 nodes.add(new NodeDescriptor.InterfaceNode(nodeId, method.name(),
-                                                           method.returnType().name().toString(), gating));
+                                                           method.returnType().name().toString(), gating, targetStatus));
 
                 AnnotationInstance dependsOnAnn = method.annotation(DEPENDS_ON);
                 if (dependsOnAnn != null) {
@@ -488,6 +490,12 @@ public class DesiredStateAnnotationsProcessor {
         AnnotationValue gatingVal = nodeAnn.valueWithDefault(index, "humanGating");
         if (gatingVal == null) {return HumanGating.NONE;}
         return HumanGating.valueOf(gatingVal.asEnum());
+    }
+
+    private TargetStatus resolveTargetStatus(AnnotationInstance nodeAnn, IndexView index) {
+        AnnotationValue statusVal = nodeAnn.valueWithDefault(index, "targetStatus");
+        if (statusVal == null) {return TargetStatus.ACTIVE;}
+        return TargetStatus.valueOf(statusVal.asEnum());
     }
 
     private GraphRuleDescriptor buildGraphRuleDescriptor(MethodInfo method, IndexView index,

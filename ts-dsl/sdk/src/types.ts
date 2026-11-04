@@ -15,12 +15,15 @@ export interface GraphDef {
     orderingConstraints?: OrderingConstraintDef[];
 }
 
+export type TargetStatus = 'ACTIVE' | 'SUSPENDED';
+
 export type NodeDef = {
     [T in keyof NodeTypeMap]: {
         type: T;
         spec: NodeTypeMap[T];
         dependsOn?: DependencyRef[];
         humanGating?: HumanGating;
+        targetStatus?: TargetStatus;
         hooks?: NodeHooks;
     }
 }[keyof NodeTypeMap];
@@ -84,6 +87,7 @@ export interface EnvelopeNode {
     type: string;
     spec: Record<string, unknown>;
     humanGating?: HumanGating;
+    targetStatus?: TargetStatus;
     hooks?: NodeHooks;
 }
 

@@ -12,7 +12,6 @@ import io.casehub.desiredstate.annotations.runtime.GraphRuleDescriptor;
 import io.casehub.desiredstate.annotations.runtime.GraphRuleEngine;
 import io.casehub.desiredstate.annotations.runtime.NodeDescriptor;
 import io.casehub.desiredstate.annotations.runtime.ResolvedInvariant;
-import io.casehub.desiredstate.annotations.runtime.ResolvedRule;
 import io.casehub.desiredstate.api.CompilationResult;
 import io.casehub.desiredstate.api.CompletionCondition;
 import io.casehub.desiredstate.api.Dependency;
@@ -193,9 +192,9 @@ public final class TsGoalCompilerFactory {
         try {
             Class<? extends NodeSpec> specClass =
                     (Class<? extends NodeSpec>) Thread.currentThread()
-                            .getContextClassLoader().loadClass(in.specClassName());
+                                                      .getContextClassLoader().loadClass(in.specClassName());
             NodeSpec spec = mapper.convertValue(in.specValues(), specClass);
-            return new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), null);
+            return new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), null, in.targetStatus());
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("NodeSpec class not found: " + in.specClassName(), e);
         }
@@ -209,9 +208,9 @@ public final class TsGoalCompilerFactory {
         try {
             Class<? extends NodeSpec> specClass =
                     (Class<? extends NodeSpec>) Thread.currentThread()
-                            .getContextClassLoader().loadClass(className);
+                                                      .getContextClassLoader().loadClass(className);
             NodeSpec spec = mapper.convertValue(en.spec(), specClass);
-            return new DesiredNode(NodeId.of(en.id()), spec, en.humanGating(), null);
+            return new DesiredNode(NodeId.of(en.id()), spec, en.humanGating(), null, en.targetStatus());
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("NodeSpec class not found: " + className, e);
         }

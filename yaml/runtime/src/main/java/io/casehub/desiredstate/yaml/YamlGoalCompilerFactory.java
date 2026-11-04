@@ -26,6 +26,7 @@ import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.OrderingConstraint;
 import io.casehub.desiredstate.api.Phase;
+import io.casehub.desiredstate.api.TargetStatus;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
 import io.casehub.desiredstate.yaml.model.YamlInvariant;
 import io.casehub.desiredstate.yaml.model.YamlNode;
@@ -161,7 +162,8 @@ public final class YamlGoalCompilerFactory {
                         NodeSpec spec = mapper.convertValue(expYamlNode.spec(), specClass);
                         VariableResolver nodeResolver = adapter.resolverFor(expNodeId);
                         phaseNodes.add(new DesiredNode(NodeId.of(expNodeId), spec, expYamlNode.humanGating(),
-                                HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId)));
+                                HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId),
+                                expYamlNode.targetStatus()));
                         phaseNodeIds.add(expNodeId);
                         for (Object dep : expYamlNode.dependsOn()) {
                             String depId = YamlNode.dependencyNodeId(dep);
@@ -190,7 +192,8 @@ public final class YamlGoalCompilerFactory {
                                 yamlNode.spec() != null ? yamlNode.spec() : Map.of(), nodeId);
                         NodeSpec spec = mapper.convertValue(resolvedSpec, specClass);
                         phaseNodes.add(new DesiredNode(NodeId.of(nodeId), spec, yamlNode.humanGating(),
-                                HookResolver.resolveHooks(yamlNode, resolver, nodeId)));
+                                HookResolver.resolveHooks(yamlNode, resolver, nodeId),
+                                yamlNode.targetStatus()));
                         phaseNodeIds.add(nodeId);
                     }
 
@@ -289,7 +292,8 @@ public final class YamlGoalCompilerFactory {
             NodeSpec                  spec         = mapper.convertValue(expYamlNode.spec(), specClass);
             VariableResolver          nodeResolver = adapter.resolverFor(expNodeId);
             expNodes.add(new DesiredNode(NodeId.of(expNodeId), spec, expYamlNode.humanGating(),
-                                         HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId)));
+                                         HookResolver.resolveHooks(expYamlNode, nodeResolver != null ? nodeResolver : resolver, expNodeId),
+                                         expYamlNode.targetStatus()));
             for (Object dep : expYamlNode.dependsOn()) {
                 String depId = YamlNode.dependencyNodeId(dep);
                 if (!expanded.excludedIds().contains(depId)) {
@@ -335,10 +339,13 @@ public final class YamlGoalCompilerFactory {
                 }
 
                 HookDescriptor hooks = null;
+                TargetStatus targetStatus = TargetStatus.ACTIVE;
                 if (yamlGraph != null && yamlGraph.nodes().containsKey(in.id())) {
-                    hooks = HookResolver.resolveHooks(yamlGraph.nodes().get(in.id()), resolver, in.id());
+                    YamlNode overlay = yamlGraph.nodes().get(in.id());
+                    hooks = HookResolver.resolveHooks(overlay, resolver, in.id());
+                    targetStatus = overlay.targetStatus();
                 }
-                nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), hooks));
+                nodes.add(new DesiredNode(NodeId.of(in.id()), spec, in.humanGating(), hooks, targetStatus));
             }
         }
 

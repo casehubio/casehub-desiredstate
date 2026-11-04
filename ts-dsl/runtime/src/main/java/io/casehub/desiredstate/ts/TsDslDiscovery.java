@@ -46,7 +46,7 @@ public class TsDslDiscovery {
         for (TsEnvelopeNode en : envelope.nodes()) {
             String specClassName = typeRegistry.get(en.type());
             nodes.add(new NodeDescriptor.InlineNode(en.id(), specClassName,
-                en.spec() != null ? en.spec() : Map.of(), en.humanGating()));
+                en.spec() != null ? en.spec() : Map.of(), en.humanGating(), en.targetStatus()));
         }
         List<OrderingConstraintDescriptor> constraints = envelope.orderingConstraints().stream()
             .map(c -> new OrderingConstraintDescriptor(c.before(), c.after()))

@@ -32,7 +32,8 @@ public class YamlNodeForEachAdapter implements ForEachAdapter<YamlNode> {
                 .toList();
         return new YamlNode(template.type(), resolvedSpec, resolvedDeps,
                 template.humanGating(), null, null,
-                template.provision(), template.deprovision());
+                template.provision(), template.deprovision(),
+                template.suspend(), template.resume(), template.targetStatus());
     }
 
     @Override
@@ -61,7 +62,8 @@ public class YamlNodeForEachAdapter implements ForEachAdapter<YamlNode> {
                 .toList();
         return new YamlNode(element.type(), element.spec(), newDeps,
                 element.humanGating(), element.when(), element.forEach(),
-                element.provision(), element.deprovision());
+                element.provision(), element.deprovision(),
+                element.suspend(), element.resume(), element.targetStatus());
     }
 
     public VariableResolver resolverFor(String stampedId) {

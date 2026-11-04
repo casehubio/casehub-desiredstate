@@ -335,6 +335,7 @@ public class YamlDesiredStateProcessor {
 
         for (Map.Entry<String, YamlNode> entry : graph.nodes().entrySet()) {
             validateNodeHooks(entry.getValue(), entry.getKey(), fileName);
+            validateNodeTargetStatus(entry.getValue(), entry.getKey(), fileName);
         }
 
         detectCycles(graph.nodes(), fileName);
@@ -347,6 +348,16 @@ public class YamlDesiredStateProcessor {
         validateHookBlock(node.deprovision(), "deprovision", nodeId, fileName);
         validateHookBlock(node.suspend(), "suspend", nodeId, fileName);
         validateHookBlock(node.resume(), "resume", nodeId, fileName);
+    }
+
+    private static void validateNodeTargetStatus(YamlNode node, String nodeId, String fileName) {
+        io.casehub.desiredstate.api.TargetStatus ts = node.targetStatus();
+        if (ts != io.casehub.desiredstate.api.TargetStatus.ACTIVE
+                && ts != io.casehub.desiredstate.api.TargetStatus.SUSPENDED) {
+            throw new RuntimeException(fileName + ": node '" + nodeId
+                    + "' has invalid targetStatus '" + ts
+                    + "'. Valid values: ACTIVE, SUSPENDED");
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -672,6 +683,7 @@ public class YamlDesiredStateProcessor {
                     throw new RuntimeException(ctx + ": unknown node type '"
                                                + node.type() + "' for node '" + nodeId + "'");
                 }
+                validateNodeTargetStatus(node, nodeId, ctx);
             }
 
             validateForEach(phase.nodes(), graph.iterations(), typeRegistry, ctx);
@@ -870,7 +882,8 @@ public class YamlDesiredStateProcessor {
             if (rewrittenSpec != node.spec()) {
                 node = new YamlNode(node.type(), rewrittenSpec, node.dependsOn(),
                         node.humanGating(), node.when(), node.forEach(),
-                        node.provision(), node.deprovision());
+                        node.provision(), node.deprovision(),
+                        node.suspend(), node.resume(), node.targetStatus());
                 changed = true;
             }
             rewrittenNodes.put(entry.getKey(), node);
