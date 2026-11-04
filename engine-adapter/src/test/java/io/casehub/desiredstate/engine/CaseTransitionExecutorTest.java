@@ -442,6 +442,160 @@ class CaseTransitionExecutorTest {
     }
 
 
+    @Test
+    void suspensions_generateFreezeWorker() {
+        DesiredNode node = new DesiredNode(NodeId.of("vm-1"), new TestSpec(), HumanGating.NONE);
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(node), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(), List.of(new OrderedStep(node, StepAction.SUSPEND)),
+                List.of(), List.of(), graph, graph);
+
+        CaseDefinition caseDef = executor.buildCaseDefinition(plan, "exec-1");
+
+        assertThat(caseDef.getWorkers()).hasSize(1);
+        assertThat(caseDef.getWorkers().get(0).name()).isEqualTo("freeze");
+    }
+
+    @Test
+    void resumptions_generateThawWorker() {
+        DesiredNode node = new DesiredNode(NodeId.of("vm-1"), new TestSpec(), HumanGating.NONE);
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(node), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(), List.of(),
+                List.of(new OrderedStep(node, StepAction.RESUME)),
+                List.of(), graph, graph);
+
+        CaseDefinition caseDef = executor.buildCaseDefinition(plan, "exec-1");
+
+        assertThat(caseDef.getWorkers()).hasSize(1);
+        assertThat(caseDef.getWorkers().get(0).name()).isEqualTo("thaw");
+    }
+
+    @Test
+    void humanSuspensions_getHumanTaskBindings() {
+        DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), HumanGating.SUSPEND_ONLY);
+        DesiredNode autoNode  = new DesiredNode(NodeId.of("a1"), new TestSpec(), HumanGating.NONE);
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(humanNode, autoNode), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(),
+                List.of(
+                        new OrderedStep(humanNode, StepAction.SUSPEND),
+                        new OrderedStep(autoNode, StepAction.SUSPEND)),
+                List.of(), List.of(), graph, graph);
+
+        CaseDefinition caseDef = executor.buildCaseDefinition(plan, "exec-1");
+
+        boolean hasHumanBinding = caseDef.getBindings().stream()
+                                         .anyMatch(b -> b.getName().equals("human-suspend-h1")
+                                                        && b.target() instanceof JudgmentTarget);
+        assertThat(hasHumanBinding).isTrue();
+        assertThat(caseDef.getWorkers()).hasSize(1);
+        assertThat(caseDef.getWorkers().get(0).name()).isEqualTo("freeze");
+    }
+
+    @Test
+    void humanResumptions_getHumanTaskBindings() {
+        DesiredNode humanNode = new DesiredNode(NodeId.of("h1"), new TestSpec(), HumanGating.RESUME_ONLY);
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(humanNode), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(), List.of(),
+                List.of(new OrderedStep(humanNode, StepAction.RESUME)),
+                List.of(), graph, graph);
+
+        CaseDefinition caseDef = executor.buildCaseDefinition(plan, "exec-1");
+
+        assertThat(caseDef.getWorkers()).isEmpty();
+        boolean hasHumanBinding = caseDef.getBindings().stream()
+                                         .anyMatch(b -> b.getName().equals("human-resume-h1")
+                                                        && b.target() instanceof JudgmentTarget);
+        assertThat(hasHumanBinding).isTrue();
+    }
+
+    @Test
+    void suspendResume_markedInResult() {
+        DesiredNode suspendNode = new DesiredNode(NodeId.of("vm-1"), new TestSpec(), HumanGating.NONE);
+        DesiredNode resumeNode  = new DesiredNode(NodeId.of("vm-2"), new TestSpec(), HumanGating.NONE);
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(suspendNode, resumeNode), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(),
+                List.of(new OrderedStep(suspendNode, StepAction.SUSPEND)),
+                List.of(new OrderedStep(resumeNode, StepAction.RESUME)),
+                List.of(), graph, graph);
+
+        TransitionResult result = executor.execute(plan, "tenant-1");
+
+        assertThat(result.outcomes().get(NodeId.of("vm-1")))
+                .isInstanceOf(StepOutcome.Succeeded.class);
+        assertThat(result.outcomes().get(NodeId.of("vm-2")))
+                .isInstanceOf(StepOutcome.Succeeded.class);
+    }
+
+    @Test
+    void pendingApproval_suspendNodeSkipped() {
+        DesiredNode node = new DesiredNode(NodeId.of("gated"), new TestSpec(), HumanGating.NONE);
+
+        approvalHandler.programCheck(
+                NodeId.of("gated"), StepAction.SUSPEND,
+                new ApprovalCheckResult.Pending("plan-ref-1"));
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(node), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(),
+                List.of(new OrderedStep(node, StepAction.SUSPEND)),
+                List.of(), List.of(), graph, graph);
+
+        StubCaseHubRuntime runtime = new StubCaseHubRuntime();
+        CaseTransitionExecutor exec = new CaseTransitionExecutor(
+                workflowGenerator, runtime, approvalHandler, executionRegistry);
+
+        TransitionResult result = exec.execute(plan, "tenant-a");
+
+        assertThat(result.outcomes().get(NodeId.of("gated")))
+                .isInstanceOf(StepOutcome.Skipped.class);
+        assertThat(runtime.casesStarted).isZero();
+    }
+
+    @Test
+    void allFourPhases_generateCorrectWorkers() {
+        DesiredNode r = new DesiredNode(NodeId.of("r1"), new TestSpec(), HumanGating.NONE);
+        DesiredNode s = new DesiredNode(NodeId.of("s1"), new TestSpec(), HumanGating.NONE);
+        DesiredNode u = new DesiredNode(NodeId.of("u1"), new TestSpec(), HumanGating.NONE);
+        DesiredNode a = new DesiredNode(NodeId.of("a1"), new TestSpec(), HumanGating.NONE);
+
+        DesiredStateGraphFactory factory = new DefaultDesiredStateGraphFactory();
+        DesiredStateGraph        graph   = factory.of(List.of(r, s, u, a), List.of());
+
+        TransitionPlan plan = TransitionPlan.ofFlat(
+                List.of(new OrderedStep(r, StepAction.DEPROVISION)),
+                List.of(new OrderedStep(s, StepAction.SUSPEND)),
+                List.of(new OrderedStep(u, StepAction.RESUME)),
+                List.of(new OrderedStep(a, StepAction.PROVISION)),
+                graph, graph);
+
+        CaseDefinition caseDef = executor.buildCaseDefinition(plan, "exec-1");
+
+        assertThat(caseDef.getWorkers()).hasSize(4);
+        assertThat(caseDef.getWorkers().stream().map(w -> w.name()).toList())
+                .containsExactly("prune", "freeze", "thaw", "grow");
+    }
+
     private record TestSpec(NodeType nodeType) implements NodeSpec {
         TestSpec() {this(NodeType.of("test"));}
     }
