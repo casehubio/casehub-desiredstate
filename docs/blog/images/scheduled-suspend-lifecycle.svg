@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr2" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <path d="M0,0 L7,2.5 L0,5" fill="#64748b"/>
+    </marker>
+    <marker id="arr-green" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <path d="M0,0 L7,2.5 L0,5" fill="#16a34a"/>
+    </marker>
+    <marker id="arr-amber" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <path d="M0,0 L7,2.5 L0,5" fill="#d97706"/>
+    </marker>
+    <marker id="arr-blue" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <path d="M0,0 L7,2.5 L0,5" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">Scheduled Suspend/Resume — The Dev Environment at Night</text>
+
+  <!-- Timeline -->
+  <line x1="60" y1="80" x2="720" y2="80" stroke="#cbd5e1" stroke-width="2"/>
+
+  <!-- Phase 1: Provision (9am) -->
+  <circle cx="120" cy="80" r="8" fill="#16a34a" stroke="white" stroke-width="2"/>
+  <text x="120" y="65" text-anchor="middle" font-size="10" font-weight="600" fill="#166534">9:00 AM</text>
+  <text x="120" y="106" text-anchor="middle" font-size="10" fill="#16a34a">Provision</text>
+
+  <!-- Phase 2: Running -->
+  <rect x="180" y="72" width="160" height="16" rx="8" fill="#dcfce7"/>
+  <text x="260" y="84" text-anchor="middle" font-size="9" fill="#166534">ACTIVE — all nodes PRESENT</text>
+
+  <!-- Phase 3: Suspend (6pm) -->
+  <circle cx="400" cy="80" r="8" fill="#d97706" stroke="white" stroke-width="2"/>
+  <text x="400" y="65" text-anchor="middle" font-size="10" font-weight="600" fill="#92400e">6:00 PM</text>
+  <text x="400" y="106" text-anchor="middle" font-size="10" fill="#d97706">Suspend</text>
+
+  <!-- Phase 4: Sleeping -->
+  <rect x="460" y="72" width="120" height="16" rx="8" fill="#fef3c7"/>
+  <text x="520" y="84" text-anchor="middle" font-size="9" fill="#92400e">SUSPENDED — paying storage only</text>
+
+  <!-- Phase 5: Resume (9am) -->
+  <circle cx="640" cy="80" r="8" fill="#2563eb" stroke="white" stroke-width="2"/>
+  <text x="640" y="65" text-anchor="middle" font-size="10" font-weight="600" fill="#1e40af">9:00 AM</text>
+  <text x="640" y="106" text-anchor="middle" font-size="10" fill="#2563eb">Resume</text>
+
+  <!-- Suspend detail: dependency-ordered -->
+  <rect x="40" y="135" width="330" height="170" rx="8" fill="#fffbeb" stroke="#fde047" stroke-width="1"/>
+  <text x="205" y="157" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">Suspend — leaves before roots</text>
+
+  <rect x="60" y="172" width="140" height="30" rx="6" fill="#fef3c7" stroke="#fbbf24"/>
+  <text x="130" y="192" text-anchor="middle" font-size="10" fill="#92400e">app-1 (leaf)</text>
+  <text x="210" y="192" font-size="9" fill="#64748b">← suspendPre: drain</text>
+
+  <line x1="130" y1="202" x2="130" y2="218" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+
+  <rect x="60" y="222" width="140" height="30" rx="6" fill="#fef3c7" stroke="#fbbf24"/>
+  <text x="130" y="242" text-anchor="middle" font-size="10" fill="#92400e">vm-1 (root)</text>
+  <text x="210" y="242" font-size="9" fill="#64748b">← suspendPost: alert-mute</text>
+
+  <rect x="60" y="268" width="140" height="26" rx="6" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="130" y="286" text-anchor="middle" font-size="10" fill="#166534">net-1 stays ACTIVE</text>
+
+  <!-- Resume detail: dependency-ordered -->
+  <rect x="410" y="135" width="330" height="170" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1"/>
+  <text x="575" y="157" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">Resume — roots before leaves</text>
+
+  <rect x="430" y="172" width="140" height="30" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="500" y="192" text-anchor="middle" font-size="10" fill="#1e40af">vm-1 (root)</text>
+  <text x="580" y="192" font-size="9" fill="#64748b">← resumePre: verify</text>
+
+  <line x1="500" y1="202" x2="500" y2="218" stroke="#2563eb" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+  <rect x="430" y="222" width="140" height="30" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="500" y="242" text-anchor="middle" font-size="10" fill="#1e40af">app-1 (leaf)</text>
+  <text x="580" y="242" font-size="9" fill="#64748b">← resumePost: re-register</text>
+
+  <rect x="430" y="268" width="140" height="26" rx="6" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="500" y="286" text-anchor="middle" font-size="10" fill="#166534">net-1 was never suspended</text>
+
+  <!-- Footer -->
+  <text x="390" y="330" text-anchor="middle" font-size="10" fill="#94a3b8">The planner respects dependency order: drain apps before stopping VMs, start VMs before re-registering apps</text>
+</svg>

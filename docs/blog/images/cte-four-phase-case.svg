@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 280" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <path d="M0,0 L7,2.5 L0,5" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="22" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">CaseTransitionExecutor — Four-Phase Case Structure</text>
+  <text x="390" y="40" text-anchor="middle" font-size="10" fill="#64748b">Each phase becomes a Worker(Workflow) with ordered steps dispatched via desiredstate:dispatch</text>
+
+  <!-- Case container -->
+  <rect x="20" y="55" width="740" height="175" rx="10" fill="#faf5ff" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="40" y="75" font-size="10" font-weight="600" fill="#7c3aed">CaseDefinition: desired-state-transition</text>
+
+  <!-- Prune phase -->
+  <rect x="40" y="90" width="155" height="80" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <text x="117" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#991b1b">Prune</text>
+  <text x="117" y="128" text-anchor="middle" font-size="9" fill="#64748b">Removals</text>
+  <text x="117" y="142" text-anchor="middle" font-size="9" fill="#64748b">leaves → roots</text>
+  <text x="117" y="160" text-anchor="middle" font-size="8" fill="#991b1b">DEPROVISION steps</text>
+
+  <line x1="195" y1="130" x2="220" y2="130" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Freeze phase -->
+  <rect x="225" y="90" width="155" height="80" rx="8" fill="#fefce8" stroke="#fde047" stroke-width="1.5"/>
+  <text x="302" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">Freeze</text>
+  <text x="302" y="128" text-anchor="middle" font-size="9" fill="#64748b">Suspensions</text>
+  <text x="302" y="142" text-anchor="middle" font-size="9" fill="#64748b">leaves → roots</text>
+  <text x="302" y="160" text-anchor="middle" font-size="8" fill="#92400e">SUSPEND steps</text>
+
+  <line x1="380" y1="130" x2="405" y2="130" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Thaw phase -->
+  <rect x="410" y="90" width="155" height="80" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="487" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">Thaw</text>
+  <text x="487" y="128" text-anchor="middle" font-size="9" fill="#64748b">Resumptions</text>
+  <text x="487" y="142" text-anchor="middle" font-size="9" fill="#64748b">roots → leaves</text>
+  <text x="487" y="160" text-anchor="middle" font-size="8" fill="#1e40af">RESUME steps</text>
+
+  <line x1="565" y1="130" x2="590" y2="130" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Grow phase -->
+  <rect x="595" y="90" width="155" height="80" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="672" y="112" text-anchor="middle" font-size="11" font-weight="600" fill="#166534">Grow</text>
+  <text x="672" y="128" text-anchor="middle" font-size="9" fill="#64748b">Additions</text>
+  <text x="672" y="142" text-anchor="middle" font-size="9" fill="#64748b">roots → leaves</text>
+  <text x="672" y="160" text-anchor="middle" font-size="8" fill="#166534">PROVISION steps</text>
+
+  <!-- Human bindings below -->
+  <text x="117" y="200" text-anchor="middle" font-size="8" fill="#64748b">human-deprovision-*</text>
+  <text x="302" y="200" text-anchor="middle" font-size="8" fill="#64748b">human-suspend-*</text>
+  <text x="487" y="200" text-anchor="middle" font-size="8" fill="#64748b">human-resume-*</text>
+  <text x="672" y="200" text-anchor="middle" font-size="8" fill="#64748b">human-provision-*</text>
+
+  <text x="117" y="215" text-anchor="middle" font-size="7" fill="#a1a1aa">JudgmentTarget</text>
+  <text x="302" y="215" text-anchor="middle" font-size="7" fill="#a1a1aa">JudgmentTarget</text>
+  <text x="487" y="215" text-anchor="middle" font-size="7" fill="#a1a1aa">JudgmentTarget</text>
+  <text x="672" y="215" text-anchor="middle" font-size="7" fill="#a1a1aa">JudgmentTarget</text>
+
+  <!-- Footer -->
+  <text x="390" y="260" text-anchor="middle" font-size="10" fill="#94a3b8">Automated steps execute via Worker(Workflow). Human-gated steps route to JudgmentTarget bindings.</text>
+  <text x="390" y="275" text-anchor="middle" font-size="9" fill="#cbd5e1">Empty phases are omitted — a suspend-only plan generates only the freeze worker</text>
+</svg>

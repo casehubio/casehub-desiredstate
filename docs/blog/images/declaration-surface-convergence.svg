@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 400" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+      <path d="M0,0 L7,2.5 L0,5" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">Three Surfaces, One Lifecycle Intent</text>
+  <text x="390" y="42" text-anchor="middle" font-size="11" fill="#64748b">Every declaration surface now carries targetStatus to the same DesiredNode</text>
+
+  <!-- Annotation surface -->
+  <rect x="20" y="70" width="220" height="100" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="130" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#1e40af">Annotation Surface</text>
+  <text x="130" y="112" text-anchor="middle" font-size="10" fill="#3b82f6" font-family="monospace">@Node(value = "vm-1",</text>
+  <text x="130" y="126" text-anchor="middle" font-size="10" fill="#3b82f6" font-family="monospace">  targetStatus = SUSPENDED)</text>
+  <text x="130" y="148" text-anchor="middle" font-size="9" fill="#64748b">Jandex scan + GoalCompilerFactory</text>
+
+  <!-- YAML surface -->
+  <rect x="280" y="70" width="220" height="100" rx="8" fill="#fefce8" stroke="#fde047" stroke-width="1.5"/>
+  <text x="390" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#a16207">YAML Surface</text>
+  <text x="390" y="112" text-anchor="middle" font-size="10" fill="#ca8a04" font-family="monospace">web-server:</text>
+  <text x="390" y="126" text-anchor="middle" font-size="10" fill="#ca8a04" font-family="monospace">  targetStatus: SUSPENDED</text>
+  <text x="390" y="148" text-anchor="middle" font-size="9" fill="#64748b">YamlGoalCompilerFactory</text>
+
+  <!-- TypeScript surface -->
+  <rect x="540" y="70" width="220" height="100" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="650" y="92" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">TypeScript Surface</text>
+  <text x="650" y="112" text-anchor="middle" font-size="10" fill="#16a34a" font-family="monospace">node("web", webSpec, {</text>
+  <text x="650" y="126" text-anchor="middle" font-size="10" fill="#16a34a" font-family="monospace">  targetStatus: "SUSPENDED"</text>
+  <text x="650" y="140" text-anchor="middle" font-size="10" fill="#16a34a" font-family="monospace">})</text>
+  <text x="650" y="156" text-anchor="middle" font-size="9" fill="#64748b">TsGoalCompilerFactory</text>
+
+  <!-- Arrows converging -->
+  <line x1="130" y1="170" x2="390" y2="220" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="390" y1="170" x2="390" y2="220" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="650" y1="170" x2="390" y2="220" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- DesiredNode -->
+  <rect x="270" y="225" width="240" height="60" rx="8" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="390" y="249" text-anchor="middle" font-size="12" font-weight="600" fill="#1e293b">DesiredNode</text>
+  <text x="390" y="271" text-anchor="middle" font-size="10" fill="#475569" font-family="monospace">targetStatus: SUSPENDED</text>
+
+  <!-- Arrow down -->
+  <line x1="390" y1="285" x2="390" y2="310" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- TransitionPlanner -->
+  <rect x="270" y="315" width="240" height="50" rx="8" fill="#faf5ff" stroke="#c084fc" stroke-width="1.5"/>
+  <text x="390" y="337" text-anchor="middle" font-size="11" font-weight="600" fill="#7c3aed">TransitionPlanner</text>
+  <text x="390" y="353" text-anchor="middle" font-size="10" fill="#a855f7">PRESENT + SUSPENDED target  →  SUSPEND step</text>
+
+  <!-- Footer -->
+  <text x="390" y="390" text-anchor="middle" font-size="10" fill="#94a3b8">The runtime doesn't know which surface declared the intent — it only sees DesiredNode</text>
+</svg>
