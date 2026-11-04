@@ -580,6 +580,86 @@ class NodeStepExecutorTest {
             assertNotNull(captor.getValue().approval());
             assertEquals("plan-ref-1", captor.getValue().approval().planReference());
         }
+
+        @Test
+        void preHookFails_returnsFailedBeforeSuspending() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(new LifecycleStep.Verify("http://drain-check", 10)),
+                    List.of(), List.of(), List.of());
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(lifecycleStepExecutor.execute(any(), any()))
+                    .thenReturn(new StepOutcome.Failed("drain check failed"));
+
+            StepOutcome outcome = executor.executeSuspend(node, graph, TENANT);
+
+            var failed = assertInstanceOf(StepOutcome.Failed.class, outcome);
+            assertEquals("pre-suspend hook failed: drain check failed", failed.reason());
+            verify(router, never()).suspend(any(), any());
+        }
+
+        @Test
+        void preHookSucceeds_continuesSuspending() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(new LifecycleStep.Verify("http://drain-check", 10)),
+                    List.of(), List.of(), List.of());
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(lifecycleStepExecutor.execute(any(), any())).thenReturn(new StepOutcome.Succeeded());
+            when(router.suspend(any(), any())).thenReturn(new SuspendResult.Success());
+
+            StepOutcome outcome = executor.executeSuspend(node, graph, TENANT);
+
+            assertInstanceOf(StepOutcome.Succeeded.class, outcome);
+            verify(router).suspend(any(), any());
+        }
+
+        @Test
+        void success_runsPostSuspendHooks() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(new LifecycleStep.Notify("monitoring", "suspended")),
+                    List.of(), List.of());
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(router.suspend(any(), any())).thenReturn(new SuspendResult.Success());
+            when(lifecycleStepExecutor.execute(any(), any())).thenReturn(new StepOutcome.Succeeded());
+
+            executor.executeSuspend(node, graph, TENANT);
+
+            verify(lifecycleStepExecutor).execute(any(LifecycleStep.Notify.class), eq(TENANT));
+        }
+
+        @Test
+        void postHookFails_stillReturnsSucceeded() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(new LifecycleStep.Notify("monitoring", "suspended")),
+                    List.of(), List.of());
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(router.suspend(any(), any())).thenReturn(new SuspendResult.Success());
+            when(lifecycleStepExecutor.execute(any(), any()))
+                    .thenReturn(new StepOutcome.Failed("notification failed"));
+
+            StepOutcome outcome = executor.executeSuspend(node, graph, TENANT);
+
+            assertInstanceOf(StepOutcome.Succeeded.class, outcome);
+        }
+
+        @Test
+        void noHooks_skipsHookLogic() {
+            approvalReturnsNone();
+            when(router.suspend(any(), any())).thenReturn(new SuspendResult.Success());
+
+            StepOutcome outcome = executor.executeSuspend(node(), graph, TENANT);
+
+            assertInstanceOf(StepOutcome.Succeeded.class, outcome);
+            verify(lifecycleStepExecutor, never()).execute(any(), any());
+        }
+
     }
 
     // ── Resume ─────────────────────────────────────────────────────────
@@ -671,5 +751,87 @@ class NodeStepExecutorTest {
             assertNotNull(captor.getValue().approval());
             assertEquals("plan-ref-1", captor.getValue().approval().planReference());
         }
+
+        @Test
+        void preHookFails_returnsFailedBeforeResuming() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(),
+                    List.of(new LifecycleStep.Verify("http://precondition-check", 5)),
+                    List.of());
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(lifecycleStepExecutor.execute(any(), any()))
+                    .thenReturn(new StepOutcome.Failed("precondition check failed"));
+
+            StepOutcome outcome = executor.executeResume(node, graph, TENANT);
+
+            var failed = assertInstanceOf(StepOutcome.Failed.class, outcome);
+            assertEquals("pre-resume hook failed: precondition check failed", failed.reason());
+            verify(router, never()).resume(any(), any());
+        }
+
+        @Test
+        void preHookSucceeds_continuesResuming() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(),
+                    List.of(new LifecycleStep.Verify("http://precondition-check", 5)),
+                    List.of());
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(lifecycleStepExecutor.execute(any(), any())).thenReturn(new StepOutcome.Succeeded());
+            when(router.resume(any(), any())).thenReturn(new ResumeResult.Success());
+
+            StepOutcome outcome = executor.executeResume(node, graph, TENANT);
+
+            assertInstanceOf(StepOutcome.Succeeded.class, outcome);
+            verify(router).resume(any(), any());
+        }
+
+        @Test
+        void success_runsPostResumeHooks() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(),
+                    List.of(), List.of(new LifecycleStep.Notify("discovery", "re-registered")));
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(router.resume(any(), any())).thenReturn(new ResumeResult.Success());
+            when(lifecycleStepExecutor.execute(any(), any())).thenReturn(new StepOutcome.Succeeded());
+
+            executor.executeResume(node, graph, TENANT);
+
+            verify(lifecycleStepExecutor).execute(any(LifecycleStep.Notify.class), eq(TENANT));
+        }
+
+        @Test
+        void postHookFails_stillReturnsSucceeded() {
+            var hooks = new HookDescriptor(
+                    List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(),
+                    List.of(), List.of(new LifecycleStep.Notify("discovery", "re-registered")));
+            var node = nodeWithHooks(hooks);
+            approvalReturnsNone();
+            when(router.resume(any(), any())).thenReturn(new ResumeResult.Success());
+            when(lifecycleStepExecutor.execute(any(), any()))
+                    .thenReturn(new StepOutcome.Failed("re-registration failed"));
+
+            StepOutcome outcome = executor.executeResume(node, graph, TENANT);
+
+            assertInstanceOf(StepOutcome.Succeeded.class, outcome);
+        }
+
+        @Test
+        void noHooks_skipsHookLogic() {
+            approvalReturnsNone();
+            when(router.resume(any(), any())).thenReturn(new ResumeResult.Success());
+
+            StepOutcome outcome = executor.executeResume(node(), graph, TENANT);
+
+            assertInstanceOf(StepOutcome.Succeeded.class, outcome);
+            verify(lifecycleStepExecutor, never()).execute(any(), any());
+        }
+
     }
 }

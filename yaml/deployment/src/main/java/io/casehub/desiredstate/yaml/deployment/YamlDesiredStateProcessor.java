@@ -1,7 +1,6 @@
 package io.casehub.desiredstate.yaml.deployment;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.casehub.yaml.jackson.YamlMappers;
 import io.casehub.desiredstate.annotations.DesiredStateQualifier;
 import io.casehub.desiredstate.annotations.deployment.DesiredStateGraphBuildItem;
 import io.casehub.desiredstate.annotations.runtime.DependencyDescriptor;
@@ -13,6 +12,7 @@ import io.casehub.desiredstate.api.NodeTypeId;
 import io.casehub.desiredstate.yaml.YamlGraphRecorder;
 import io.casehub.desiredstate.yaml.model.YamlGraph;
 import io.casehub.desiredstate.yaml.model.YamlNode;
+import io.casehub.yaml.jackson.YamlMappers;
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -345,6 +345,8 @@ public class YamlDesiredStateProcessor {
     private static void validateNodeHooks(YamlNode node, String nodeId, String fileName) {
         validateHookBlock(node.provision(), "provision", nodeId, fileName);
         validateHookBlock(node.deprovision(), "deprovision", nodeId, fileName);
+        validateHookBlock(node.suspend(), "suspend", nodeId, fileName);
+        validateHookBlock(node.resume(), "resume", nodeId, fileName);
     }
 
     @SuppressWarnings("unchecked")

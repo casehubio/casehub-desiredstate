@@ -220,10 +220,30 @@ public class NodeStepExecutor {
                 case ApprovalCheckResult.None ignored -> {}
             }
 
+            if (node.hooks() != null) {
+                for (LifecycleStep step : node.hooks().suspendPre()) {
+                    StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                    if (hookResult instanceof StepOutcome.Failed f) {
+                        span.setStatus(StatusCode.ERROR, "pre-suspend hook failed: " + f.reason());
+                        return new StepOutcome.Failed("pre-suspend hook failed: " + f.reason());
+                    }
+                }
+            }
+
             SuspendResult result = router.suspend(node, context);
 
             return switch (result) {
-                case SuspendResult.Success ignored -> new StepOutcome.Succeeded();
+                case SuspendResult.Success ignored -> {
+                    if (node.hooks() != null) {
+                        for (LifecycleStep step : node.hooks().suspendPost()) {
+                            StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                            if (hookResult instanceof StepOutcome.Failed f) {
+                                LOG.warning(String.format("post-suspend hook failed for %s: %s", node.id().value(), f.reason()));
+                            }
+                        }
+                    }
+                    yield new StepOutcome.Succeeded();
+                }
                 case SuspendResult.Failed f -> {
                     span.setStatus(StatusCode.ERROR, f.reason());
                     yield new StepOutcome.Failed(f.reason());
@@ -263,10 +283,30 @@ public class NodeStepExecutor {
                 case ApprovalCheckResult.None ignored -> {}
             }
 
+            if (node.hooks() != null) {
+                for (LifecycleStep step : node.hooks().resumePre()) {
+                    StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                    if (hookResult instanceof StepOutcome.Failed f) {
+                        span.setStatus(StatusCode.ERROR, "pre-resume hook failed: " + f.reason());
+                        return new StepOutcome.Failed("pre-resume hook failed: " + f.reason());
+                    }
+                }
+            }
+
             ResumeResult result = router.resume(node, context);
 
             return switch (result) {
-                case ResumeResult.Success ignored -> new StepOutcome.Succeeded();
+                case ResumeResult.Success ignored -> {
+                    if (node.hooks() != null) {
+                        for (LifecycleStep step : node.hooks().resumePost()) {
+                            StepOutcome hookResult = lifecycleStepExecutor.execute(step, tenancyId);
+                            if (hookResult instanceof StepOutcome.Failed f) {
+                                LOG.warning(String.format("post-resume hook failed for %s: %s", node.id().value(), f.reason()));
+                            }
+                        }
+                    }
+                    yield new StepOutcome.Succeeded();
+                }
                 case ResumeResult.Failed f -> {
                     span.setStatus(StatusCode.ERROR, f.reason());
                     yield new StepOutcome.Failed(f.reason());

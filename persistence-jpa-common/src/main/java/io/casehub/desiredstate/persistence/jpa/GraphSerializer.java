@@ -13,9 +13,9 @@ import io.casehub.desiredstate.api.HookDescriptor;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.LifecycleStep;
 import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.OrderingConstraint;
-import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.TargetStatus;
 
 import java.util.ArrayList;
@@ -121,6 +121,10 @@ class GraphSerializer {
         obj.set("provisionPost", serializeSteps(hooks.provisionPost()));
         obj.set("deprovisionPre", serializeSteps(hooks.deprovisionPre()));
         obj.set("deprovisionPost", serializeSteps(hooks.deprovisionPost()));
+        obj.set("suspendPre", serializeSteps(hooks.suspendPre()));
+        obj.set("suspendPost", serializeSteps(hooks.suspendPost()));
+        obj.set("resumePre", serializeSteps(hooks.resumePre()));
+        obj.set("resumePost", serializeSteps(hooks.resumePost()));
         return obj;
     }
 
@@ -135,12 +139,16 @@ class GraphSerializer {
     }
 
     private HookDescriptor deserializeHooks(JsonNode hooksJson) throws Exception {
-        if (hooksJson == null || hooksJson.isNull()) return null;
+        if (hooksJson == null || hooksJson.isNull()) {return null;}
         return new HookDescriptor(
                 deserializeSteps(hooksJson.get("provisionPre")),
                 deserializeSteps(hooksJson.get("provisionPost")),
                 deserializeSteps(hooksJson.get("deprovisionPre")),
-                deserializeSteps(hooksJson.get("deprovisionPost"))
+                deserializeSteps(hooksJson.get("deprovisionPost")),
+                deserializeSteps(hooksJson.get("suspendPre")),
+                deserializeSteps(hooksJson.get("suspendPost")),
+                deserializeSteps(hooksJson.get("resumePre")),
+                deserializeSteps(hooksJson.get("resumePost"))
         );
     }
 

@@ -13,7 +13,16 @@ public record YamlNode(
         String when,
         Object forEach,
         YamlHooks provision,
-        YamlHooks deprovision) {
+        YamlHooks deprovision,
+        YamlHooks suspend,
+        YamlHooks resume) {
+
+    public YamlNode(String type, Map<String, Object> spec, List<Object> dependsOn,
+                    HumanGating humanGating, String when, Object forEach,
+                    YamlHooks provision, YamlHooks deprovision) {
+        this(type, spec, dependsOn, humanGating, when, forEach,
+             provision, deprovision, null, null);
+    }
 
     public YamlNode {
         if (spec == null) {spec = Map.of();}

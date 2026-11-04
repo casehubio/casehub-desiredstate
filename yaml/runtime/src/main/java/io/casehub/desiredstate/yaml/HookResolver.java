@@ -12,7 +12,8 @@ final class HookResolver {
     private HookResolver() {}
 
     static HookDescriptor resolveHooks(YamlNode yamlNode, VariableResolver resolver, String nodeId) {
-        if (yamlNode.provision() == null && yamlNode.deprovision() == null) {
+        if (yamlNode.provision() == null && yamlNode.deprovision() == null
+            && yamlNode.suspend() == null && yamlNode.resume() == null) {
             return null;
         }
 
@@ -24,8 +25,17 @@ final class HookResolver {
                 yamlNode.deprovision() != null ? yamlNode.deprovision().pre() : List.of(), resolver, nodeId);
         List<LifecycleStep> deprovisionPost = resolveSteps(
                 yamlNode.deprovision() != null ? yamlNode.deprovision().post() : List.of(), resolver, nodeId);
+        List<LifecycleStep> suspendPre = resolveSteps(
+                yamlNode.suspend() != null ? yamlNode.suspend().pre() : List.of(), resolver, nodeId);
+        List<LifecycleStep> suspendPost = resolveSteps(
+                yamlNode.suspend() != null ? yamlNode.suspend().post() : List.of(), resolver, nodeId);
+        List<LifecycleStep> resumePre = resolveSteps(
+                yamlNode.resume() != null ? yamlNode.resume().pre() : List.of(), resolver, nodeId);
+        List<LifecycleStep> resumePost = resolveSteps(
+                yamlNode.resume() != null ? yamlNode.resume().post() : List.of(), resolver, nodeId);
 
-        HookDescriptor hooks = new HookDescriptor(provisionPre, provisionPost, deprovisionPre, deprovisionPost);
+        HookDescriptor hooks = new HookDescriptor(provisionPre, provisionPost, deprovisionPre, deprovisionPost,
+                                                  suspendPre, suspendPost, resumePre, resumePost);
         return hooks.isEmpty() ? null : hooks;
     }
 

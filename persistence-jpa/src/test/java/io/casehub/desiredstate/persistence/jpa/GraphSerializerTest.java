@@ -107,6 +107,37 @@ class GraphSerializerTest {
     }
 
     @Test
+    void roundTrip_withSuspendResumeHooks() {
+        HookDescriptor hooks = new HookDescriptor(
+                List.of(), List.of(), List.of(), List.of(),
+                List.of(new LifecycleStep.Verify("http://drain-check", 15)),
+                List.of(new LifecycleStep.Notify("monitoring", "suspended")),
+                List.of(new LifecycleStep.Wait(5)),
+                List.of(new LifecycleStep.Notify("discovery", "re-registered"))
+        );
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new AlphaSpec("lifecycle", 3),
+                                           HumanGating.NONE, hooks);
+
+        DesiredStateGraphFactory factory  = new TestGraphFactory();
+        DesiredStateGraph        original = factory.of(List.of(node), List.of());
+
+        String            json     = serializer.serialize(original);
+        DesiredStateGraph restored = serializer.deserialize(json, factory);
+
+        DesiredNode restoredNode = restored.nodes().get(NodeId.of("n1"));
+        assertThat(restoredNode.hooks()).isNotNull();
+        assertThat(restoredNode.hooks().suspendPre()).hasSize(1);
+        assertThat(restoredNode.hooks().suspendPre().getFirst()).isInstanceOf(LifecycleStep.Verify.class);
+        assertThat(((LifecycleStep.Verify) restoredNode.hooks().suspendPre().getFirst()).url())
+                .isEqualTo("http://drain-check");
+        assertThat(restoredNode.hooks().suspendPost()).hasSize(1);
+        assertThat(restoredNode.hooks().resumePre()).hasSize(1);
+        assertThat(restoredNode.hooks().resumePost()).hasSize(1);
+        assertThat(restoredNode.hooks().provisionPre()).isEmpty();
+    }
+
+
+    @Test
     void deserialize_returnsNull_onMalformedJson() {
         DesiredStateGraphFactory factory = new TestGraphFactory();
         DesiredStateGraph result = serializer.deserialize("not valid json {{{", factory);
