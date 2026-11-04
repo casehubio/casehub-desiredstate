@@ -1,14 +1,32 @@
 package io.casehub.desiredstate.example.bridge.cloud;
 
-import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.bridge.BridgeErrorCategory;
+import io.casehub.desiredstate.bridge.BridgeImportResult;
+import io.casehub.desiredstate.bridge.BridgePlan;
+import io.casehub.desiredstate.bridge.BridgeProvider;
+import io.casehub.desiredstate.bridge.BridgeReadRequest;
+import io.casehub.desiredstate.bridge.BridgeRequest;
+import io.casehub.desiredstate.bridge.BridgeResult;
+import io.casehub.desiredstate.bridge.BridgeStateResult;
+import io.casehub.desiredstate.bridge.ChangeAction;
+import io.casehub.desiredstate.bridge.ImportCapable;
+import io.casehub.desiredstate.bridge.PlanCapable;
+import io.casehub.desiredstate.bridge.ResourceChange;
+import io.casehub.desiredstate.bridge.SuspendCapable;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCapable {
+public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCapable, SuspendCapable {
 
-    private static final Set<String> TYPES = Set.of("cloud:vm", "cloud:network", "cloud:storage");
-    private final Map<String, Map<String, Object>> resources = new ConcurrentHashMap<>();
+    private static final Set<String>                      TYPES             = Set.of("cloud:vm", "cloud:network", "cloud:storage");
+    private static final Set<String>                      SUSPENDABLE_TYPES = Set.of("cloud:vm");
+    private final        Map<String, Map<String, Object>> resources         = new ConcurrentHashMap<>();
 
     @Override
     public String protocolId() {
@@ -46,7 +64,7 @@ public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCap
 
     @Override
     public BridgePlan plan(BridgeRequest request) {
-        var existing = resources.get(key(request.typeId(), request.resourceId()));
+        var          existing = resources.get(key(request.typeId(), request.resourceId()));
         ChangeAction action;
         if (existing == null) {
             action = ChangeAction.CREATE;
@@ -54,14 +72,14 @@ public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCap
             action = ChangeAction.UPDATE;
         } else {
             return new BridgePlan(
-                UUID.randomUUID().toString(), request.tenancyId(), request.typeId(),
-                "No changes", List.of(), null);
+                    UUID.randomUUID().toString(), request.tenancyId(), request.typeId(),
+                    "No changes", List.of(), null);
         }
         return new BridgePlan(
-            UUID.randomUUID().toString(), request.tenancyId(), request.typeId(),
-            action + " " + request.resourceId(),
-            List.of(new ResourceChange(request.typeId(), request.resourceId(), action)),
-            request.spec());
+                UUID.randomUUID().toString(), request.tenancyId(), request.typeId(),
+                action + " " + request.resourceId(),
+                List.of(new ResourceChange(request.typeId(), request.resourceId(), action)),
+                request.spec());
     }
 
     @Override
@@ -75,7 +93,7 @@ public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCap
             return new BridgeResult.Success(Map.of());
         }
         @SuppressWarnings("unchecked")
-        var spec = plan.rawPlan() instanceof Map<?,?> m ? toStringMap(m) : Map.<String, Object>of();
+        var spec = plan.rawPlan() instanceof Map<?, ?> m ? toStringMap(m) : Map.<String, Object>of();
         var state = new HashMap<>(spec);
         state.put("id", change.resourceId());
         state.put("status", defaultStatus(change.typeId()));
@@ -90,6 +108,36 @@ public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCap
             return new BridgeImportResult.Failed("Resource not found: " + importId);
         }
         return new BridgeImportResult.Success(Map.copyOf(state));
+    }
+
+    @Override
+    public BridgeResult suspend(BridgeRequest request) {
+        if (!SUSPENDABLE_TYPES.contains(request.typeId())) {
+            return new BridgeResult.Failed("Suspend not supported for type: " + request.typeId(),
+                                           BridgeErrorCategory.CONFIGURATION);
+        }
+        var state = resources.get(key(request.typeId(), request.resourceId()));
+        if (state == null) {
+            return new BridgeResult.Failed("Resource not found: " + request.resourceId(),
+                                           BridgeErrorCategory.PERMANENT);
+        }
+        state.put("status", "stopped");
+        return new BridgeResult.Success(Map.copyOf(state));
+    }
+
+    @Override
+    public BridgeResult resume(BridgeRequest request) {
+        if (!SUSPENDABLE_TYPES.contains(request.typeId())) {
+            return new BridgeResult.Failed("Resume not supported for type: " + request.typeId(),
+                                           BridgeErrorCategory.CONFIGURATION);
+        }
+        var state = resources.get(key(request.typeId(), request.resourceId()));
+        if (state == null) {
+            return new BridgeResult.Failed("Resource not found: " + request.resourceId(),
+                                           BridgeErrorCategory.PERMANENT);
+        }
+        state.put("status", "running");
+        return new BridgeResult.Success(Map.copyOf(state));
     }
 
     public void seedResource(String typeId, String resourceId, Map<String, Object> state) {

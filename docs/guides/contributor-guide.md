@@ -261,10 +261,11 @@ To add support for a new infrastructure platform:
 
 ### Existing Adapters
 
-| Adapter | Protocol | Communication | Key Differentiator |
-|---------|----------|--------------|-------------------|
-| Ansible | CLI | `ansible-playbook` subprocess with JSON callback | Per-type module routing via manifest `ansible:` extension blocks. Playbook + inventory generated per operation |
-| Terraform | gRPC | go-plugin protocol (v5/v6) direct to provider binary | Zero-config schema discovery. Per-tenant process isolation with config-hash routing. Auto-mTLS. GPG signature verification on provider download |
+| Adapter | Protocol | Communication | Capabilities | Key Differentiator |
+|---------|----------|--------------|--------------|-------------------|
+| Ansible | CLI | `ansible-playbook` subprocess with JSON callback | `PlanCapable`, `ImportCapable`, `SuspendCapable` | Per-type module routing via manifest `ansible:` extension blocks. Playbook + inventory generated per operation. Suspend/resume via configurable module + state param per type |
+| Terraform | gRPC | go-plugin protocol (v5/v6) direct to provider binary | `PlanCapable`, `ImportCapable`, `SuspendCapable` | Zero-config schema discovery. Per-tenant process isolation with config-hash routing. Auto-mTLS. Suspend/resume via attribute toggle (e.g. `instance_state`) |
+| Mock Cloud | In-memory | Direct method calls | `PlanCapable`, `ImportCapable`, `SuspendCapable` | Teaching example (`examples/bridge-cloud/`). Mixed graph: bridge-managed infrastructure + Java-provisioned app deployments. VM type supports suspend (status toggle); storage does not |
 
 ### Testing with bridge/testing TCK
 
