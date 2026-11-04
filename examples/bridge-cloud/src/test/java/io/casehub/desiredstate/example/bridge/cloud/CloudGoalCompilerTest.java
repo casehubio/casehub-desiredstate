@@ -1,10 +1,15 @@
 package io.casehub.desiredstate.example.bridge.cloud;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.TargetStatus;
 import io.casehub.desiredstate.bridge.BridgeNodeSpec;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import org.junit.jupiter.api.Test;
+
 import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CloudGoalCompilerTest {
@@ -84,4 +89,36 @@ class CloudGoalCompilerTest {
         var node = graph.nodes().values().iterator().next();
         assertThat(node.type()).isEqualTo(CloudNodeTypes.STORAGE);
     }
+
+    @Test
+    void suspendedNodeIdsSetTargetStatusToSuspended() {
+        var blueprint = CloudBlueprint.builder()
+                                      .network("net-1", Map.of("cidr", "10.0.0.0/16"))
+                                      .vm("vm-1", "net-1", Map.of("instance_type", "t3.micro"))
+                                      .app("app-1", "vm-1", "my-app", "1.0.0")
+                                      .storage("bucket-1", Map.of("region", "us-east-1"))
+                                      .suspended("vm-1", "app-1")
+                                      .build();
+
+        var graph = ((CompilationResult.SingleGraph) compiler.compile(blueprint, factory)).graph();
+
+        assertThat(graph.nodes().get(NodeId.of("vm-1")).targetStatus()).isEqualTo(TargetStatus.SUSPENDED);
+        assertThat(graph.nodes().get(NodeId.of("app-1")).targetStatus()).isEqualTo(TargetStatus.SUSPENDED);
+        assertThat(graph.nodes().get(NodeId.of("net-1")).targetStatus()).isEqualTo(TargetStatus.ACTIVE);
+        assertThat(graph.nodes().get(NodeId.of("bucket-1")).targetStatus()).isEqualTo(TargetStatus.ACTIVE);
+    }
+
+    @Test
+    void defaultBlueprintHasAllNodesActive() {
+        var blueprint = CloudBlueprint.builder()
+                                      .network("net-1", Map.of("cidr", "10.0.0.0/16"))
+                                      .vm("vm-1", "net-1", Map.of("instance_type", "t3.micro"))
+                                      .build();
+
+        var graph = ((CompilationResult.SingleGraph) compiler.compile(blueprint, factory)).graph();
+
+        assertThat(graph.nodes().values())
+                .allMatch(n -> n.targetStatus() == TargetStatus.ACTIVE);
+    }
+
 }

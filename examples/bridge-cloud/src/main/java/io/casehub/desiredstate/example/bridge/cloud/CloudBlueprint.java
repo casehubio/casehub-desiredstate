@@ -1,27 +1,39 @@
 package io.casehub.desiredstate.example.bridge.cloud;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public record CloudBlueprint(
-    List<NetworkEntry> networks,
-    List<VmEntry> vms,
-    List<AppEntry> apps,
-    List<StorageEntry> storages
+        List<NetworkEntry> networks,
+        List<VmEntry> vms,
+        List<AppEntry> apps,
+        List<StorageEntry> storages,
+        Set<String> suspendedNodeIds
 ) {
+    public CloudBlueprint(List<NetworkEntry> networks, List<VmEntry> vms,
+                          List<AppEntry> apps, List<StorageEntry> storages) {
+        this(networks, vms, apps, storages, Set.of());
+    }
+
     public record NetworkEntry(String id, Map<String, Object> spec) {}
+
     public record VmEntry(String id, String networkId, Map<String, Object> spec) {}
+
     public record AppEntry(String id, String vmId, String appName, String version) {}
+
     public record StorageEntry(String id, Map<String, Object> spec) {}
 
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {return new Builder();}
 
     public static class Builder {
-        private final List<NetworkEntry> networks = new ArrayList<>();
-        private final List<VmEntry> vms = new ArrayList<>();
-        private final List<AppEntry> apps = new ArrayList<>();
-        private final List<StorageEntry> storages = new ArrayList<>();
+        private final List<NetworkEntry> networks  = new ArrayList<>();
+        private final List<VmEntry>      vms       = new ArrayList<>();
+        private final List<AppEntry>     apps      = new ArrayList<>();
+        private final List<StorageEntry> storages  = new ArrayList<>();
+        private final Set<String>        suspended = new LinkedHashSet<>();
 
         public Builder network(String id, Map<String, Object> spec) {
             networks.add(new NetworkEntry(id, spec));
@@ -43,10 +55,16 @@ public record CloudBlueprint(
             return this;
         }
 
+        public Builder suspended(String... nodeIds) {
+            suspended.addAll(List.of(nodeIds));
+            return this;
+        }
+
         public CloudBlueprint build() {
             return new CloudBlueprint(
-                List.copyOf(networks), List.copyOf(vms),
-                List.copyOf(apps), List.copyOf(storages));
+                    List.copyOf(networks), List.copyOf(vms),
+                    List.copyOf(apps), List.copyOf(storages),
+                    Set.copyOf(suspended));
         }
     }
 }

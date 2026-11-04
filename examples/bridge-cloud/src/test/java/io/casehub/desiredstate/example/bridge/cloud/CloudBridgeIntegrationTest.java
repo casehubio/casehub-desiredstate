@@ -14,9 +14,9 @@ import io.casehub.desiredstate.api.StepOutcome;
 import io.casehub.desiredstate.api.TargetStatus;
 import io.casehub.desiredstate.bridge.BridgeImportResult;
 import io.casehub.desiredstate.bridge.BridgeNodeSpec;
-import io.casehub.desiredstate.bridge.BridgeResult;
 import io.casehub.desiredstate.bridge.BridgeReadRequest;
 import io.casehub.desiredstate.bridge.BridgeRequest;
+import io.casehub.desiredstate.bridge.BridgeResult;
 import io.casehub.desiredstate.bridge.BridgeStateResult;
 import io.casehub.desiredstate.bridge.ChangeAction;
 import io.casehub.desiredstate.bridge.runtime.BridgeDiscovery;
@@ -233,6 +233,100 @@ class CloudBridgeIntegrationTest {
 
         assertThat(result).isInstanceOf(BridgeResult.Failed.class);
         assertThat(((BridgeResult.Failed) result).reason()).contains("Suspend not supported");
+    }
+
+    @Test
+    void scheduledSuspendAndResumeLifecycle() {
+        var descriptor = BridgeManifestParser.parse(
+                getClass().getResourceAsStream("/META-INF/desiredstate/bridges/mock-cloud.yaml"));
+        var bridgeBeans = BridgeDiscovery.discoverAll(List.of(descriptor), List.of(cloudProvider));
+        var bridgeProvisioner = (NodeProvisioner) bridgeBeans.stream()
+                                                             .filter(b -> b.type() == NodeProvisioner.class)
+                                                             .findFirst().orElseThrow().instance();
+        var router = new DefaultNodeProvisionerRouter(List.of(bridgeProvisioner, appProvisioner));
+        var executor = new SimpleTransitionExecutor(
+                new NodeStepExecutor(router, new NoOpHumanNodeHandler(), new NoOpPendingApprovalHandler(), noOpLifecycle));
+        var compiler = new CloudGoalCompiler();
+
+        // Phase 1: provision — all nodes ACTIVE
+        var activeBlueprint = CloudBlueprint.builder()
+                                            .network("net-1", Map.of("cidr", "10.0.0.0/16"))
+                                            .vm("vm-1", "net-1", Map.of("instance_type", "t3.micro"))
+                                            .app("app-1", "vm-1", "my-service", "1.0.0")
+                                            .storage("bucket-1", Map.of("region", "us-east-1"))
+                                            .build();
+        var activeGraph = ((CompilationResult.SingleGraph) compiler.compile(activeBlueprint, graphFactory)).graph();
+
+        var provisionPlan   = planner.plan(activeGraph, new ActualState(Map.of()), null, router::supportsStatefulLifecycle);
+        var provisionResult = executor.execute(provisionPlan, "tenant-1");
+        assertThat(provisionResult.outcomes().values())
+                .allMatch(o -> o instanceof StepOutcome.Succeeded);
+
+        // Phase 2: scheduled suspend — VMs and apps suspended, network and storage stay active
+        var suspendedBlueprint = CloudBlueprint.builder()
+                                               .network("net-1", Map.of("cidr", "10.0.0.0/16"))
+                                               .vm("vm-1", "net-1", Map.of("instance_type", "t3.micro"))
+                                               .app("app-1", "vm-1", "my-service", "1.0.0")
+                                               .storage("bucket-1", Map.of("region", "us-east-1"))
+                                               .suspended("vm-1", "app-1")
+                                               .build();
+        var suspendedGraph = ((CompilationResult.SingleGraph) compiler.compile(suspendedBlueprint, graphFactory)).graph();
+
+        // Verify the compiler set the right target statuses
+        assertThat(suspendedGraph.nodes().get(NodeId.of("vm-1")).targetStatus()).isEqualTo(TargetStatus.SUSPENDED);
+        assertThat(suspendedGraph.nodes().get(NodeId.of("app-1")).targetStatus()).isEqualTo(TargetStatus.SUSPENDED);
+        assertThat(suspendedGraph.nodes().get(NodeId.of("net-1")).targetStatus()).isEqualTo(TargetStatus.ACTIVE);
+        assertThat(suspendedGraph.nodes().get(NodeId.of("bucket-1")).targetStatus()).isEqualTo(TargetStatus.ACTIVE);
+
+        var presentState = new ActualState(Map.of(
+                NodeId.of("net-1"), NodeStatus.PRESENT,
+                NodeId.of("vm-1"), NodeStatus.PRESENT,
+                NodeId.of("app-1"), NodeStatus.PRESENT,
+                NodeId.of("bucket-1"), NodeStatus.PRESENT
+                                                 ));
+        var suspendPlan = planner.plan(suspendedGraph, presentState, null, router::supportsStatefulLifecycle);
+
+        // Verify dependency-ordered suspension: app (leaf) before vm (root)
+        assertThat(suspendPlan.flatSuspensions()).hasSize(2);
+        var suspensionOrder = suspendPlan.flatSuspensions().stream()
+                                         .map(s -> s.node().id().value()).toList();
+        assertThat(suspensionOrder.indexOf("app-1")).isLessThan(suspensionOrder.indexOf("vm-1"));
+
+        var suspendResult = executor.execute(suspendPlan, "tenant-1");
+        assertThat(suspendResult.outcomes().values())
+                .allMatch(o -> o instanceof StepOutcome.Succeeded || o instanceof StepOutcome.AlreadyConverged);
+
+        // Verify actual states after suspend
+        assertThat(((BridgeStateResult.Found) cloudProvider.readState(
+                new BridgeReadRequest("cloud:vm", "vm-1", "tenant-1"))).state())
+                .containsEntry("status", "stopped");
+        assertThat(world.isSuspended("app-1")).isTrue();
+        assertThat(world.deployments()).containsKey("app-1");
+
+        // Phase 3: scheduled resume — recompile with all ACTIVE
+        var resumeState = new ActualState(Map.of(
+                NodeId.of("net-1"), NodeStatus.PRESENT,
+                NodeId.of("vm-1"), NodeStatus.SUSPENDED,
+                NodeId.of("app-1"), NodeStatus.SUSPENDED,
+                NodeId.of("bucket-1"), NodeStatus.PRESENT
+                                                ));
+        var resumePlan = planner.plan(activeGraph, resumeState, null, router::supportsStatefulLifecycle);
+
+        // Verify dependency-ordered resumption: vm (root) before app (leaf)
+        assertThat(resumePlan.flatResumptions()).hasSize(2);
+        var resumptionOrder = resumePlan.flatResumptions().stream()
+                                        .map(s -> s.node().id().value()).toList();
+        assertThat(resumptionOrder.indexOf("vm-1")).isLessThan(resumptionOrder.indexOf("app-1"));
+
+        var resumeResult = executor.execute(resumePlan, "tenant-1");
+        assertThat(resumeResult.outcomes().values())
+                .allMatch(o -> o instanceof StepOutcome.Succeeded || o instanceof StepOutcome.AlreadyConverged);
+
+        // Verify actual states after resume
+        assertThat(((BridgeStateResult.Found) cloudProvider.readState(
+                new BridgeReadRequest("cloud:vm", "vm-1", "tenant-1"))).state())
+                .containsEntry("status", "running");
+        assertThat(world.isSuspended("app-1")).isFalse();
     }
 
 
