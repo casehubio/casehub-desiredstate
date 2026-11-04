@@ -2,9 +2,11 @@ package io.casehub.desiredstate.bridge.runtime;
 
 import io.casehub.desiredstate.api.ActualStateAdapter;
 import io.casehub.desiredstate.api.BeanRegistration;
+import io.casehub.desiredstate.api.DiscoveryAdapter;
 import io.casehub.desiredstate.api.NodeProvisioner;
 import io.casehub.desiredstate.bridge.BridgeDescriptor;
 import io.casehub.desiredstate.bridge.BridgeProvider;
+import io.casehub.desiredstate.bridge.DiscoveryCapable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +40,13 @@ public final class BridgeDiscovery {
             beans.add(new BeanRegistration(
                 "bridge-adapter-" + descriptor.protocolId(),
                 ActualStateAdapter.class, adapter));
+
+            if (provider instanceof DiscoveryCapable) {
+                var discoveryAdapter = new BridgeDiscoveryAdapter(descriptor, provider);
+                beans.add(new BeanRegistration(
+                    "bridge-discovery-" + descriptor.protocolId(),
+                    DiscoveryAdapter.class, discoveryAdapter));
+            }
         }
 
         return beans;

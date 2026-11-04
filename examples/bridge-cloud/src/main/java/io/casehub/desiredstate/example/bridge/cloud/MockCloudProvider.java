@@ -9,6 +9,8 @@ import io.casehub.desiredstate.bridge.BridgeRequest;
 import io.casehub.desiredstate.bridge.BridgeResult;
 import io.casehub.desiredstate.bridge.BridgeStateResult;
 import io.casehub.desiredstate.bridge.ChangeAction;
+import io.casehub.desiredstate.bridge.DiscoveredResource;
+import io.casehub.desiredstate.bridge.DiscoveryCapable;
 import io.casehub.desiredstate.bridge.ImportCapable;
 import io.casehub.desiredstate.bridge.PlanCapable;
 import io.casehub.desiredstate.bridge.ResourceChange;
@@ -22,7 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCapable, SuspendCapable {
+public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCapable, SuspendCapable, DiscoveryCapable {
 
     private static final Set<String>                      TYPES             = Set.of("cloud:vm", "cloud:network", "cloud:storage");
     private static final Set<String>                      SUSPENDABLE_TYPES = Set.of("cloud:vm");
@@ -139,6 +141,18 @@ public class MockCloudProvider implements BridgeProvider, PlanCapable, ImportCap
         state.put("status", "running");
         return new BridgeResult.Success(Map.copyOf(state));
     }
+
+    @Override
+    public List<DiscoveredResource> discover(String typeId, String tenancyId) {
+        return resources.entrySet().stream()
+                        .filter(e -> e.getKey().startsWith(typeId + "::"))
+                        .map(e -> {
+                            String resourceId = e.getKey().substring(e.getKey().indexOf("::") + 2);
+                            return new DiscoveredResource(resourceId, typeId, Map.copyOf(e.getValue()));
+                        })
+                        .toList();
+    }
+
 
     public void seedResource(String typeId, String resourceId, Map<String, Object> state) {
         resources.put(key(typeId, resourceId), new HashMap<>(state));

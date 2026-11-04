@@ -39,6 +39,12 @@
 
         <dependency>
             <groupId>io.casehub</groupId>
+            <artifactId>casehub-desiredstate-yaml</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.casehub</groupId>
             <artifactId>casehub-desiredstate-bridge-testing</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>

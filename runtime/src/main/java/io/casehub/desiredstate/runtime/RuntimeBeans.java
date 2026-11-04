@@ -317,5 +317,14 @@ public class RuntimeBeans {
                                                    reconciliationLoop, actualStateRouter, graphFactory, situationSource);
     }
 
+    @Produces
+    @ApplicationScoped
+    public DiscoveryOrchestrator discoveryOrchestrator(
+            CdiDiscoveryAdapterRouter router,
+            io.casehub.desiredstate.api.DesiredStateGraphFactory graphFactory,
+            ReconciliationStateStore stateStore) {
+        return new DiscoveryOrchestrator(router, graphFactory, stateStore);
+    }
+
 
 }

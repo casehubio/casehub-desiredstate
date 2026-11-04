@@ -25,7 +25,9 @@ import io.casehub.desiredstate.runtime.CbrFaultPolicy;
 import io.casehub.desiredstate.runtime.CbrProposalTracker;
 import io.casehub.desiredstate.runtime.CbrSituationRecompiler;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
+import io.casehub.desiredstate.runtime.DefaultDiscoveryAdapterRouter;
 import io.casehub.desiredstate.runtime.DefaultFaultCountStore;
+import io.casehub.desiredstate.runtime.DiscoveryOrchestrator;
 import io.casehub.desiredstate.runtime.DefaultReconciliationStateStore;
 import io.casehub.desiredstate.runtime.DriftPolicyEngine;
 import io.casehub.desiredstate.runtime.ExemptionEvictionListener;
@@ -357,4 +359,20 @@ public class DesiredStateRuntimeAutoConfiguration {
         return new io.casehub.desiredstate.runtime.DefaultNodeProvisionerRouter(wrapped, preferenceProvider);
     }
 
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DefaultDiscoveryAdapterRouter discoveryAdapterRouter(
+            List<io.casehub.desiredstate.api.DiscoveryAdapter> adapters) {
+        return new DefaultDiscoveryAdapterRouter(adapters);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DiscoveryOrchestrator discoveryOrchestrator(
+            DefaultDiscoveryAdapterRouter router,
+            DesiredStateGraphFactory graphFactory,
+            io.casehub.desiredstate.api.ReconciliationStateStore stateStore) {
+        return new DiscoveryOrchestrator(router, graphFactory, stateStore);
+    }
 }
