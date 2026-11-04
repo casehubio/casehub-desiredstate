@@ -1,7 +1,20 @@
 package io.casehub.desiredstate.bridge.runtime;
 
-import io.casehub.desiredstate.api.*;
-import io.casehub.desiredstate.bridge.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.MapNodeSpec;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.desiredstate.bridge.BridgeDescriptor;
+import io.casehub.desiredstate.bridge.BridgeNodeSpec;
+import io.casehub.desiredstate.bridge.BridgeOutputStateStore;
+import io.casehub.desiredstate.bridge.BridgeProvider;
+import io.casehub.desiredstate.bridge.BridgeReadRequest;
+import io.casehub.desiredstate.bridge.BridgeStateResult;
+import io.casehub.desiredstate.bridge.BridgeTypeDescriptor;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -41,8 +54,7 @@ public class BridgeActualStateAdapter implements ActualStateAdapter {
 
             Map<String, Object> previousState = stateStore.load(tenancyId, node.id().value())
                 .orElse(Map.of());
-            Map<String, Object> desiredSpec = node.spec() instanceof BridgeNodeSpec bns
-                ? bns.fields() : Map.of();
+            Map<String, Object> desiredSpec = extractFields(node.spec());
             var request = new BridgeReadRequest(node.type().value(), node.id().value(),
                 tenancyId, previousState, desiredSpec);
             var result = provider.readState(request);
@@ -68,4 +80,11 @@ public class BridgeActualStateAdapter implements ActualStateAdapter {
             }
         };
     }
+
+    private Map<String, Object> extractFields(NodeSpec spec) {
+        if (spec instanceof BridgeNodeSpec bns) {return bns.fields();}
+        if (spec instanceof MapNodeSpec mns) {return mns.fields();}
+        return Map.of();
+    }
+
 }

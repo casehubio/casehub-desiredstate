@@ -1,6 +1,8 @@
 package io.casehub.desiredstate.bridge.runtime;
 
 import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.MapNodeSpec;
+import io.casehub.desiredstate.api.NodeSpec;
 import io.casehub.desiredstate.api.DeprovisionResult;
 import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.NodeProvisioner;
@@ -135,11 +137,16 @@ public class BridgeProvisioner implements NodeProvisioner {
     }
 
     private BridgeRequest toBridgeRequest(DesiredNode node, String tenancyId) {
-        Map<String, Object> fields = node.spec() instanceof BridgeNodeSpec bns
-            ? bns.fields()
-            : Map.of();
+        Map<String, Object> fields = extractFields(node.spec());
         Map<String, Object> previousState = stateStore.load(tenancyId, node.id().value())
             .orElse(Map.of());
         return new BridgeRequest(node.type().value(), node.id().value(), fields, tenancyId, previousState);
     }
+
+    private Map<String, Object> extractFields(NodeSpec spec) {
+        if (spec instanceof BridgeNodeSpec bns) {return bns.fields();}
+        if (spec instanceof MapNodeSpec mns) {return mns.fields();}
+        return Map.of();
+    }
+
 }
