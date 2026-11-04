@@ -332,5 +332,99 @@ class ReconciliationLoopCloudEventTest {
     }
 
 
+    private ReconciliationLoop buildStatefulLoop() {
+        var adapterRouter = new DefaultActualStateAdapterRouter(List.of(actualAdapter));
+        var mockRouter = new io.casehub.desiredstate.api.NodeProvisionerRouter() {
+            public Set<NodeType> allHandledTypes() { return Set.of(NodeType.of("test")); }
+            public io.casehub.desiredstate.api.ProvisionResult provision(io.casehub.desiredstate.api.DesiredNode n, io.casehub.desiredstate.api.ProvisionContext c) { return null; }
+            public io.casehub.desiredstate.api.DeprovisionResult deprovision(io.casehub.desiredstate.api.DesiredNode n, io.casehub.desiredstate.api.DeprovisionContext c) { return null; }
+            public java.time.Duration resyncIntervalFor(NodeType t) { return java.time.Duration.ofHours(1); }
+            public io.casehub.desiredstate.api.SuspendResult suspend(io.casehub.desiredstate.api.DesiredNode n, io.casehub.desiredstate.api.SuspendContext c) { return null; }
+            public io.casehub.desiredstate.api.ResumeResult resume(io.casehub.desiredstate.api.DesiredNode n, io.casehub.desiredstate.api.ResumeContext c) { return null; }
+            public boolean supportsStatefulLifecycle(NodeType type) { return true; }
+        };
+        return ReconciliationLoop.builder(planner, testExecutor, adapterRouter, faultEngine, testEventSource::stream)
+            .debounceWindow(TEST_DEBOUNCE).resyncInterval(TEST_RESYNC).cloudEventSink(capturedEvents::add)
+            .router(mockRouter).build();
+    }
+
+    @Test
+    void emitsNodeSuspendedOnSuccessfulSuspend() {
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"),
+                                           HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+
+        actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
+
+        ReconciliationLoop statefulLoop = buildStatefulLoop();
+        statefulLoop.start("test-tenant", graph);
+
+        await().atMost(AWAIT).until(() ->
+                                            capturedEvents.stream().anyMatch(e ->
+                                                                                     e.getType().equals(DesiredStateEventTypes.NODE_SUSPENDED)
+                                                                                     && "n1".equals(e.getSubject())));
+
+        CloudEvent suspendEvent = capturedEvents.stream()
+                                                .filter(e -> e.getType().equals(DesiredStateEventTypes.NODE_SUSPENDED))
+                                                .findFirst()
+                                                .orElseThrow();
+
+        assertThat(suspendEvent.getSubject()).isEqualTo("n1");
+        assertThat(suspendEvent.getExtension("tenancyid")).isEqualTo("test-tenant");
+        statefulLoop.stop("test-tenant");
+    }
+
+    @Test
+    void emitsNodeResumedOnSuccessfulResume() {
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"),
+                                           HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.ACTIVE);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+
+        actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.SUSPENDED));
+
+        ReconciliationLoop statefulLoop = buildStatefulLoop();
+        statefulLoop.start("test-tenant", graph);
+
+        await().atMost(AWAIT).until(() ->
+                                            capturedEvents.stream().anyMatch(e ->
+                                                                                     e.getType().equals(DesiredStateEventTypes.NODE_RESUMED)
+                                                                                     && "n1".equals(e.getSubject())));
+
+        CloudEvent resumeEvent = capturedEvents.stream()
+                                               .filter(e -> e.getType().equals(DesiredStateEventTypes.NODE_RESUMED))
+                                               .findFirst()
+                                               .orElseThrow();
+
+        assertThat(resumeEvent.getSubject()).isEqualTo("n1");
+        assertThat(resumeEvent.getExtension("tenancyid")).isEqualTo("test-tenant");
+        statefulLoop.stop("test-tenant");
+    }
+
+    @Test
+    void emitsNodeFaultedOnSuspendFailure() {
+        DesiredNode node = new DesiredNode(NodeId.of("n1"), new TestSpec("v1"),
+                                           HumanGating.NONE, null, io.casehub.desiredstate.api.TargetStatus.SUSPENDED);
+        DesiredStateGraph graph = factory.of(List.of(node), List.of());
+
+        actualAdapter.setStatuses(Map.of(NodeId.of("n1"), NodeStatus.PRESENT));
+        testExecutor.failNodes.add(NodeId.of("n1"));
+
+        ReconciliationLoop statefulLoop = buildStatefulLoop();
+        statefulLoop.start("test-tenant", graph);
+
+        await().atMost(AWAIT).until(() ->
+                                            capturedEvents.stream().anyMatch(e ->
+                                                                                     e.getType().equals(DesiredStateEventTypes.NODE_FAULTED)
+                                                                                     && "n1".equals(e.getSubject())));
+
+        CloudEvent faultEvent = capturedEvents.stream()
+                                              .filter(e -> e.getType().equals(DesiredStateEventTypes.NODE_FAULTED))
+                                              .findFirst()
+                                              .orElseThrow();
+
+        assertThat(faultEvent.getExtension("faulttype")).isEqualTo("SUSPEND_FAILED");
+        statefulLoop.stop("test-tenant");
+    }
+
     record TestSpec(String value) implements NodeSpec { @Override public NodeType nodeType() { return NodeType.of("test"); } }
 }

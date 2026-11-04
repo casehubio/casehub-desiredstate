@@ -24,6 +24,8 @@ import io.casehub.desiredstate.api.NodeFaultedData;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.desiredstate.api.NodeProvisionerRouter;
 import io.casehub.desiredstate.api.NodeRecoveredData;
+import io.casehub.desiredstate.api.NodeResumedData;
+import io.casehub.desiredstate.api.NodeSuspendedData;
 import io.casehub.desiredstate.api.NodeStatus;
 import io.casehub.desiredstate.api.NodeType;
 import io.casehub.desiredstate.api.OrderedStep;
@@ -1275,6 +1277,24 @@ public class ReconciliationLoop {
                                 tenancyId, entry.getKey().value(), node.type().value(),
                                 version, parentNodeId);
                         events.add(eventEmitter.nodeAlreadyConverged(data));
+                    }
+                } else if (entry.getValue() instanceof StepOutcome.Succeeded) {
+                    StepAction action = plannedActions.getOrDefault(entry.getKey(), StepAction.PROVISION);
+                    DesiredNode node = planNodes.getOrDefault(entry.getKey(),
+                                                              desired.nodes().get(entry.getKey()));
+                    if (node != null) {
+                        String parentNodeId = resolveParent(desired, entry.getKey());
+                        if (action == StepAction.SUSPEND) {
+                            NodeSuspendedData data = new NodeSuspendedData(
+                                    tenancyId, entry.getKey().value(), node.type().value(),
+                                    version, parentNodeId);
+                            events.add(eventEmitter.nodeSuspended(data));
+                        } else if (action == StepAction.RESUME) {
+                            NodeResumedData data = new NodeResumedData(
+                                    tenancyId, entry.getKey().value(), node.type().value(),
+                                    version, parentNodeId);
+                            events.add(eventEmitter.nodeResumed(data));
+                        }
                     }
                 }
             }

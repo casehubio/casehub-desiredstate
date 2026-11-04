@@ -34,6 +34,20 @@ public class MockTransitionExecutor implements TransitionExecutor {
                 outcomes.put(step.node().id(), new StepOutcome.Succeeded());
             }
         }
+        for (OrderedStep step : plan.flatSuspensions()) {
+            if (failNodes.contains(step.node().id())) {
+                outcomes.put(step.node().id(), new StepOutcome.Failed("test suspend failure"));
+            } else {
+                outcomes.put(step.node().id(), new StepOutcome.Succeeded());
+            }
+        }
+        for (OrderedStep step : plan.flatResumptions()) {
+            if (failNodes.contains(step.node().id())) {
+                outcomes.put(step.node().id(), new StepOutcome.Failed("test resume failure"));
+            } else {
+                outcomes.put(step.node().id(), new StepOutcome.Succeeded());
+            }
+        }
         for (OrderedStep step : plan.flatAdditions()) {
             if (rejectNodes.contains(step.node().id())) {
                 outcomes.put(step.node().id(), new StepOutcome.Rejected("test rejection"));
