@@ -28,7 +28,7 @@ class OrgGoalCompilerTest {
     private final TestGraphFactory factory = new TestGraphFactory();
 
     @Test void emptyGoalProducesEmptyGraph() {
-        var goal = new OrgGoalCompiler.OrgGoal(List.of(), List.of());
+        var goal = new OrgGoal(List.of(), List.of());
         var result = compiler.compile(goal, factory);
         assertThat(result).isInstanceOf(CompilationResult.SingleGraph.class);
         var graph = ((CompilationResult.SingleGraph) result).graph();
@@ -41,7 +41,7 @@ class OrgGoalCompilerTest {
             .unitId("rig-1").name("Rig").tenancyId("t")
             .members(List.of(new Membership("agent-1", "witness", null)))
             .build();
-        var goal = new OrgGoalCompiler.OrgGoal(List.of(unit), List.of());
+        var goal = new OrgGoal(List.of(new OrgUnitGoal(unit)), List.of());
         var result = compiler.compile(goal, factory);
         var graph = ((CompilationResult.SingleGraph) result).graph();
 
@@ -57,7 +57,7 @@ class OrgGoalCompilerTest {
             .unitId("cluster").name("Cluster").tenancyId("t").build();
         var child = OrganizationalUnit.builder()
             .unitId("rig-1").name("Rig").tenancyId("t").parentUnitId("cluster").build();
-        var goal = new OrgGoalCompiler.OrgGoal(List.of(parent, child), List.of());
+        var goal = new OrgGoal(List.of(new OrgUnitGoal(parent), new OrgUnitGoal(child)), List.of());
         var result = compiler.compile(goal, factory);
         var graph = ((CompilationResult.SingleGraph) result).graph();
 
@@ -70,7 +70,7 @@ class OrgGoalCompilerTest {
         var rel = AgentRelationship.builder()
             .sourceAgentId("witness").targetAgentId("polecat")
             .kind(RelationshipKind.SUPERVISES).tenancyId("t").build();
-        var goal = new OrgGoalCompiler.OrgGoal(List.of(), List.of(rel));
+        var goal = new OrgGoal(List.of(), List.of(rel));
         var result = compiler.compile(goal, factory);
         var graph = ((CompilationResult.SingleGraph) result).graph();
 
@@ -108,14 +108,53 @@ class OrgGoalCompilerTest {
             .sourceAgentId("polecat-1").targetAgentId("witness-alpha")
             .kind(RelationshipKind.BACKS_UP).tenancyId("gastown").build();
 
-        var goal = new OrgGoalCompiler.OrgGoal(
-            List.of(oversight, rig),
+        var goal = new OrgGoal(
+            List.of(new OrgUnitGoal(oversight), new OrgUnitGoal(rig)),
             List.of(supervises, scopedSupervises, backup));
         var result = compiler.compile(goal, factory);
         var graph = ((CompilationResult.SingleGraph) result).graph();
 
         assertThat(graph.nodes()).hasSize(5);
         assertThat(graph.dependencies()).isEmpty();
+    }
+
+    @Test void lowSelfDeterminationSetsHumanGating() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("guarded").name("Guarded").tenancyId("t")
+            .selfDetermination(0.2)
+            .build();
+        var goal = new OrgGoal(List.of(new OrgUnitGoal(unit)), List.of());
+        var result = compiler.compile(goal, factory);
+        var graph = ((CompilationResult.SingleGraph) result).graph();
+
+        var node = graph.nodes().get(NodeId.of("guarded"));
+        assertThat(node.humanGating()).isEqualTo(io.casehub.desiredstate.api.HumanGating.ALL);
+    }
+
+    @Test void highSelfDeterminationNoHumanGating() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("autonomous").name("Autonomous").tenancyId("t")
+            .selfDetermination(0.8)
+            .build();
+        var goal = new OrgGoal(List.of(new OrgUnitGoal(unit)), List.of());
+        var result = compiler.compile(goal, factory);
+        var graph = ((CompilationResult.SingleGraph) result).graph();
+
+        var node = graph.nodes().get(NodeId.of("autonomous"));
+        assertThat(node.humanGating()).isEqualTo(io.casehub.desiredstate.api.HumanGating.NONE);
+    }
+
+    @Test void boundarySelfDeterminationAtThreshold() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("boundary").name("Boundary").tenancyId("t")
+            .selfDetermination(0.3)
+            .build();
+        var goal = new OrgGoal(List.of(new OrgUnitGoal(unit)), List.of());
+        var result = compiler.compile(goal, factory);
+        var graph = ((CompilationResult.SingleGraph) result).graph();
+
+        var node = graph.nodes().get(NodeId.of("boundary"));
+        assertThat(node.humanGating()).isEqualTo(io.casehub.desiredstate.api.HumanGating.NONE);
     }
 
     @Test void relationshipNodeIdIsStable() {

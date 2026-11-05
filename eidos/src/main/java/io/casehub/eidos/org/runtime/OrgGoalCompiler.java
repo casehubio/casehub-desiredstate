@@ -8,33 +8,25 @@ import io.casehub.desiredstate.api.GoalCompiler;
 import io.casehub.desiredstate.api.HumanGating;
 import io.casehub.desiredstate.api.NodeId;
 import io.casehub.eidos.org.api.AgentRelationship;
-import io.casehub.eidos.org.api.OrganizationalUnit;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
-import java.util.List;
 
 @ApplicationScoped
-public class OrgGoalCompiler implements GoalCompiler<OrgGoalCompiler.OrgGoal> {
-
-    public record OrgGoal(
-        List<OrganizationalUnit> units,
-        List<AgentRelationship> relationships
-    ) {
-        public OrgGoal {
-            units = units != null ? List.copyOf(units) : List.of();
-            relationships = relationships != null ? List.copyOf(relationships) : List.of();
-        }
-    }
+public class OrgGoalCompiler implements GoalCompiler<OrgGoal> {
 
     @Override
     public CompilationResult compile(OrgGoal goal, DesiredStateGraphFactory factory) {
         var nodes = new ArrayList<DesiredNode>();
         var deps = new ArrayList<Dependency>();
 
-        for (var unit : goal.units()) {
+        for (var unitGoal : goal.unitGoals()) {
+            var unit = unitGoal.unit();
             var nodeId = NodeId.of(unit.unitId());
-            nodes.add(new DesiredNode(nodeId, new OrgUnitNodeSpec(unit), HumanGating.NONE));
+            var gating = unit.selfDetermination() < 0.3 ? HumanGating.ALL : HumanGating.NONE;
+            var spec = new OrgUnitNodeSpec(unit, unitGoal.desiredMembers(),
+                unitGoal.desiredRoles(), unitGoal.desiredMissions());
+            nodes.add(new DesiredNode(nodeId, spec, gating));
             if (unit.parentUnitId() != null) {
                 deps.add(new Dependency(nodeId, NodeId.of(unit.parentUnitId())));
             }

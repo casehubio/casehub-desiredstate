@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 220" font-family="'Inter','Segoe UI',system-ui,sans-serif" font-size="13">
+  <rect width="740" height="220" fill="#fafaf9" rx="8"/>
+  <text x="370" y="28" text-anchor="middle" font-size="15" font-weight="600" fill="#1e293b">selfDetermination Governs the Reconciliation Response</text>
+
+  <!-- Axis -->
+  <line x1="60" y1="100" x2="680" y2="100" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="60" y="130" text-anchor="middle" fill="#64748b" font-size="11">0.0</text>
+  <text x="680" y="130" text-anchor="middle" fill="#64748b" font-size="11">1.0</text>
+
+  <!-- Tick marks -->
+  <line x1="60" y1="95" x2="60" y2="105" stroke="#94a3b8" stroke-width="2"/>
+  <line x1="246" y1="95" x2="246" y2="105" stroke="#ef4444" stroke-width="2"/>
+  <line x1="494" y1="95" x2="494" y2="105" stroke="#f59e0b" stroke-width="2"/>
+  <line x1="680" y1="95" x2="680" y2="105" stroke="#94a3b8" stroke-width="2"/>
+
+  <text x="246" y="130" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">0.3</text>
+  <text x="494" y="130" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">0.7</text>
+
+  <!-- Zone 1: Controlled -->
+  <rect x="60" y="55" width="186" height="35" rx="4" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+  <text x="153" y="72" text-anchor="middle" font-weight="600" fill="#991b1b" font-size="11">HumanGating.ALL</text>
+  <text x="153" y="86" text-anchor="middle" fill="#dc2626" font-size="9">approval required</text>
+
+  <!-- Zone 2: Managed -->
+  <rect x="252" y="55" width="236" height="35" rx="4" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="370" y="72" text-anchor="middle" font-weight="600" fill="#92400e" font-size="11">Standard Reconciliation</text>
+  <text x="370" y="86" text-anchor="middle" fill="#b45309" font-size="9">drift detected and corrected</text>
+
+  <!-- Zone 3: Autonomous -->
+  <rect x="500" y="55" width="180" height="35" rx="4" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="590" y="72" text-anchor="middle" font-weight="600" fill="#166534" font-size="11">Drift Exempted</text>
+  <text x="590" y="86" text-anchor="middle" fill="#15803d" font-size="9">topology changes allowed</text>
+
+  <!-- Labels below -->
+  <text x="153" y="155" text-anchor="middle" fill="#475569" font-size="11" font-weight="500">Controlled</text>
+  <text x="153" y="172" text-anchor="middle" fill="#94a3b8" font-size="9">Every action gated</text>
+  <text x="153" y="186" text-anchor="middle" fill="#94a3b8" font-size="9">by human approval</text>
+
+  <text x="370" y="155" text-anchor="middle" fill="#475569" font-size="11" font-weight="500">Managed</text>
+  <text x="370" y="172" text-anchor="middle" fill="#94a3b8" font-size="9">Self-service within</text>
+  <text x="370" y="186" text-anchor="middle" fill="#94a3b8" font-size="9">declared boundaries</text>
+
+  <text x="590" y="155" text-anchor="middle" fill="#475569" font-size="11" font-weight="500">Autonomous</text>
+  <text x="590" y="172" text-anchor="middle" fill="#94a3b8" font-size="9">Group self-governs</text>
+  <text x="590" y="186" text-anchor="middle" fill="#94a3b8" font-size="9">topology decisions</text>
+
+  <text x="370" y="210" text-anchor="middle" fill="#64748b" font-size="10" font-style="italic">selfDetermination</text>
+</svg>
