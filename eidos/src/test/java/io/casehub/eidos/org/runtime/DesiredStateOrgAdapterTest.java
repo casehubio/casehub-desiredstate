@@ -1,12 +1,28 @@
 package io.casehub.eidos.org.runtime;
 
-import io.casehub.desiredstate.api.*;
-import io.casehub.eidos.org.api.*;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.eidos.org.api.AgentRelationship;
+import io.casehub.eidos.org.api.FormationOrigin;
+import io.casehub.eidos.org.api.GroupInstance;
+import io.casehub.eidos.org.api.GroupInstanceQuery;
+import io.casehub.eidos.org.api.GroupLifecycleState;
+import io.casehub.eidos.org.api.Membership;
+import io.casehub.eidos.org.api.OrgQuery;
+import io.casehub.eidos.org.api.OrgRegistry;
+import io.casehub.eidos.org.api.OrganizationalUnit;
+import io.casehub.eidos.org.api.RelationshipKind;
 import io.casehub.eidos.org.api.spi.GroupInstanceStore;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -74,6 +90,41 @@ class DesiredStateOrgAdapterTest {
 
         assertThat(actual.statusOf(NodeId.of("team-4"))).hasValue(NodeStatus.DRIFTED);
     }
+
+    @Test
+    void formingGroupIsPresent() {
+        var instance = new GroupInstance("team-forming", "team-forming", "t1",
+                                         GroupLifecycleState.FORMING, FormationOrigin.TOP_DOWN,
+                                         null, null, null, List.of(), List.of(), List.of(),
+                                         Instant.now(), Instant.now(), 0);
+        instanceStore.save(instance);
+
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-forming").name("Team Forming").tenancyId("t1").build();
+        var node   = new DesiredNode(NodeId.of("team-forming"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
+        var graph  = factory.of(List.of(node), List.of());
+        var actual = adapter.readActual(graph, "t1");
+
+        assertThat(actual.statusOf(NodeId.of("team-forming"))).hasValue(NodeStatus.PRESENT);
+    }
+
+    @Test
+    void dissolvingGroupIsPresent() {
+        var instance = new GroupInstance("team-dissolving", "team-dissolving", "t1",
+                                         GroupLifecycleState.DISSOLVING, FormationOrigin.TOP_DOWN,
+                                         null, null, null, List.of(), List.of(), List.of(),
+                                         Instant.now(), Instant.now(), 0);
+        instanceStore.save(instance);
+
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-dissolving").name("Team Dissolving").tenancyId("t1").build();
+        var node   = new DesiredNode(NodeId.of("team-dissolving"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
+        var graph  = factory.of(List.of(node), List.of());
+        var actual = adapter.readActual(graph, "t1");
+
+        assertThat(actual.statusOf(NodeId.of("team-dissolving"))).hasValue(NodeStatus.PRESENT);
+    }
+
 
     @Test void rejectedGroupIsAbsent() {
         var instance = new GroupInstance("team-5", "team-5", "t1",

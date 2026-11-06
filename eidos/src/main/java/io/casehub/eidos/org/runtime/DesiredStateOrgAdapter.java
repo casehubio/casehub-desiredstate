@@ -1,6 +1,12 @@
 package io.casehub.eidos.org.runtime;
 
-import io.casehub.desiredstate.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.ActualStateAdapter;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DesiredStateGraph;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
 import io.casehub.eidos.org.api.GroupLifecycleState;
 import io.casehub.eidos.org.api.OrgRegistry;
 import io.casehub.eidos.org.api.spi.GroupInstanceStore;
@@ -54,10 +60,10 @@ public class DesiredStateOrgAdapter implements ActualStateAdapter {
 
     private NodeStatus mapLifecycleState(GroupLifecycleState state) {
         return switch (state) {
-            case ACTIVE -> NodeStatus.PRESENT;
+            case ACTIVE, FORMING, DISSOLVING -> NodeStatus.PRESENT;
             case REORGANISING -> NodeStatus.DRIFTED;
             case DISSOLVED, REJECTED, FAILED -> NodeStatus.ABSENT;
-            case PROPOSED, FORMING, DISSOLVING -> NodeStatus.ABSENT;
+            case PROPOSED -> NodeStatus.ABSENT;
         };
     }
 
