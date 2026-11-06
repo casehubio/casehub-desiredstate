@@ -192,7 +192,9 @@ class DesiredStateGroupLifecycleServiceTest {
 
     @Test void adoptRoleAddsDesiredRole() {
         var unit = OrganizationalUnit.builder()
-            .unitId("team-7").name("Team 7").tenancyId("t1").build();
+            .unitId("team-7").name("Team 7").tenancyId("t1")
+            .roleSpecs(List.of(new RoleSpec("coordinator", null, 0, -1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
         registry.registerUnit(unit);
         service.createGroup("team-7", "t1", FormationOrigin.TOP_DOWN);
 
@@ -205,7 +207,9 @@ class DesiredStateGroupLifecycleServiceTest {
 
     @Test void releaseRoleRemovesDesiredRole() {
         var unit = OrganizationalUnit.builder()
-            .unitId("team-8").name("Team 8").tenancyId("t1").build();
+            .unitId("team-8").name("Team 8").tenancyId("t1")
+            .roleSpecs(List.of(new RoleSpec("analyst", null, 0, -1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
         registry.registerUnit(unit);
         service.createGroup("team-8", "t1", FormationOrigin.TOP_DOWN);
         service.adoptRole("team-8", "agent-4", "analyst", "t1");
@@ -258,5 +262,142 @@ class DesiredStateGroupLifecycleServiceTest {
         assertThat(service.findInstance("missing", "t1")).isEmpty();
         assertThat(service.findInstances(new GroupInstanceQuery("t1", null, null, null))).isEmpty();
         assertThat(service.instancesForAgent("agent-1", "t1")).isEmpty();
+    }
+
+    // --- Constraint enforcement (#232) ---
+
+    @Test void adoptRoleRejectsUnknownRole() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c1").name("C1").tenancyId("t1")
+            .roleSpecs(List.of(new RoleSpec("leader", null, 0, 1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c1", "t1", FormationOrigin.TOP_DOWN);
+
+        assertThatThrownBy(() -> service.adoptRole("team-c1", "agent-1", "nonexistent", "t1"))
+            .isInstanceOf(OrgValidationException.class)
+            .hasMessageContaining("not defined");
+    }
+
+    @Test void adoptRoleRejectsWhenMaxCardinalityReached() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c2").name("C2").tenancyId("t1")
+            .roleSpecs(List.of(new RoleSpec("leader", null, 0, 1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c2", "t1", FormationOrigin.TOP_DOWN);
+        service.adoptRole("team-c2", "agent-1", "leader", "t1");
+
+        assertThatThrownBy(() -> service.adoptRole("team-c2", "agent-2", "leader", "t1"))
+            .isInstanceOf(OrgValidationException.class)
+            .hasMessageContaining("capacity");
+    }
+
+    @Test void adoptRoleAllowsUnlimitedCardinality() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c3").name("C3").tenancyId("t1")
+            .roleSpecs(List.of(new RoleSpec("worker", null, 0, -1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c3", "t1", FormationOrigin.TOP_DOWN);
+        service.adoptRole("team-c3", "agent-1", "worker", "t1");
+        service.adoptRole("team-c3", "agent-2", "worker", "t1");
+
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-c3").get();
+        assertThat(unitGoal.desiredRoles()).hasSize(2);
+    }
+
+    @Test void adoptRoleRejectsIncompatibleRoles() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c4").name("C4").tenancyId("t1")
+            .roleSpecs(List.of(
+                new RoleSpec("leader", null, 0, -1, Set.of("auditor"), List.of(), List.of(), List.of()),
+                new RoleSpec("auditor", null, 0, -1, Set.of("leader"), List.of(), List.of(), List.of())))
+            .build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c4", "t1", FormationOrigin.TOP_DOWN);
+        service.adoptRole("team-c4", "agent-1", "leader", "t1");
+
+        assertThatThrownBy(() -> service.adoptRole("team-c4", "agent-1", "auditor", "t1"))
+            .isInstanceOf(OrgValidationException.class)
+            .hasMessageContaining("incompatible");
+    }
+
+    @Test void adoptRoleAllowsCompatibleRolesForSameAgent() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c5").name("C5").tenancyId("t1")
+            .roleSpecs(List.of(
+                new RoleSpec("leader", null, 0, -1, Set.of(), List.of(), List.of(), List.of()),
+                new RoleSpec("scribe", null, 0, -1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c5", "t1", FormationOrigin.TOP_DOWN);
+        service.adoptRole("team-c5", "agent-1", "leader", "t1");
+        service.adoptRole("team-c5", "agent-1", "scribe", "t1");
+
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-c5").get();
+        assertThat(unitGoal.desiredRoles()).hasSize(2);
+    }
+
+    @Test void joinGroupRejectsWhenMaxGroupSizeReached() {
+        var rules = new FormationRules(Set.of(FormationPath.TOP_DOWN), 1, 2, false, 1.0);
+        var policy = new GroupPolicy(rules, 0, null, 30);
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c6").name("C6").tenancyId("t1").policy(policy).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c6", "t1", FormationOrigin.TOP_DOWN);
+        service.joinGroup("team-c6", "agent-1", "t1");
+        service.joinGroup("team-c6", "agent-2", "t1");
+
+        assertThatThrownBy(() -> service.joinGroup("team-c6", "agent-3", "t1"))
+            .isInstanceOf(OrgValidationException.class)
+            .hasMessageContaining("maxGroupSize");
+    }
+
+    @Test void joinGroupAllowsUnlimitedSize() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c7").name("C7").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c7", "t1", FormationOrigin.TOP_DOWN);
+        service.joinGroup("team-c7", "agent-1", "t1");
+        service.joinGroup("team-c7", "agent-2", "t1");
+        service.joinGroup("team-c7", "agent-3", "t1");
+
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-c7").get();
+        assertThat(unitGoal.desiredMembers()).hasSize(3);
+    }
+
+    @Test void createGroupRejectsDisallowedFormationPath() {
+        var rules = new FormationRules(Set.of(FormationPath.EMERGENCE), 1, -1, false, 1.0);
+        var policy = new GroupPolicy(rules, 0, null, 30);
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c8").name("C8").tenancyId("t1").policy(policy).build();
+        registry.registerUnit(unit);
+
+        assertThatThrownBy(() -> service.createGroup("team-c8", "t1", FormationOrigin.TOP_DOWN))
+            .isInstanceOf(OrgValidationException.class)
+            .hasMessageContaining("allowedPaths");
+    }
+
+    @Test void createGroupAllowsMatchingFormationPath() {
+        var rules = new FormationRules(Set.of(FormationPath.TOP_DOWN), 1, -1, false, 1.0);
+        var policy = new GroupPolicy(rules, 0, null, 30);
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c9").name("C9").tenancyId("t1").policy(policy).build();
+        registry.registerUnit(unit);
+
+        var result = service.createGroup("team-c9", "t1", FormationOrigin.TOP_DOWN);
+        assertThat(result).isNotNull();
+    }
+
+    @Test void adoptRoleWithNoRoleSpecsRejects() {
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-c10").name("C10").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-c10", "t1", FormationOrigin.TOP_DOWN);
+
+        assertThatThrownBy(() -> service.adoptRole("team-c10", "agent-1", "leader", "t1"))
+            .isInstanceOf(OrgValidationException.class)
+            .hasMessageContaining("not defined");
     }
 }

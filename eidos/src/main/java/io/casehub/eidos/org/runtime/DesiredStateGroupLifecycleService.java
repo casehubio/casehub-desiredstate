@@ -13,6 +13,8 @@ import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ConcurrentModificationException;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -53,6 +55,7 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             .orElseThrow(() -> new OrgValidationException("specId",
                 "no OrganizationalUnit found for specId '" + specId
                     + "' in tenancy '" + tenancyId + "'"));
+        validateFormationPath(unit, origin);
         mutate(tenancyId, goal -> goal.withUnitGoal(new OrgUnitGoal(unit)));
         var now = Instant.now();
         return new GroupInstance(
@@ -120,7 +123,10 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
 
     @Override
     public void joinGroup(String instanceId, String agentId, String tenancyId) {
-        mutateUnit(instanceId, tenancyId, unitGoal -> unitGoal.withMember(agentId));
+        mutateUnit(instanceId, tenancyId, unitGoal -> {
+            validateJoinGroup(unitGoal);
+            return unitGoal.withMember(agentId);
+        });
     }
 
     @Override
@@ -132,8 +138,10 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
     @Override
     public void adoptRole(String instanceId, String agentId, String roleName,
                           String tenancyId) {
-        mutateUnit(instanceId, tenancyId,
-            unitGoal -> unitGoal.withRole(new DesiredRoleAdoption(agentId, roleName)));
+        mutateUnit(instanceId, tenancyId, unitGoal -> {
+            validateAdoptRole(unitGoal, agentId, roleName);
+            return unitGoal.withRole(new DesiredRoleAdoption(agentId, roleName));
+        });
     }
 
     @Override
@@ -178,6 +186,65 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
     @Override
     public List<GroupInstance> instancesForAgent(String agentId, String tenancyId) {
         return instanceStore.find(new GroupInstanceQuery(tenancyId, null, null, agentId));
+    }
+
+    private void validateFormationPath(OrganizationalUnit unit, FormationOrigin origin) {
+        if (unit.policy() == null || unit.policy().formationRules() == null) return;
+        var allowed = unit.policy().formationRules().allowedPaths();
+        if (allowed.isEmpty()) return;
+        var path = switch (origin) {
+            case TOP_DOWN -> FormationPath.TOP_DOWN;
+            case EMERGENCE -> FormationPath.EMERGENCE;
+            case PROPOSAL -> FormationPath.BOTTOM_UP;
+        };
+        if (!allowed.contains(path)) {
+            throw new OrgValidationException("formationOrigin",
+                "formation path " + path + " not in allowedPaths " + allowed);
+        }
+    }
+
+    private void validateJoinGroup(OrgUnitGoal unitGoal) {
+        int currentSize = unitGoal.desiredMembers().size();
+        if (currentSize >= OrganizationalUnit.MAX_MEMBERS) {
+            throw new OrgValidationException("members",
+                "exceeds MAX_MEMBERS (" + OrganizationalUnit.MAX_MEMBERS + ")");
+        }
+        if (unitGoal.unit().policy() != null && unitGoal.unit().policy().formationRules() != null) {
+            int maxSize = unitGoal.unit().policy().formationRules().maxGroupSize();
+            if (maxSize != -1 && currentSize >= maxSize) {
+                throw new OrgValidationException("members",
+                    "exceeds maxGroupSize (" + maxSize + ")");
+            }
+        }
+    }
+
+    private void validateAdoptRole(OrgUnitGoal unitGoal, String agentId, String roleName) {
+        var roleSpec = unitGoal.unit().roleSpecs().stream()
+            .filter(rs -> rs.roleName().equals(roleName))
+            .findFirst()
+            .orElseThrow(() -> new OrgValidationException("roleName",
+                "role '" + roleName + "' not defined in unit '" + unitGoal.unit().unitId() + "'"));
+
+        if (roleSpec.maxCardinality() != -1) {
+            long count = unitGoal.desiredRoles().stream()
+                .filter(r -> r.roleName().equals(roleName)).count();
+            if (count >= roleSpec.maxCardinality()) {
+                throw new OrgValidationException("maxCardinality",
+                    "role '" + roleName + "' at capacity (" + count + "/" + roleSpec.maxCardinality() + ")");
+            }
+        }
+
+        Set<String> agentRoles = unitGoal.desiredRoles().stream()
+            .filter(r -> r.agentId().equals(agentId))
+            .map(DesiredRoleAdoption::roleName)
+            .collect(Collectors.toSet());
+        for (String incompatible : roleSpec.incompatibleWith()) {
+            if (agentRoles.contains(incompatible)) {
+                throw new OrgValidationException("incompatibleWith",
+                    "role '" + roleName + "' incompatible with '" + incompatible
+                        + "' held by agent '" + agentId + "'");
+            }
+        }
     }
 
     private void mutateUnit(String instanceId, String tenancyId,
