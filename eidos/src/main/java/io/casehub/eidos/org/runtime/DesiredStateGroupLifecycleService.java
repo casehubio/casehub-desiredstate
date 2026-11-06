@@ -30,6 +30,7 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
     private final DesiredStateGraphFactory graphFactory;
     private final ReconciliationLoop reconciliationLoop;
     private final LifecycleManager lifecycleManager;
+    private final List<GroupLifecycleListener> listeners;
 
     @Inject
     public DesiredStateGroupLifecycleService(
@@ -40,6 +41,19 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             DesiredStateGraphFactory graphFactory,
             ReconciliationLoop reconciliationLoop,
             LifecycleManager lifecycleManager) {
+        this(registry, instanceStore, goalStore, compiler, graphFactory,
+             reconciliationLoop, lifecycleManager, List.of());
+    }
+
+    public DesiredStateGroupLifecycleService(
+            OrgRegistry registry,
+            GroupInstanceStore instanceStore,
+            OrgGoalStore goalStore,
+            OrgGoalCompiler compiler,
+            DesiredStateGraphFactory graphFactory,
+            ReconciliationLoop reconciliationLoop,
+            LifecycleManager lifecycleManager,
+            List<GroupLifecycleListener> listeners) {
         this.registry = registry;
         this.instanceStore = instanceStore;
         this.goalStore = goalStore;
@@ -47,6 +61,7 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
         this.graphFactory = graphFactory;
         this.reconciliationLoop = reconciliationLoop;
         this.lifecycleManager = lifecycleManager;
+        this.listeners = listeners != null ? List.copyOf(listeners) : List.of();
     }
 
     @Override
@@ -57,6 +72,8 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
                     + "' in tenancy '" + tenancyId + "'"));
         validateFormationPath(unit, origin);
         mutate(tenancyId, goal -> goal.withUnitGoal(new OrgUnitGoal(unit)));
+        var proposal = new FormationProposal(specId, tenancyId, origin, List.of(), java.util.Map.of());
+        listeners.forEach(l -> l.onFormationProposal(proposal));
         var now = Instant.now();
         return new GroupInstance(
             specId, specId, tenancyId, GroupLifecycleState.PROPOSED, origin,
@@ -95,11 +112,16 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             requireUnitGoal(goal, instanceId, tenancyId);
             return goal.withoutUnit(instanceId);
         });
+        listeners.forEach(l -> l.onDissolution(instanceId, tenancyId, reason));
     }
 
     @Override
     public void changeTopology(String instanceId, String newTopology,
                                String newTopologyVocabulary, String tenancyId) {
+        var oldTopology = goalStore.load(tenancyId)
+            .flatMap(g -> g.findUnitGoal(instanceId))
+            .map(ug -> ug.unit().topology())
+            .orElse(null);
         mutateUnit(instanceId, tenancyId, unitGoal -> {
             var u = unitGoal.unit();
             var updated = OrganizationalUnit.builder()
@@ -119,6 +141,7 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
                 .build();
             return unitGoal.withUnit(updated);
         });
+        listeners.forEach(l -> l.onTopologyChange(instanceId, oldTopology, newTopology, tenancyId));
     }
 
     @Override
@@ -127,12 +150,14 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             validateJoinGroup(unitGoal);
             return unitGoal.withMember(agentId);
         });
+        listeners.forEach(l -> l.onMemberJoined(instanceId, agentId, tenancyId));
     }
 
     @Override
     public void leaveGroup(String instanceId, String agentId, String tenancyId) {
         mutateUnit(instanceId, tenancyId,
             unitGoal -> unitGoal.withoutMember(agentId).withoutRolesForAgent(agentId));
+        listeners.forEach(l -> l.onMemberLeft(instanceId, agentId, tenancyId));
     }
 
     @Override
@@ -142,6 +167,7 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             validateAdoptRole(unitGoal, agentId, roleName);
             return unitGoal.withRole(new DesiredRoleAdoption(agentId, roleName));
         });
+        listeners.forEach(l -> l.onRoleAdoption(instanceId, agentId, roleName, tenancyId));
     }
 
     @Override
@@ -149,6 +175,7 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
                             String tenancyId) {
         mutateUnit(instanceId, tenancyId,
             unitGoal -> unitGoal.withoutRole(agentId, roleName));
+        listeners.forEach(l -> l.onRoleRelease(instanceId, agentId, roleName, tenancyId));
     }
 
     @Override

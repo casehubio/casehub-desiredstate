@@ -400,4 +400,102 @@ class DesiredStateGroupLifecycleServiceTest {
             .isInstanceOf(OrgValidationException.class)
             .hasMessageContaining("not defined");
     }
+
+    // --- Lifecycle listener events (#233) ---
+
+    @Test void createGroupFiresOnFormationProposal() {
+        var captured = new java.util.ArrayList<String>();
+        var listener = new GroupLifecycleListener() {
+            @Override public void onFormationProposal(FormationProposal proposal) {
+                captured.add("proposal:" + proposal.specId());
+            }
+        };
+        service = createServiceWithListeners(List.of(listener));
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-e1").name("E1").tenancyId("t1").build();
+        registry.registerUnit(unit);
+
+        service.createGroup("team-e1", "t1", FormationOrigin.TOP_DOWN);
+
+        assertThat(captured).containsExactly("proposal:team-e1");
+    }
+
+    @Test void dissolveGroupFiresOnDissolution() {
+        var captured = new java.util.ArrayList<String>();
+        var listener = new GroupLifecycleListener() {
+            @Override public void onDissolution(String instanceId, String tenancyId, String reason) {
+                captured.add("dissolve:" + instanceId);
+            }
+        };
+        service = createServiceWithListeners(List.of(listener));
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-e2").name("E2").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-e2", "t1", FormationOrigin.TOP_DOWN);
+
+        service.dissolveGroup("team-e2", "t1", "done");
+
+        assertThat(captured).contains("dissolve:team-e2");
+    }
+
+    @Test void joinGroupFiresOnMemberJoined() {
+        var captured = new java.util.ArrayList<String>();
+        var listener = new GroupLifecycleListener() {
+            @Override public void onMemberJoined(String instanceId, String agentId, String tenancyId) {
+                captured.add("joined:" + agentId);
+            }
+        };
+        service = createServiceWithListeners(List.of(listener));
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-e3").name("E3").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-e3", "t1", FormationOrigin.TOP_DOWN);
+
+        service.joinGroup("team-e3", "agent-1", "t1");
+
+        assertThat(captured).containsExactly("joined:agent-1");
+    }
+
+    @Test void adoptRoleFiresOnRoleAdoption() {
+        var captured = new java.util.ArrayList<String>();
+        var listener = new GroupLifecycleListener() {
+            @Override public void onRoleAdoption(String instanceId, String agentId, String roleName, String tenancyId) {
+                captured.add("adopt:" + agentId + ":" + roleName);
+            }
+        };
+        service = createServiceWithListeners(List.of(listener));
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-e4").name("E4").tenancyId("t1")
+            .roleSpecs(List.of(new RoleSpec("leader", null, 0, -1, Set.of(), List.of(), List.of(), List.of())))
+            .build();
+        registry.registerUnit(unit);
+        service.createGroup("team-e4", "t1", FormationOrigin.TOP_DOWN);
+
+        service.adoptRole("team-e4", "agent-1", "leader", "t1");
+
+        assertThat(captured).containsExactly("adopt:agent-1:leader");
+    }
+
+    @Test void changeTopologyFiresOnTopologyChange() {
+        var captured = new java.util.ArrayList<String>();
+        var listener = new GroupLifecycleListener() {
+            @Override public void onTopologyChange(String instanceId, String oldTopology, String newTopology, String tenancyId) {
+                captured.add("topo:" + oldTopology + "->" + newTopology);
+            }
+        };
+        service = createServiceWithListeners(List.of(listener));
+        var unit = OrganizationalUnit.builder()
+            .unitId("team-e5").name("E5").tenancyId("t1").topology("swarm").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-e5", "t1", FormationOrigin.TOP_DOWN);
+
+        service.changeTopology("team-e5", "mesh", null, "t1");
+
+        assertThat(captured).containsExactly("topo:swarm->mesh");
+    }
+
+    private DesiredStateGroupLifecycleService createServiceWithListeners(List<GroupLifecycleListener> listeners) {
+        return new DesiredStateGroupLifecycleService(
+            registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager, listeners);
+    }
 }
