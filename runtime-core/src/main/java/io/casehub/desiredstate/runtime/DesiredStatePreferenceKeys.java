@@ -12,6 +12,9 @@ public final class DesiredStatePreferenceKeys {
 
     private DesiredStatePreferenceKeys() {}
 
+    public static final String GLOBAL_SUB_KEY = "default";
+
+
     public static final PreferenceKey<DurationPreference> RESYNC_INTERVAL =
         new PreferenceKey<>("desiredstate", "resync",
             new DurationPreference(Duration.ofMinutes(5)),
@@ -37,4 +40,8 @@ public final class DesiredStatePreferenceKeys {
                                 new IntPreference(10), IntPreference::parse);
 
 
+    public static final PreferenceKey<DurationPreference> STABILIZATION_WINDOW =
+            new PreferenceKey<>("desiredstate", "stabilization-window",
+                                new DurationPreference(Duration.ofMinutes(5)),
+                                s -> new DurationPreference(Duration.parse(s)));
 }

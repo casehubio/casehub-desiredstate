@@ -9,6 +9,7 @@ import io.casehub.ras.api.SituationChangeEvent;
 import io.casehub.ras.api.SituationContext;
 import io.casehub.ras.api.SituationSource;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.logging.Logger;
 
@@ -91,6 +92,31 @@ public class SituationRecompilerDispatchCore {
         reconciliationLoop.requestReconciliation(tenancyId);
         LOG.fine(() -> "Situation recompilation applied for tenant " + tenancyId);
     }
+
+    public void handleDrain(String tenancyId, List<SituationRecompilerEngine.QueuedSituation> queued) {
+        if (!reconciliationLoop.tenantIds().contains(tenancyId)) {
+            return;
+        }
+        for (var q : queued) {
+            DesiredStateGraph currentGraph = reconciliationLoop.getDesired(tenancyId);
+            var               actual       = actualStateRouter.readActual(currentGraph, tenancyId);
+
+            switch (q) {
+                case SituationRecompilerEngine.QueuedSituation.Recompile r -> {
+                    Optional<CompilationResult> result = engine.recompile(
+                            tenancyId, currentGraph, actual, r.situation(), r.factory());
+                    applyResult(tenancyId, result);
+                }
+                case SituationRecompilerEngine.QueuedSituation.Resolved r -> {
+                    Optional<CompilationResult> result = engine.situationResolved(
+                            tenancyId, r.situationId(), currentGraph, actual, r.factory());
+                    applyResult(tenancyId, result);
+                }
+            }
+        }
+        LOG.info("Drained " + queued.size() + " queued situation(s) for tenant " + tenancyId);
+    }
+
 
     static ActiveSituation toActiveSituation(SituationChangeEvent event) {
         SituationContext ctx = event.context();

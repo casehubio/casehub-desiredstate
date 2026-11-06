@@ -266,6 +266,8 @@ SPI: `recompile(String tenancyId, DesiredStateGraph current, ActualState actual,
 
 Multiple recompilers are aggregated by `SituationRecompilerEngine` -- the engine tries each in priority order until one returns a non-empty result.
 
+**Stabilization window:** After a successful recompilation, the engine enforces a per-tenant cooldown (default: 5 minutes, configurable via `DesiredStatePreferenceKeys.STABILIZATION_WINDOW`). Situations arriving during the window are queued and evaluated after expiry. Prevents cascade storms where a restructuring triggers new situations that trigger more restructuring. Set to `Duration.ZERO` to disable.
+
 ### ConfigurationRetriever / ConfigurationAdapter (CBR SPIs)
 
 Case-Based Reasoning SPIs for fault and situation response:

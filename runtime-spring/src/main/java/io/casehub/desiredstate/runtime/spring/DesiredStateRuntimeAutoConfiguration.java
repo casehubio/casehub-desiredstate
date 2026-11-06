@@ -27,8 +27,9 @@ import io.casehub.desiredstate.runtime.CbrSituationRecompiler;
 import io.casehub.desiredstate.runtime.DefaultDesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.DefaultDiscoveryAdapterRouter;
 import io.casehub.desiredstate.runtime.DefaultFaultCountStore;
-import io.casehub.desiredstate.runtime.DiscoveryOrchestrator;
 import io.casehub.desiredstate.runtime.DefaultReconciliationStateStore;
+import io.casehub.desiredstate.runtime.DesiredStatePreferenceKeys;
+import io.casehub.desiredstate.runtime.DiscoveryOrchestrator;
 import io.casehub.desiredstate.runtime.DriftPolicyEngine;
 import io.casehub.desiredstate.runtime.ExemptionEvictionListener;
 import io.casehub.desiredstate.runtime.FaultCountEvictionListener;
@@ -68,8 +69,22 @@ public class DesiredStateRuntimeAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SituationRecompilerEngine situationRecompilerEngine(
-            List<SituationRecompiler> recompilers) {
-        return new SituationRecompilerEngine(recompilers);
+            List<SituationRecompiler> recompilers,
+            io.casehub.platform.api.preferences.PreferenceProvider preferenceProvider) {
+        io.casehub.platform.api.preferences.Preferences prefs = preferenceProvider.resolve(
+                io.casehub.platform.api.preferences.SettingsScope.root(
+                        io.casehub.platform.api.identity.TenancyConstants.PLATFORM_TENANT_ID));
+        io.casehub.platform.api.preferences.DurationPreference pref =
+                prefs.getOrDefault(DesiredStatePreferenceKeys.STABILIZATION_WINDOW, DesiredStatePreferenceKeys.GLOBAL_SUB_KEY);
+        java.time.Duration window = pref.duration();
+        java.util.concurrent.ScheduledExecutorService scheduler = window.isZero()
+                                                                  ? null
+                                                                  : java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "stabilization-drain");
+            t.setDaemon(true);
+            return t;
+        });
+        return new SituationRecompilerEngine(recompilers, window, scheduler, null);
     }
 
     @Bean
@@ -298,9 +313,11 @@ public class DesiredStateRuntimeAutoConfiguration {
             ActualStateAdapterRouter actualStateRouter,
             io.casehub.desiredstate.api.DesiredStateGraphFactory graphFactory,
             io.casehub.ras.api.SituationSource situationSource) {
-        return new io.casehub.desiredstate.runtime.SituationRecompilerDispatchCore(
+        var core = new io.casehub.desiredstate.runtime.SituationRecompilerDispatchCore(
                 engine, lifecycleManager, reconciliationLoop,
                 actualStateRouter, graphFactory, situationSource);
+        engine.setDrainHandler(core::handleDrain);
+        return core;
     }
 
     @Bean

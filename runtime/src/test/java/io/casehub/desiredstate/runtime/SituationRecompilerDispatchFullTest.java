@@ -260,6 +260,41 @@ class SituationRecompilerDispatchFullTest {
         assertThat(result.triggerCount()).isEqualTo(enriched.triggerCount());
     }
 
+    @Test
+    void drain_shouldEvaluateQueuedRecompileSituationsWithFreshState() {
+        loop.start("t1", baseGraph);
+        recompilerReturnsResult = true;
+        var sit = new ActiveSituation("sit-drain", "zone-A", "t1", 0.9,
+                                      Map.of(), Instant.now().minusSeconds(10), Instant.now(), 1);
+
+        dispatch.handleDrain("t1", List.of(
+                new SituationRecompilerEngine.QueuedSituation.Recompile("t1", sit, null)));
+
+        assertThat(recompileCalls).contains("t1:sit-drain");
+    }
+
+    @Test
+    void drain_shouldHandleResolvedSituations() {
+        loop.start("t1", baseGraph);
+        resolvedReturnsResult = true;
+
+        dispatch.handleDrain("t1", List.of(
+                new SituationRecompilerEngine.QueuedSituation.Resolved("t1", "sit-resolved", null)));
+
+        assertThat(resolvedCalls).contains("t1:sit-resolved");
+    }
+
+    @Test
+    void drain_unknownTenant_isIgnored() {
+        dispatch.handleDrain("unknown-tenant", List.of(
+                new SituationRecompilerEngine.QueuedSituation.Recompile("unknown-tenant",
+                                                                        new ActiveSituation("sit-x", "zone-A", "unknown-tenant", 0.9,
+                                                                                            Map.of(), Instant.now().minusSeconds(10), Instant.now(), 1), null)));
+
+        assertThat(recompileCalls).isEmpty();
+    }
+
+
     // --- helpers ---
 
     private SituationChangeEvent triggeredEvent(String tenancyId, String situationId) {

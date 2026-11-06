@@ -51,8 +51,23 @@ public class RuntimeBeans {
     @Produces
     @ApplicationScoped
     public SituationRecompilerEngine situationRecompilerEngine(
-            Instance<SituationRecompiler> recompilers) {
-        return new SituationRecompilerEngine(recompilers.stream().toList());
+            Instance<SituationRecompiler> recompilers,
+            PreferenceProvider preferenceProvider) {
+        io.casehub.platform.api.preferences.Preferences prefs = preferenceProvider.resolve(
+                io.casehub.platform.api.preferences.SettingsScope.root(
+                        io.casehub.platform.api.identity.TenancyConstants.PLATFORM_TENANT_ID));
+        io.casehub.platform.api.preferences.DurationPreference pref =
+                prefs.getOrDefault(DesiredStatePreferenceKeys.STABILIZATION_WINDOW, DesiredStatePreferenceKeys.GLOBAL_SUB_KEY);
+        java.time.Duration window = pref.duration();
+        java.util.concurrent.ScheduledExecutorService scheduler = window.isZero()
+                                                                  ? null
+                                                                  : java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "stabilization-drain");
+            t.setDaemon(true);
+            return t;
+        });
+        return new SituationRecompilerEngine(recompilers.stream().toList(),
+                                             window, scheduler, null);
     }
 
     @Produces
@@ -313,8 +328,10 @@ public class RuntimeBeans {
             io.casehub.desiredstate.api.ActualStateAdapterRouter actualStateRouter,
             io.casehub.desiredstate.api.DesiredStateGraphFactory graphFactory,
             io.casehub.ras.api.SituationSource situationSource) {
-        return new SituationRecompilerDispatchCore(engine, lifecycleManager,
-                                                   reconciliationLoop, actualStateRouter, graphFactory, situationSource);
+        var core = new SituationRecompilerDispatchCore(engine, lifecycleManager,
+                                                       reconciliationLoop, actualStateRouter, graphFactory, situationSource);
+        engine.setDrainHandler(core::handleDrain);
+        return core;
     }
 
     @Produces
