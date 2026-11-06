@@ -10,7 +10,17 @@ import io.casehub.desiredstate.runtime.ReconciliationLoop;
 import io.casehub.desiredstate.runtime.TransitionPlanner;
 import io.casehub.desiredstate.testing.MockActualStateAdapter;
 import io.casehub.desiredstate.testing.MockTransitionExecutor;
-import io.casehub.eidos.org.api.*;
+import io.casehub.eidos.org.api.FormationOrigin;
+import io.casehub.eidos.org.api.FormationPath;
+import io.casehub.eidos.org.api.FormationProposal;
+import io.casehub.eidos.org.api.FormationRules;
+import io.casehub.eidos.org.api.GroupInstanceQuery;
+import io.casehub.eidos.org.api.GroupLifecycleListener;
+import io.casehub.eidos.org.api.GroupLifecycleState;
+import io.casehub.eidos.org.api.GroupPolicy;
+import io.casehub.eidos.org.api.OrgValidationException;
+import io.casehub.eidos.org.api.OrganizationalUnit;
+import io.casehub.eidos.org.api.RoleSpec;
 import io.smallrye.mutiny.Multi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,17 +66,18 @@ class DesiredStateGroupLifecycleServiceTest {
         loop.shutdown();
     }
 
-    @Test void createGroupAddsUnitToOrgGoalAndStartsLoop() {
+    @Test
+    void createGroupAddsUnitToOrgGoalAndStartsLoop() {
         var unit = OrganizationalUnit.builder()
-            .unitId("team-1").name("Team 1").tenancyId("t1")
-            .selfDetermination(0.5).build();
+                                     .unitId("team-1").name("Team 1").tenancyId("t1")
+                                     .selfDetermination(0.5).build();
         registry.registerUnit(unit);
 
         var instance = service.createGroup("team-1", "t1", FormationOrigin.TOP_DOWN);
 
         assertThat(instance).isNotNull();
         assertThat(instance.specId()).isEqualTo("team-1");
-        assertThat(instance.state()).isEqualTo(GroupLifecycleState.PROPOSED);
+        assertThat(instance.state()).isEqualTo(GroupLifecycleState.ACTIVE);
         assertThat(instance.formationOrigin()).isEqualTo(FormationOrigin.TOP_DOWN);
         var goal = goalStore.load("t1");
         assertThat(goal).isPresent();
@@ -74,6 +85,29 @@ class DesiredStateGroupLifecycleServiceTest {
         assertThat(loop.tenantIds()).contains("t1");
         assertThat(loop.getDesired("t1").nodes()).containsKey(NodeId.of("team-1"));
     }
+
+    @Test
+    void proposalOriginReturnsProposedState() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-prop").name("Team Proposal").tenancyId("t1").build();
+        registry.registerUnit(unit);
+
+        var instance = service.createGroup("team-prop", "t1", FormationOrigin.PROPOSAL);
+
+        assertThat(instance.state()).isEqualTo(GroupLifecycleState.PROPOSED);
+    }
+
+    @Test
+    void emergenceOriginReturnsActiveState() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-em").name("Team Emergence").tenancyId("t1").build();
+        registry.registerUnit(unit);
+
+        var instance = service.createGroup("team-em", "t1", FormationOrigin.EMERGENCE);
+
+        assertThat(instance.state()).isEqualTo(GroupLifecycleState.ACTIVE);
+    }
+
 
     @Test void createGroupForMissingSpecThrows() {
         assertThatThrownBy(() -> service.createGroup("missing", "t1", FormationOrigin.TOP_DOWN))

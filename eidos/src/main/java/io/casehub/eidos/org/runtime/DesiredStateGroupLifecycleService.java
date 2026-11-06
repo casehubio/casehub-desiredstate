@@ -5,7 +5,17 @@ import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
 import io.casehub.desiredstate.runtime.LifecycleManager;
 import io.casehub.desiredstate.runtime.ReconciliationLoop;
-import io.casehub.eidos.org.api.*;
+import io.casehub.eidos.org.api.FormationOrigin;
+import io.casehub.eidos.org.api.FormationPath;
+import io.casehub.eidos.org.api.FormationProposal;
+import io.casehub.eidos.org.api.GroupInstance;
+import io.casehub.eidos.org.api.GroupInstanceQuery;
+import io.casehub.eidos.org.api.GroupLifecycleListener;
+import io.casehub.eidos.org.api.GroupLifecycleService;
+import io.casehub.eidos.org.api.GroupLifecycleState;
+import io.casehub.eidos.org.api.OrgRegistry;
+import io.casehub.eidos.org.api.OrgValidationException;
+import io.casehub.eidos.org.api.OrganizationalUnit;
 import io.casehub.eidos.org.api.spi.GroupInstanceStore;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -13,10 +23,10 @@ import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ConcurrentModificationException;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class DesiredStateGroupLifecycleService implements GroupLifecycleService {
@@ -67,18 +77,21 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
     @Override
     public GroupInstance createGroup(String specId, String tenancyId, FormationOrigin origin) {
         var unit = registry.findUnit(specId, tenancyId)
-            .orElseThrow(() -> new OrgValidationException("specId",
-                "no OrganizationalUnit found for specId '" + specId
-                    + "' in tenancy '" + tenancyId + "'"));
+                           .orElseThrow(() -> new OrgValidationException("specId",
+                                                                         "no OrganizationalUnit found for specId '" + specId
+                                                                         + "' in tenancy '" + tenancyId + "'"));
         validateFormationPath(unit, origin);
         mutate(tenancyId, goal -> goal.withUnitGoal(new OrgUnitGoal(unit)));
         var proposal = new FormationProposal(specId, tenancyId, origin, List.of(), java.util.Map.of());
         listeners.forEach(l -> l.onFormationProposal(proposal));
+        var initialState = origin == FormationOrigin.PROPOSAL
+                           ? GroupLifecycleState.PROPOSED
+                           : GroupLifecycleState.ACTIVE;
         var now = Instant.now();
         return new GroupInstance(
-            specId, specId, tenancyId, GroupLifecycleState.PROPOSED, origin,
-            null, null, null,
-            List.of(), List.of(), List.of(), now, now, 0);
+                specId, specId, tenancyId, initialState, origin,
+                null, null, null,
+                List.of(), List.of(), List.of(), now, now, 0);
     }
 
     @Override
