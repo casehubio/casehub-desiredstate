@@ -48,7 +48,7 @@ public class SituationRecompilerDispatchCore {
             DesiredStateGraph current = reconciliationLoop.getDesired(tenancyId);
             var actual = actualStateRouter.readActual(current, tenancyId);
             for (ActiveSituation situation : activeSituations) {
-                var result = engine.recompile(tenancyId, current, actual, situation, graphFactory);
+                var result = engine.recompileImmediate(tenancyId, current, actual, situation, graphFactory);
                 if (result.isPresent()) {
                     applyResult(tenancyId, result);
                     current = reconciliationLoop.getDesired(tenancyId);

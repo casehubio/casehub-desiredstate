@@ -216,4 +216,16 @@ class SituationRecompilerEngineStabilizationTest {
         assertThat(drainedSituations.getFirst()).isInstanceOf(
                 SituationRecompilerEngine.QueuedSituation.Resolved.class);
     }
+
+    @Test
+    void recompileImmediate_shouldBypassStabilizationWindow() {
+        var engine = new SituationRecompilerEngine(List.of(recompiler),
+                                                   Duration.ofMinutes(5), scheduler, (tid, queued) -> drainedSituations.addAll(queued));
+
+        engine.recompile("tenant-1", graph, actual, situation1, null);
+
+        var result = engine.recompileImmediate("tenant-1", graph, actual, situation2, null);
+        assertThat(result).isPresent();
+        assertThat(recompileCalls).containsExactly("tenant-1:sit-1", "tenant-1:sit-2");
+    }
 }

@@ -92,6 +92,19 @@ public class SituationRecompilerEngine {
         return Optional.empty();
     }
 
+    public Optional<CompilationResult> recompileImmediate(
+            String tenancyId,
+            DesiredStateGraph current, ActualState actual,
+            ActiveSituation situation, DesiredStateGraphFactory factory) {
+        for (SituationRecompiler recompiler : recompilers) {
+            Optional<CompilationResult> result = recompiler.recompile(
+                    tenancyId, current, actual, situation, factory);
+            if (result.isPresent()) {return result;}
+        }
+        return Optional.empty();
+    }
+
+
     public Optional<CompilationResult> situationResolved(
             String tenancyId, String situationId,
             DesiredStateGraph current, ActualState actual,
