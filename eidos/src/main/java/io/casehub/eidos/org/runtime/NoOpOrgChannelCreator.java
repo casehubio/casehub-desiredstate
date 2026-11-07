@@ -10,8 +10,8 @@ public class NoOpOrgChannelCreator implements OrgChannelCreator {
     private static final Logger LOG = Logger.getLogger(NoOpOrgChannelCreator.class);
 
     @Override
-    public boolean createGroupChannel(String groupId, String tenancyId) {
-        LOG.debugv("No channel creator configured — skipping channel for group {0}", groupId);
+    public boolean createGroupChannel(ChannelRequest request) {
+        LOG.debugv("No channel creator configured — skipping channel for group {0}", request.groupId());
         return false;
     }
 }

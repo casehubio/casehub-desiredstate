@@ -46,8 +46,9 @@ class EmergencePromotionListenerTest {
             .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofHours(1)).build();
         var lifecycleManager = new LifecycleManager(loop);
         lifecycleService = new DesiredStateGroupLifecycleService(
-            registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager);
-        listener = new EmergencePromotionListener(lifecycleService, registry);
+            registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager,
+            new NoOpOrgChannelCreator());
+        listener = new EmergencePromotionListener(lifecycleService);
     }
 
     @AfterEach

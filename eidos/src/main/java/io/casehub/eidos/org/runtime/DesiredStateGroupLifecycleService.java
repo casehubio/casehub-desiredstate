@@ -1,10 +1,16 @@
 package io.casehub.eidos.org.runtime;
 
 import io.casehub.desiredstate.api.CompilationResult;
+import io.casehub.desiredstate.api.DeprovisionContext;
+import io.casehub.desiredstate.api.DeprovisionResult;
+import io.casehub.desiredstate.api.DesiredNode;
 import io.casehub.desiredstate.api.DesiredStateGraph;
 import io.casehub.desiredstate.api.DesiredStateGraphFactory;
+import io.casehub.desiredstate.api.ProvisionContext;
+import io.casehub.desiredstate.api.ProvisionResult;
 import io.casehub.desiredstate.runtime.LifecycleManager;
 import io.casehub.desiredstate.runtime.ReconciliationLoop;
+import io.casehub.eidos.org.api.ActualMembership;
 import io.casehub.eidos.org.api.FormationOrigin;
 import io.casehub.eidos.org.api.FormationPath;
 import io.casehub.eidos.org.api.FormationProposal;
@@ -25,7 +31,10 @@ import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -41,6 +50,9 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
     private final ReconciliationLoop reconciliationLoop;
     private final LifecycleManager lifecycleManager;
     private final List<GroupLifecycleListener> listeners;
+    private final OrgChannelCreator            channelCreator;
+    private final ConcurrentHashMap<String, ReentrantLock> unitLocks = new ConcurrentHashMap<>();
+
 
     @Inject
     public DesiredStateGroupLifecycleService(
@@ -50,9 +62,10 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             OrgGoalCompiler compiler,
             DesiredStateGraphFactory graphFactory,
             ReconciliationLoop reconciliationLoop,
-            LifecycleManager lifecycleManager) {
+            LifecycleManager lifecycleManager,
+            OrgChannelCreator channelCreator) {
         this(registry, instanceStore, goalStore, compiler, graphFactory,
-             reconciliationLoop, lifecycleManager, List.of());
+             reconciliationLoop, lifecycleManager, channelCreator, List.of());
     }
 
     public DesiredStateGroupLifecycleService(
@@ -63,39 +76,57 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
             DesiredStateGraphFactory graphFactory,
             ReconciliationLoop reconciliationLoop,
             LifecycleManager lifecycleManager,
+            OrgChannelCreator channelCreator,
             List<GroupLifecycleListener> listeners) {
-        this.registry = registry;
-        this.instanceStore = instanceStore;
-        this.goalStore = goalStore;
-        this.compiler = compiler;
-        this.graphFactory = graphFactory;
+        this.registry           = registry;
+        this.instanceStore      = instanceStore;
+        this.goalStore          = goalStore;
+        this.compiler           = compiler;
+        this.graphFactory       = graphFactory;
         this.reconciliationLoop = reconciliationLoop;
-        this.lifecycleManager = lifecycleManager;
-        this.listeners = listeners != null ? List.copyOf(listeners) : List.of();
+        this.lifecycleManager   = lifecycleManager;
+        this.channelCreator     = channelCreator;
+        this.listeners          = listeners != null ? List.copyOf(listeners) : List.of();
     }
 
     @Override
     public GroupInstance createGroup(String specId, String tenancyId, FormationOrigin origin) {
+        return withUnitLock(specId, tenancyId, () -> {
+            var unit = registry.findUnit(specId, tenancyId)
+                               .orElseThrow(() -> new OrgValidationException("specId",
+                                                                             "no OrganizationalUnit found for specId '" + specId
+                                                                             + "' in tenancy '" + tenancyId + "'"));
+            validateFormationPath(unit, origin);
+            mutate(tenancyId, goal -> goal.withUnitGoal(new OrgUnitGoal(unit)));
+            var proposal = new FormationProposal(specId, tenancyId, origin, List.of(), java.util.Map.of());
+            listeners.forEach(l -> l.onFormationProposal(proposal));
+            var initialState = origin == FormationOrigin.PROPOSAL
+                    ? GroupLifecycleState.PROPOSED
+                    : GroupLifecycleState.ACTIVE;
+            var now = Instant.now();
+            return new GroupInstance(
+                    specId, specId, tenancyId, initialState, origin,
+                    null, null, null,
+                    List.of(), List.of(), List.of(), now, now, 0);
+        });
+    }
+
+    GroupInstance createGroupFromUnit(OrganizationalUnit unit, String tenancyId, FormationOrigin origin) {
+        registry.registerUnit(unit);
+        return createGroup(unit.unitId(), tenancyId, origin);
+    }
+
+
+    @Override
+    public GroupInstance proposeGroup(String specId, String tenancyId, String proposerAgentId) {
         var unit = registry.findUnit(specId, tenancyId)
                            .orElseThrow(() -> new OrgValidationException("specId",
                                                                          "no OrganizationalUnit found for specId '" + specId
                                                                          + "' in tenancy '" + tenancyId + "'"));
-        validateFormationPath(unit, origin);
-        mutate(tenancyId, goal -> goal.withUnitGoal(new OrgUnitGoal(unit)));
-        var proposal = new FormationProposal(specId, tenancyId, origin, List.of(), java.util.Map.of());
-        listeners.forEach(l -> l.onFormationProposal(proposal));
-        var initialState = origin == FormationOrigin.PROPOSAL
-                           ? GroupLifecycleState.PROPOSED
-                           : GroupLifecycleState.ACTIVE;
-        var now = Instant.now();
-        return new GroupInstance(
-                specId, specId, tenancyId, initialState, origin,
-                null, null, null,
-                List.of(), List.of(), List.of(), now, now, 0);
-    }
-
-    @Override
-    public GroupInstance proposeGroup(String specId, String tenancyId, String proposerAgentId) {
+        if (unit.selfDetermination() < 0.5) {
+            throw new OrgValidationException("selfDetermination",
+                                             "bottom-up proposals require selfDetermination >= 0.5 (was " + unit.selfDetermination() + ")");
+        }
         return createGroup(specId, tenancyId, FormationOrigin.PROPOSAL);
     }
 
@@ -107,9 +138,11 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
 
     @Override
     public void rejectProposal(String instanceId, String tenancyId, String reason) {
-        mutate(tenancyId, goal -> {
-            requireUnitGoal(goal, instanceId, tenancyId);
-            return goal.withoutUnit(instanceId);
+        withUnitLock(instanceId, tenancyId, () -> {
+            mutate(tenancyId, goal -> {
+                requireUnitGoal(goal, instanceId, tenancyId);
+                return goal.withoutUnit(instanceId);
+            });
         });
     }
 
@@ -121,40 +154,63 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
 
     @Override
     public void dissolveGroup(String instanceId, String tenancyId, String reason) {
-        mutate(tenancyId, goal -> {
-            requireUnitGoal(goal, instanceId, tenancyId);
-            return goal.withoutUnit(instanceId);
+        withUnitLock(instanceId, tenancyId, () -> {
+            instanceStore.findById(instanceId, tenancyId).ifPresent(gi -> {
+                instanceStore.save(gi.withState(GroupLifecycleState.DISSOLVING)
+                                     .withLastTransitionAt(Instant.now()));
+            });
+            mutate(tenancyId, goal -> {
+                requireUnitGoal(goal, instanceId, tenancyId);
+                return goal.withoutUnit(instanceId);
+            });
+            listeners.forEach(l -> l.onDissolution(instanceId, tenancyId, reason));
         });
-        listeners.forEach(l -> l.onDissolution(instanceId, tenancyId, reason));
     }
 
     @Override
     public void changeTopology(String instanceId, String newTopology,
                                String newTopologyVocabulary, String tenancyId) {
-        var oldTopology = goalStore.load(tenancyId)
-            .flatMap(g -> g.findUnitGoal(instanceId))
-            .map(ug -> ug.unit().topology())
-            .orElse(null);
-        mutateUnit(instanceId, tenancyId, unitGoal -> {
-            var u = unitGoal.unit();
-            var updated = OrganizationalUnit.builder()
-                .unitId(u.unitId()).name(u.name())
-                .kind(u.kind()).kindVocabulary(u.kindVocabulary())
-                .tenancyId(u.tenancyId()).parentUnitId(u.parentUnitId())
-                .topology(newTopology).topologyVocabulary(newTopologyVocabulary)
-                .authorityModel(u.authorityModel())
-                .selfDetermination(u.selfDetermination())
-                .policy(u.policy())
-                .members(u.members())
-                .roleSpecs(u.roleSpecs())
-                .missions(u.missions())
-                .capabilities(u.capabilities())
-                .goals(u.goals())
-                .constraints(u.constraints())
-                .build();
-            return unitGoal.withUnit(updated);
+        withUnitLock(instanceId, tenancyId, () -> {
+            var unitGoalOpt = goalStore.load(tenancyId)
+                                       .flatMap(g -> g.findUnitGoal(instanceId));
+            var oldTopology = unitGoalOpt.map(ug -> ug.unit().topology()).orElse(null);
+
+            unitGoalOpt.ifPresent(ug -> {
+                if (ug.unit().selfDetermination() <= 0.7) {
+                    throw new OrgValidationException("selfDetermination",
+                        "topology changes require selfDetermination > 0.7 (was " + ug.unit().selfDetermination() + ")");
+                }
+            });
+
+            setReorganisingIfActive(instanceId, tenancyId);
+
+            try {
+                doMutateUnit(instanceId, tenancyId, unitGoal -> {
+                    var u = unitGoal.unit();
+                    var updated = OrganizationalUnit.builder()
+                                                    .unitId(u.unitId()).name(u.name())
+                                                    .kind(u.kind()).kindVocabulary(u.kindVocabulary())
+                                                    .tenancyId(u.tenancyId()).parentUnitId(u.parentUnitId())
+                                                    .topology(newTopology).topologyVocabulary(newTopologyVocabulary)
+                                                    .authorityModel(u.authorityModel())
+                                                    .selfDetermination(u.selfDetermination())
+                                                    .policy(u.policy())
+                                                    .members(u.members())
+                                                    .roleSpecs(u.roleSpecs())
+                                                    .missions(u.missions())
+                                                    .capabilities(u.capabilities())
+                                                    .goals(u.goals())
+                                                    .constraints(u.constraints())
+                                                    .build();
+                    return unitGoal.withUnit(updated);
+                });
+            } catch (Exception e) {
+                restoreActiveIfReorganising(instanceId, tenancyId);
+                throw e;
+            }
+
+            listeners.forEach(l -> l.onTopologyChange(instanceId, oldTopology, newTopology, tenancyId));
         });
-        listeners.forEach(l -> l.onTopologyChange(instanceId, oldTopology, newTopology, tenancyId));
     }
 
     @Override
@@ -228,6 +284,80 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
         return instanceStore.find(new GroupInstanceQuery(tenancyId, null, null, agentId));
     }
 
+
+    ProvisionResult materializeUnit(DesiredNode node, ProvisionContext context) {
+        var spec = (OrgUnitNodeSpec) node.spec();
+        var unit = spec.unit();
+
+        var existing = instanceStore.findById(node.id().value(), context.tenancyId());
+        if (existing.isPresent() && existing.get().state().isActive()) {
+            return new ProvisionResult.AlreadyConverged();
+        }
+
+        registry.registerUnit(unit);
+
+        var now = Instant.now();
+        var members = unit.members().stream()
+                          .map(m -> new ActualMembership(m.agentId(), now))
+                          .toList();
+
+        var instance = new GroupInstance(
+                unit.unitId(), unit.unitId(), context.tenancyId(),
+                GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                unit.topology(), unit.topologyVocabulary(),
+                unit.authorityModel(), members, List.of(), List.of(),
+                now, now, 0);
+        instanceStore.save(instance);
+
+        var memberIds = unit.members().stream()
+                            .map(io.casehub.eidos.org.api.Membership::agentId).toList();
+        var coordinatorId = unit.members().stream()
+                                .filter(m -> "coordinator".equals(m.role()))
+                                .map(io.casehub.eidos.org.api.Membership::agentId)
+                                .findFirst().orElse(memberIds.isEmpty() ? null : memberIds.getFirst());
+        channelCreator.createGroupChannel(new OrgChannelCreator.ChannelRequest(
+                unit.unitId(), unit.name(), memberIds, coordinatorId, context.tenancyId()));
+
+        return new ProvisionResult.Success();
+    }
+
+    DeprovisionResult dematerializeUnit(DesiredNode node, DeprovisionContext context) {
+        var existing = instanceStore.findById(node.id().value(), context.tenancyId());
+        if (existing.isPresent()) {
+            var gi = existing.get();
+            if (gi.state() == GroupLifecycleState.DISSOLVING && !gi.members().isEmpty()) {
+                return new DeprovisionResult.Failed(
+                        "dissolution drain in progress — " + gi.members().size() + " members remaining");
+            }
+            var dissolved = new GroupInstance(
+                    gi.instanceId(), gi.specId(), gi.tenancyId(),
+                    GroupLifecycleState.DISSOLVED, gi.formationOrigin(),
+                    gi.topology(), gi.topologyVocabulary(),
+                    gi.effectiveAuthority(), gi.members(), gi.roleAdoptions(),
+                    gi.missionCommitments(), gi.createdAt(), Instant.now(),
+                    gi.version() + 1);
+            instanceStore.save(dissolved);
+        }
+        registry.removeUnit(node.id().value(), context.tenancyId());
+        channelCreator.deleteGroupChannel(node.id().value(), context.tenancyId());
+        return new DeprovisionResult.Success();
+    }
+
+    ProvisionResult materializeRelationship(DesiredNode node, ProvisionContext context) {
+        var spec = (OrgRelationshipNodeSpec) node.spec();
+        registry.addRelationship(spec.relationship());
+        return new ProvisionResult.Success();
+    }
+
+    DeprovisionResult dematerializeRelationship(DesiredNode node, DeprovisionContext context) {
+        var spec = (OrgRelationshipNodeSpec) node.spec();
+        var rel  = spec.relationship();
+        registry.removeRelationship(rel.sourceAgentId(), rel.targetAgentId(),
+                                    rel.kind(), context.tenancyId());
+        return new DeprovisionResult.Success();
+    }
+
+
     private void validateFormationPath(OrganizationalUnit unit, FormationOrigin origin) {
         if (unit.policy() == null || unit.policy().formationRules() == null) return;
         var allowed = unit.policy().formationRules().allowedPaths();
@@ -288,12 +418,80 @@ public class DesiredStateGroupLifecycleService implements GroupLifecycleService 
     }
 
     private void mutateUnit(String instanceId, String tenancyId,
-                             Function<OrgUnitGoal, OrgUnitGoal> unitMutation) {
+                            Function<OrgUnitGoal, OrgUnitGoal> unitMutation) {
+        withUnitLock(instanceId, tenancyId, () -> {
+            rejectIfReorganising(instanceId, tenancyId);
+            doMutateUnit(instanceId, tenancyId, unitMutation);
+        });
+    }
+
+    private void doMutateUnit(String instanceId, String tenancyId,
+                              Function<OrgUnitGoal, OrgUnitGoal> unitMutation) {
         mutate(tenancyId, goal -> {
             var unitGoal = requireUnitGoal(goal, instanceId, tenancyId);
             return goal.withUnitGoal(unitMutation.apply(unitGoal));
         });
     }
+
+    private void rejectIfReorganising(String instanceId, String tenancyId) {
+        instanceStore.findById(instanceId, tenancyId)
+                     .filter(gi -> gi.state() == GroupLifecycleState.REORGANISING)
+                     .ifPresent(gi -> {
+                         throw new OrgValidationException("state",
+                                                          "group '" + instanceId + "' is reorganising — concurrent mutations blocked");
+                     });
+    }
+
+    private void setReorganisingIfActive(String instanceId, String tenancyId) {
+        instanceStore.findById(instanceId, tenancyId)
+                     .filter(gi -> gi.state().isActive())
+                     .ifPresent(gi -> {
+                         var reorganising = new GroupInstance(
+                                 gi.instanceId(), gi.specId(), gi.tenancyId(),
+                                 GroupLifecycleState.REORGANISING, gi.formationOrigin(),
+                                 gi.topology(), gi.topologyVocabulary(),
+                                 gi.effectiveAuthority(), gi.members(), gi.roleAdoptions(),
+                                 gi.missionCommitments(), gi.createdAt(), Instant.now(),
+                                 gi.version() + 1);
+                         instanceStore.save(reorganising);
+                     });
+    }
+
+    private void restoreActiveIfReorganising(String instanceId, String tenancyId) {
+        instanceStore.findById(instanceId, tenancyId)
+                     .filter(gi -> gi.state() == GroupLifecycleState.REORGANISING)
+                     .ifPresent(gi -> {
+                         var active = new GroupInstance(
+                                 gi.instanceId(), gi.specId(), gi.tenancyId(),
+                                 GroupLifecycleState.ACTIVE, gi.formationOrigin(),
+                                 gi.topology(), gi.topologyVocabulary(),
+                                 gi.effectiveAuthority(), gi.members(), gi.roleAdoptions(),
+                                 gi.missionCommitments(), gi.createdAt(), Instant.now(),
+                                 gi.version() + 1);
+                         instanceStore.save(active);
+                     });
+    }
+
+    private <T> T withUnitLock(String unitId, String tenancyId, Supplier<T> action) {
+        var lock = unitLocks.computeIfAbsent(tenancyId + ":" + unitId, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            return action.get();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void withUnitLock(String unitId, String tenancyId, Runnable action) {
+        var lock = unitLocks.computeIfAbsent(tenancyId + ":" + unitId, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            action.run();
+        } finally {
+            lock.unlock();
+        }
+    }
+
 
     private OrgUnitGoal requireUnitGoal(OrgGoal goal, String instanceId, String tenancyId) {
         return goal.findUnitGoal(instanceId)

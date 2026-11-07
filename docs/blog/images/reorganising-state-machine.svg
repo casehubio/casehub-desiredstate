@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 260" font-family="'Inter','Segoe UI',system-ui,sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="arr-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#d97706"/>
+    </marker>
+    <marker id="arr-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#ef4444"/>
+    </marker>
+  </defs>
+
+  <rect width="740" height="260" fill="#fafaf9" rx="8"/>
+  <text x="370" y="28" text-anchor="middle" font-size="15" font-weight="600" fill="#1e293b">changeTopology — REORGANISING State Machine</text>
+
+  <!-- ACTIVE state -->
+  <rect x="40" y="90" width="130" height="55" rx="24" fill="#f0fdf4" stroke="#22c55e" stroke-width="2"/>
+  <text x="105" y="115" text-anchor="middle" font-weight="600" fill="#166534">ACTIVE</text>
+  <text x="105" y="132" text-anchor="middle" fill="#475569" font-size="10">mutations allowed</text>
+
+  <!-- REORGANISING state -->
+  <rect x="280" y="90" width="170" height="55" rx="24" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="365" y="115" text-anchor="middle" font-weight="600" fill="#92400e">REORGANISING</text>
+  <text x="365" y="132" text-anchor="middle" fill="#475569" font-size="10">mutations blocked</text>
+
+  <!-- ACTIVE (after) state -->
+  <rect x="560" y="90" width="130" height="55" rx="24" fill="#f0fdf4" stroke="#22c55e" stroke-width="2"/>
+  <text x="625" y="115" text-anchor="middle" font-weight="600" fill="#166534">ACTIVE</text>
+  <text x="625" y="132" text-anchor="middle" fill="#475569" font-size="10">re-provisioned</text>
+
+  <!-- Arrow: ACTIVE → REORGANISING -->
+  <line x1="170" y1="117" x2="276" y2="117" stroke="#d97706" stroke-width="2" marker-end="url(#arr-amber)"/>
+  <text x="222" y="108" text-anchor="middle" fill="#92400e" font-size="10" font-weight="500">changeTopology()</text>
+
+  <!-- Arrow: REORGANISING → ACTIVE (success) -->
+  <line x1="450" y1="105" x2="556" y2="105" stroke="#22c55e" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="503" y="96" text-anchor="middle" fill="#166534" font-size="10" font-weight="500">reconciliation</text>
+
+  <!-- Arrow: REORGANISING → ACTIVE (rollback) -->
+  <path d="M 365 145 Q 365 210, 210 210 Q 105 210, 105 150" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-red)"/>
+  <text x="245" y="225" text-anchor="middle" fill="#991b1b" font-size="10" font-weight="500">rollback on failure</text>
+
+  <!-- Blocked mutations indicator -->
+  <rect x="280" y="165" width="170" height="34" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1"/>
+  <text x="365" y="178" text-anchor="middle" fill="#991b1b" font-size="10">joinGroup ✗  adoptRole ✗</text>
+  <text x="365" y="192" text-anchor="middle" fill="#991b1b" font-size="10">leaveGroup ✗  releaseRole ✗</text>
+</svg>

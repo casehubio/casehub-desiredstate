@@ -98,13 +98,11 @@ class DesiredStateOrgAdapterTest {
                                          null, null, null, List.of(), List.of(), List.of(),
                                          Instant.now(), Instant.now(), 0);
         instanceStore.save(instance);
-
         var unit = OrganizationalUnit.builder()
                                      .unitId("team-forming").name("Team Forming").tenancyId("t1").build();
         var node   = new DesiredNode(NodeId.of("team-forming"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
         var graph  = factory.of(List.of(node), List.of());
         var actual = adapter.readActual(graph, "t1");
-
         assertThat(actual.statusOf(NodeId.of("team-forming"))).hasValue(NodeStatus.PRESENT);
     }
 
@@ -115,14 +113,31 @@ class DesiredStateOrgAdapterTest {
                                          null, null, null, List.of(), List.of(), List.of(),
                                          Instant.now(), Instant.now(), 0);
         instanceStore.save(instance);
-
         var unit = OrganizationalUnit.builder()
                                      .unitId("team-dissolving").name("Team Dissolving").tenancyId("t1").build();
         var node   = new DesiredNode(NodeId.of("team-dissolving"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
         var graph  = factory.of(List.of(node), List.of());
         var actual = adapter.readActual(graph, "t1");
-
         assertThat(actual.statusOf(NodeId.of("team-dissolving"))).hasValue(NodeStatus.PRESENT);
+    }
+
+
+    @Test
+    void dissolvingGroupIsPresent_viaDirectLookup() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-dv").name("Team DV").tenancyId("t1").build();
+        var instance = new GroupInstance("team-dv", "team-dv", "t1",
+                                         GroupLifecycleState.DISSOLVING, FormationOrigin.TOP_DOWN,
+                                         null, null, null, List.of(), List.of(), List.of(),
+                                         java.time.Instant.now(), java.time.Instant.now(), 1);
+        instanceStore.save(instance);
+
+        var spec   = new OrgUnitNodeSpec(unit);
+        var node   = new DesiredNode(NodeId.of("team-dv"), spec, HumanGating.NONE);
+        var graph  = factory.of(List.of(node), List.of());
+        var actual = adapter.readActual(graph, "t1");
+
+        assertThat(actual.statusOf(NodeId.of("team-dv"))).hasValue(NodeStatus.PRESENT);
     }
 
 

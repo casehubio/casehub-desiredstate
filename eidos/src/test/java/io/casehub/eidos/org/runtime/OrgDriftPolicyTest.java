@@ -1,12 +1,28 @@
 package io.casehub.eidos.org.runtime;
 
-import io.casehub.desiredstate.api.*;
-import io.casehub.eidos.org.api.*;
+import io.casehub.desiredstate.api.ActualState;
+import io.casehub.desiredstate.api.DesiredNode;
+import io.casehub.desiredstate.api.DriftContext;
+import io.casehub.desiredstate.api.DriftDecision;
+import io.casehub.desiredstate.api.HumanGating;
+import io.casehub.desiredstate.api.NodeId;
+import io.casehub.desiredstate.api.NodeSpec;
+import io.casehub.desiredstate.api.NodeStatus;
+import io.casehub.desiredstate.api.NodeType;
+import io.casehub.eidos.org.api.ActualMembership;
+import io.casehub.eidos.org.api.FormationOrigin;
+import io.casehub.eidos.org.api.GroupInstance;
+import io.casehub.eidos.org.api.GroupLifecycleState;
+import io.casehub.eidos.org.api.Membership;
+import io.casehub.eidos.org.api.OrganizationalUnit;
+import io.casehub.eidos.org.api.RoleAdoption;
+import io.casehub.eidos.org.api.RoleSpec;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -123,6 +139,107 @@ class OrgDriftPolicyTest {
 
         assertThat(result).isInstanceOf(DriftDecision.Reconcile.class);
     }
+
+    @Test
+    void memberDepartureBelowMinCardinalityReconciles() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-mc").name("Team MC").tenancyId("t1")
+                                     .roleSpecs(List.of(new RoleSpec("engineer", null, 2, -1, Set.of(), List.of(), List.of(), List.of())))
+                                     .members(List.of(
+                                             new Membership("a1", "engineer", null),
+                                             new Membership("a2", "engineer", null)))
+                                     .build();
+        var instance = new GroupInstance("team-mc", "team-mc", "t1",
+                                         GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                                         null, null, null,
+                                         List.of(new ActualMembership("a1", Instant.now())),
+                                         List.of(new RoleAdoption("a1", "engineer", null, Instant.now())),
+                                         List.of(), Instant.now(), Instant.now(), 1);
+        instanceStore.save(instance);
+
+        var node  = new DesiredNode(NodeId.of("team-mc"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
+        var graph = factory.of(List.of(node), List.of());
+        var ctx = new DriftContext("t1", graph,
+                                   new ActualState(Map.of(NodeId.of("team-mc"), NodeStatus.DRIFTED)));
+
+        var result = policy.evaluate(NodeId.of("team-mc"), NodeStatus.DRIFTED, node, ctx);
+
+        assertThat(result).isInstanceOf(DriftDecision.Reconcile.class);
+    }
+
+    @Test
+    void roleGapWithObligationsReconciles() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-rg").name("Team RG").tenancyId("t1")
+                                     .roleSpecs(List.of(new RoleSpec("coordinator", null, 1, 1, Set.of(), List.of(), List.of("report-status"), List.of())))
+                                     .members(List.of(new Membership("a1", "worker", null)))
+                                     .build();
+        var instance = new GroupInstance("team-rg", "team-rg", "t1",
+                                         GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                                         null, null, null,
+                                         List.of(new ActualMembership("a1", Instant.now())),
+                                         List.of(),
+                                         List.of(), Instant.now(), Instant.now(), 1);
+        instanceStore.save(instance);
+
+        var node  = new DesiredNode(NodeId.of("team-rg"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
+        var graph = factory.of(List.of(node), List.of());
+        var ctx = new DriftContext("t1", graph,
+                                   new ActualState(Map.of(NodeId.of("team-rg"), NodeStatus.DRIFTED)));
+
+        var result = policy.evaluate(NodeId.of("team-rg"), NodeStatus.DRIFTED, node, ctx);
+
+        assertThat(result).isInstanceOf(DriftDecision.Reconcile.class);
+    }
+
+    @Test
+    void naturalDissolutionReconciles() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-nd").name("Team ND").tenancyId("t1")
+                                     .selfDetermination(0.3)
+                                     .members(List.of(new Membership("a1", "worker", null)))
+                                     .build();
+        var instance = new GroupInstance("team-nd", "team-nd", "t1",
+                                         GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                                         null, null, null,
+                                         List.of(),
+                                         List.of(), List.of(), Instant.now(), Instant.now(), 1);
+        instanceStore.save(instance);
+
+        var node  = new DesiredNode(NodeId.of("team-nd"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
+        var graph = factory.of(List.of(node), List.of());
+        var ctx = new DriftContext("t1", graph,
+                                   new ActualState(Map.of(NodeId.of("team-nd"), NodeStatus.DRIFTED)));
+
+        var result = policy.evaluate(NodeId.of("team-nd"), NodeStatus.DRIFTED, node, ctx);
+
+        assertThat(result).isInstanceOf(DriftDecision.Reconcile.class);
+    }
+
+    @Test
+    void naturalDissolutionExemptedWithHighAutonomy() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-ne").name("Team NE").tenancyId("t1")
+                                     .selfDetermination(0.9)
+                                     .members(List.of(new Membership("a1", "worker", null)))
+                                     .build();
+        var instance = new GroupInstance("team-ne", "team-ne", "t1",
+                                         GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                                         null, null, null,
+                                         List.of(),
+                                         List.of(), List.of(), Instant.now(), Instant.now(), 1);
+        instanceStore.save(instance);
+
+        var node  = new DesiredNode(NodeId.of("team-ne"), new OrgUnitNodeSpec(unit), HumanGating.NONE);
+        var graph = factory.of(List.of(node), List.of());
+        var ctx = new DriftContext("t1", graph,
+                                   new ActualState(Map.of(NodeId.of("team-ne"), NodeStatus.DRIFTED)));
+
+        var result = policy.evaluate(NodeId.of("team-ne"), NodeStatus.DRIFTED, node, ctx);
+
+        assertThat(result).isInstanceOf(DriftDecision.Exempt.class);
+    }
+
 
     record StubNodeSpec() implements NodeSpec {
         @Override public NodeType nodeType() { return NodeType.of("stub"); }

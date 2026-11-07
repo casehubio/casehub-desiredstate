@@ -14,6 +14,7 @@ import io.casehub.eidos.org.api.FormationOrigin;
 import io.casehub.eidos.org.api.FormationPath;
 import io.casehub.eidos.org.api.FormationProposal;
 import io.casehub.eidos.org.api.FormationRules;
+import io.casehub.eidos.org.api.GroupInstance;
 import io.casehub.eidos.org.api.GroupInstanceQuery;
 import io.casehub.eidos.org.api.GroupLifecycleListener;
 import io.casehub.eidos.org.api.GroupLifecycleState;
@@ -52,13 +53,14 @@ class DesiredStateGroupLifecycleServiceTest {
         var adapter = new MockActualStateAdapter();
         adapter.setHandledTypes(Set.of(OrgNodeTypes.UNIT, OrgNodeTypes.RELATIONSHIP));
         var adapterRouter = new DefaultActualStateAdapterRouter(List.of(adapter));
-        loop = ReconciliationLoop.builder(
-            new TransitionPlanner(), new MockTransitionExecutor(), adapterRouter,
-            new FaultPolicyEngine(List.of()), () -> Multi.createFrom().nothing())
-            .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofHours(1)).build();
+        loop             = ReconciliationLoop.builder(
+                                                     new TransitionPlanner(), new MockTransitionExecutor(), adapterRouter,
+                                                     new FaultPolicyEngine(List.of()), () -> Multi.createFrom().nothing())
+                                             .debounceWindow(Duration.ofMillis(50)).resyncInterval(Duration.ofHours(1)).build();
         lifecycleManager = new LifecycleManager(loop);
-        service = new DesiredStateGroupLifecycleService(
-            registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager);
+        service          = new DesiredStateGroupLifecycleService(
+                registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager,
+                new NoOpOrgChannelCreator());
     }
 
     @AfterEach
@@ -66,11 +68,10 @@ class DesiredStateGroupLifecycleServiceTest {
         loop.shutdown();
     }
 
-    @Test
-    void createGroupAddsUnitToOrgGoalAndStartsLoop() {
+    @Test void createGroupAddsUnitToOrgGoalAndStartsLoop() {
         var unit = OrganizationalUnit.builder()
-                                     .unitId("team-1").name("Team 1").tenancyId("t1")
-                                     .selfDetermination(0.5).build();
+            .unitId("team-1").name("Team 1").tenancyId("t1")
+            .selfDetermination(0.5).build();
         registry.registerUnit(unit);
 
         var instance = service.createGroup("team-1", "t1", FormationOrigin.TOP_DOWN);
@@ -91,9 +92,7 @@ class DesiredStateGroupLifecycleServiceTest {
         var unit = OrganizationalUnit.builder()
                                      .unitId("team-prop").name("Team Proposal").tenancyId("t1").build();
         registry.registerUnit(unit);
-
         var instance = service.createGroup("team-prop", "t1", FormationOrigin.PROPOSAL);
-
         assertThat(instance.state()).isEqualTo(GroupLifecycleState.PROPOSED);
     }
 
@@ -102,9 +101,7 @@ class DesiredStateGroupLifecycleServiceTest {
         var unit = OrganizationalUnit.builder()
                                      .unitId("team-em").name("Team Emergence").tenancyId("t1").build();
         registry.registerUnit(unit);
-
         var instance = service.createGroup("team-em", "t1", FormationOrigin.EMERGENCE);
-
         assertThat(instance.state()).isEqualTo(GroupLifecycleState.ACTIVE);
     }
 
@@ -116,7 +113,7 @@ class DesiredStateGroupLifecycleServiceTest {
 
     @Test void proposeGroupSetsProposalOrigin() {
         var unit = OrganizationalUnit.builder()
-            .unitId("team-p").name("Team P").tenancyId("t1").build();
+            .unitId("team-p").name("Team P").tenancyId("t1").selfDetermination(0.5).build();
         registry.registerUnit(unit);
 
         var instance = service.proposeGroup("team-p", "t1", "agent-1");
@@ -169,6 +166,163 @@ class DesiredStateGroupLifecycleServiceTest {
         assertThat(loop.getDesired("t1").nodes()).doesNotContainKey(NodeId.of("team-2"));
     }
 
+    @Test
+    void dissolveGroupSetsInstanceToDissolving() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-dis").name("Team Dis").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-dis", "t1", FormationOrigin.TOP_DOWN);
+
+        var gi = new GroupInstance("team-dis", "team-dis", "t1",
+                                   GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                                   null, null, null,
+                                   List.of(new io.casehub.eidos.org.api.ActualMembership("agent-1", java.time.Instant.now())),
+                                   List.of(), List.of(), java.time.Instant.now(), java.time.Instant.now(), 1);
+        instanceStore.save(gi);
+
+        service.dissolveGroup("team-dis", "t1", "winding down");
+
+        var instance = instanceStore.findById("team-dis", "t1");
+        assertThat(instance).isPresent();
+        assertThat(instance.get().state()).isEqualTo(GroupLifecycleState.DISSOLVING);
+    }
+
+    @Test
+    void dematerializeUnitFailsWhenMembersPresent() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-drain").name("Team Drain").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-drain", "t1", FormationOrigin.TOP_DOWN);
+
+        var gi = new GroupInstance("team-drain", "team-drain", "t1",
+                                   GroupLifecycleState.DISSOLVING, FormationOrigin.TOP_DOWN,
+                                   null, null, null,
+                                   List.of(new io.casehub.eidos.org.api.ActualMembership("agent-1", java.time.Instant.now())),
+                                   List.of(), List.of(), java.time.Instant.now(), java.time.Instant.now(), 1);
+        instanceStore.save(gi);
+
+        var node = loop.getDesired("t1").nodes().get(NodeId.of("team-drain"));
+        var ctx = new io.casehub.desiredstate.api.DeprovisionContext("t1",
+                                                                     loop.getDesired("t1"), null);
+
+        var result = service.dematerializeUnit(node, ctx);
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.api.DeprovisionResult.Failed.class);
+    }
+
+    @Test
+    void dematerializeUnitSucceedsWhenMembersEmpty() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-empty").name("Team Empty").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-empty", "t1", FormationOrigin.TOP_DOWN);
+
+        var gi = new GroupInstance("team-empty", "team-empty", "t1",
+                                   GroupLifecycleState.DISSOLVING, FormationOrigin.TOP_DOWN,
+                                   null, null, null,
+                                   List.of(), List.of(), List.of(), java.time.Instant.now(), java.time.Instant.now(), 1);
+        instanceStore.save(gi);
+
+        var node = loop.getDesired("t1").nodes().get(NodeId.of("team-empty"));
+        var ctx = new io.casehub.desiredstate.api.DeprovisionContext("t1",
+                                                                     loop.getDesired("t1"), null);
+
+        var result = service.dematerializeUnit(node, ctx);
+
+        assertThat(result).isInstanceOf(io.casehub.desiredstate.api.DeprovisionResult.Success.class);
+        var updated = instanceStore.findById("team-empty", "t1");
+        assertThat(updated).isPresent();
+        assertThat(updated.get().state()).isEqualTo(GroupLifecycleState.DISSOLVED);
+    }
+
+    @Test
+    void materializeUnitPassesEnrichedChannelRequest() {
+        var captured = new java.util.concurrent.atomic.AtomicReference<OrgChannelCreator.ChannelRequest>();
+        var capturingCreator = new OrgChannelCreator() {
+            @Override
+            public boolean createGroupChannel(ChannelRequest request) {
+                captured.set(request);
+                return true;
+            }
+        };
+        var captureService = new DesiredStateGroupLifecycleService(
+                registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager,
+                capturingCreator);
+
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-ch").name("Channel Team").tenancyId("t1")
+                                     .members(List.of(
+                                             new io.casehub.eidos.org.api.Membership("agent-1", "coordinator", null),
+                                             new io.casehub.eidos.org.api.Membership("agent-2", "worker", null)))
+                                     .build();
+        registry.registerUnit(unit);
+        captureService.createGroup("team-ch", "t1", FormationOrigin.TOP_DOWN);
+
+        var node = loop.getDesired("t1").nodes().get(NodeId.of("team-ch"));
+        var ctx = new io.casehub.desiredstate.api.ProvisionContext("t1",
+                                                                   loop.getDesired("t1"), null);
+        captureService.materializeUnit(node, ctx);
+
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().groupName()).isEqualTo("Channel Team");
+        assertThat(captured.get().memberIds()).containsExactlyInAnyOrder("agent-1", "agent-2");
+        assertThat(captured.get().coordinatorId()).isEqualTo("agent-1");
+        assertThat(captured.get().tenancyId()).isEqualTo("t1");
+    }
+
+    @Test
+    void proposeGroupRejectsLowSelfDetermination() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-low").name("Low SD").tenancyId("t1")
+                                     .selfDetermination(0.3).build();
+        registry.registerUnit(unit);
+
+        assertThatThrownBy(() -> service.proposeGroup("team-low", "t1", "agent-1"))
+                .isInstanceOf(OrgValidationException.class)
+                .hasMessageContaining("selfDetermination");
+    }
+
+    @Test
+    void proposeGroupAllowsSufficientSelfDetermination() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-ok").name("OK SD").tenancyId("t1")
+                                     .selfDetermination(0.5).build();
+        registry.registerUnit(unit);
+
+        var instance = service.proposeGroup("team-ok", "t1", "agent-1");
+
+        assertThat(instance).isNotNull();
+        assertThat(goalStore.load("t1").get().findUnitGoal("team-ok")).isPresent();
+    }
+
+    @Test
+    void changeTopologyRejectsLowSelfDetermination() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-topo").name("Topo Team").tenancyId("t1")
+                                     .topology("mesh").selfDetermination(0.5).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-topo", "t1", FormationOrigin.TOP_DOWN);
+
+        assertThatThrownBy(() -> service.changeTopology("team-topo", "swarm", null, "t1"))
+                .isInstanceOf(OrgValidationException.class)
+                .hasMessageContaining("selfDetermination");
+    }
+
+    @Test
+    void changeTopologyAllowsHighSelfDetermination() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-topo2").name("Topo Team 2").tenancyId("t1")
+                                     .topology("mesh").selfDetermination(0.8).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-topo2", "t1", FormationOrigin.TOP_DOWN);
+
+        service.changeTopology("team-topo2", "swarm", null, "t1");
+
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-topo2").get();
+        assertThat(unitGoal.unit().topology()).isEqualTo("swarm");
+    }
+
+
     @Test void secondMutationUsesCasSwap() {
         var unit1 = OrganizationalUnit.builder()
             .unitId("team-1").name("T1").tenancyId("t1").build();
@@ -214,7 +368,7 @@ class DesiredStateGroupLifecycleServiceTest {
     @Test void changeTopologyUpdatesUnitInOrgGoal() {
         var unit = OrganizationalUnit.builder()
             .unitId("team-6").name("Team 6").tenancyId("t1")
-            .topology("swarm").build();
+            .topology("swarm").selfDetermination(0.8).build();
         registry.registerUnit(unit);
         service.createGroup("team-6", "t1", FormationOrigin.TOP_DOWN);
 
@@ -519,7 +673,7 @@ class DesiredStateGroupLifecycleServiceTest {
         };
         service = createServiceWithListeners(List.of(listener));
         var unit = OrganizationalUnit.builder()
-            .unitId("team-e5").name("E5").tenancyId("t1").topology("swarm").build();
+            .unitId("team-e5").name("E5").tenancyId("t1").topology("swarm").selfDetermination(0.8).build();
         registry.registerUnit(unit);
         service.createGroup("team-e5", "t1", FormationOrigin.TOP_DOWN);
 
@@ -528,8 +682,130 @@ class DesiredStateGroupLifecycleServiceTest {
         assertThat(captured).containsExactly("topo:swarm->mesh");
     }
 
+
+// --- REORGANISING state (#236) ---
+
+    @Test
+    void changeTopologySetsReorganisingWhenInstanceActive() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-r1").name("R1").tenancyId("t1").topology("swarm").selfDetermination(0.8).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-r1", "t1", FormationOrigin.TOP_DOWN);
+        seedActiveInstance("team-r1", "t1");
+
+        service.changeTopology("team-r1", "mesh", null, "t1");
+
+        var gi = instanceStore.findById("team-r1", "t1").orElseThrow();
+        assertThat(gi.state()).isEqualTo(GroupLifecycleState.REORGANISING);
+    }
+
+    @Test
+    void changeTopologyUpdatesGoalEvenDuringReorganising() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-r2").name("R2").tenancyId("t1").topology("swarm").selfDetermination(0.8).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-r2", "t1", FormationOrigin.TOP_DOWN);
+        seedActiveInstance("team-r2", "t1");
+
+        service.changeTopology("team-r2", "mesh", null, "t1");
+
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-r2").get();
+        assertThat(unitGoal.unit().topology()).isEqualTo("mesh");
+    }
+
+    @Test
+    void concurrentMutationBlockedWhileReorganising() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-r3").name("R3").tenancyId("t1").topology("swarm").selfDetermination(0.8).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-r3", "t1", FormationOrigin.TOP_DOWN);
+        seedActiveInstance("team-r3", "t1");
+
+        service.changeTopology("team-r3", "mesh", null, "t1");
+
+        assertThatThrownBy(() -> service.joinGroup("team-r3", "agent-1", "t1"))
+                .isInstanceOf(OrgValidationException.class)
+                .hasMessageContaining("reorganising");
+    }
+
+    @Test
+    void changeTopologyWorksWhenNoInstanceExists() {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-r4").name("R4").tenancyId("t1").topology("swarm").selfDetermination(0.8).build();
+        registry.registerUnit(unit);
+        service.createGroup("team-r4", "t1", FormationOrigin.TOP_DOWN);
+
+        service.changeTopology("team-r4", "mesh", null, "t1");
+
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-r4").get();
+        assertThat(unitGoal.unit().topology()).isEqualTo("mesh");
+    }
+
+
+// --- Per-society locking (#237) ---
+
+    @Test
+    void concurrentJoinsAreSerialized() throws Exception {
+        var unit = OrganizationalUnit.builder()
+                                     .unitId("team-l1").name("L1").tenancyId("t1").build();
+        registry.registerUnit(unit);
+        service.createGroup("team-l1", "t1", FormationOrigin.TOP_DOWN);
+
+        var threads = new java.util.ArrayList<Thread>();
+        var errors  = new java.util.concurrent.CopyOnWriteArrayList<Throwable>();
+        for (int i = 0; i < 5; i++) {
+            final String agentId = "agent-" + i;
+            var t = new Thread(() -> {
+                try {
+                    service.joinGroup("team-l1", agentId, "t1");
+                } catch (Throwable e) {
+                    errors.add(e);
+                }
+            });
+            threads.add(t);
+        }
+        threads.forEach(Thread::start);
+        for (var t : threads) {
+            t.join(5000);
+        }
+
+        assertThat(errors).isEmpty();
+        var unitGoal = goalStore.load("t1").get().findUnitGoal("team-l1").get();
+        assertThat(unitGoal.desiredMembers()).hasSize(5);
+    }
+
+    @Test
+    void lockIsPerUnit() {
+        var unitA = OrganizationalUnit.builder()
+                                      .unitId("team-la").name("LA").tenancyId("t1").build();
+        var unitB = OrganizationalUnit.builder()
+                                      .unitId("team-lb").name("LB").tenancyId("t1").build();
+        registry.registerUnit(unitA);
+        registry.registerUnit(unitB);
+        service.createGroup("team-la", "t1", FormationOrigin.TOP_DOWN);
+        service.createGroup("team-lb", "t1", FormationOrigin.TOP_DOWN);
+
+        service.joinGroup("team-la", "agent-1", "t1");
+        service.joinGroup("team-lb", "agent-2", "t1");
+
+        var goalA = goalStore.load("t1").get().findUnitGoal("team-la").get();
+        var goalB = goalStore.load("t1").get().findUnitGoal("team-lb").get();
+        assertThat(goalA.desiredMembers()).containsExactly("agent-1");
+        assertThat(goalB.desiredMembers()).containsExactly("agent-2");
+    }
+
+    private void seedActiveInstance(String unitId, String tenancyId) {
+        var now = java.time.Instant.now();
+        instanceStore.save(new GroupInstance(
+                unitId, unitId, tenancyId,
+                GroupLifecycleState.ACTIVE, FormationOrigin.TOP_DOWN,
+                null, null, null, List.of(), List.of(), List.of(),
+                now, now, 0));
+    }
+
     private DesiredStateGroupLifecycleService createServiceWithListeners(List<GroupLifecycleListener> listeners) {
         return new DesiredStateGroupLifecycleService(
-            registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager, listeners);
+                registry, instanceStore, goalStore, compiler, graphFactory, loop, lifecycleManager,
+                new NoOpOrgChannelCreator(), listeners);
     }
 }

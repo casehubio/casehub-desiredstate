@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="'Inter','Segoe UI',system-ui,sans-serif" font-size="13">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#64748b"/>
+    </marker>
+    <marker id="a-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <rect width="720" height="300" fill="#fafaf9" rx="8"/>
+  <text x="360" y="28" text-anchor="middle" font-size="15" font-weight="600" fill="#1e293b">Desired-State-First Boot Path</text>
+
+  <!-- Step 1: OrgRegistrar -->
+  <rect x="30" y="60" width="140" height="60" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="100" y="82" text-anchor="middle" font-weight="500" fill="#1e40af">OrgRegistrar</text>
+  <text x="100" y="98" text-anchor="middle" fill="#475569" font-size="10">units + relationships</text>
+  <text x="100" y="112" text-anchor="middle" fill="#475569" font-size="10">(classpath definitions)</text>
+
+  <!-- Step 2: OrgGoal -->
+  <rect x="210" y="60" width="120" height="60" rx="6" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="270" y="82" text-anchor="middle" font-weight="500" fill="#166534">OrgGoal</text>
+  <text x="270" y="98" text-anchor="middle" fill="#475569" font-size="10">per tenant</text>
+  <text x="270" y="112" text-anchor="middle" fill="#475569" font-size="10">(intent declaration)</text>
+
+  <!-- Step 3: Compiler -->
+  <rect x="370" y="60" width="140" height="60" rx="6" fill="#fefce8" stroke="#eab308" stroke-width="1.5"/>
+  <text x="440" y="82" text-anchor="middle" font-weight="500" fill="#854d0e">OrgGoalCompiler</text>
+  <text x="440" y="98" text-anchor="middle" fill="#475569" font-size="10">compile(goal)</text>
+  <text x="440" y="112" text-anchor="middle" fill="#475569" font-size="10">→ DesiredStateGraph</text>
+
+  <!-- Step 4: LifecycleManager -->
+  <rect x="550" y="60" width="140" height="60" rx="6" fill="#faf5ff" stroke="#a855f7" stroke-width="1.5"/>
+  <text x="620" y="82" text-anchor="middle" font-weight="500" fill="#6b21a8">LifecycleManager</text>
+  <text x="620" y="98" text-anchor="middle" fill="#475569" font-size="10">start(tenancyId,</text>
+  <text x="620" y="112" text-anchor="middle" fill="#475569" font-size="10">compilationResult)</text>
+
+  <!-- Arrows -->
+  <line x1="170" y1="90" x2="206" y2="90" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="330" y1="90" x2="366" y2="90" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="510" y1="90" x2="546" y2="90" stroke="#64748b" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Restart branch -->
+  <rect x="210" y="170" width="120" height="50" rx="6" fill="#fff7ed" stroke="#f97316" stroke-width="1.5"/>
+  <text x="270" y="192" text-anchor="middle" font-weight="500" fill="#c2410c">OrgGoalStore</text>
+  <text x="270" y="207" text-anchor="middle" fill="#475569" font-size="10">(persisted state)</text>
+
+  <!-- Diamond decision -->
+  <polygon points="270,135 295,155 270,175 245,155" fill="#fff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="270" y="159" text-anchor="middle" fill="#475569" font-size="9">exists?</text>
+
+  <!-- Arrow: registrar → decision -->
+  <line x1="270" y1="120" x2="270" y2="135" stroke="#64748b" stroke-width="1" marker-end="url(#a)"/>
+
+  <!-- Arrow: decision → goal store (yes) -->
+  <line x1="270" y1="175" x2="270" y2="166" stroke="#f97316" stroke-width="1.5"/>
+  <text x="295" y="188" fill="#c2410c" font-size="10" font-weight="500">yes → use persisted</text>
+
+  <!-- Arrow: decision → fresh goal (no) -->
+  <line x1="245" y1="155" x2="170" y2="155" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="140" y="148" fill="#1e40af" font-size="10" font-weight="500">no → use registrar defs</text>
+
+  <!-- Catalogue note -->
+  <rect x="30" y="230" width="660" height="40" rx="4" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="360" y="248" text-anchor="middle" fill="#475569" font-size="11">OrgRegistry still populated as spec catalogue (needed for runtime createGroup lookups)</text>
+  <text x="360" y="262" text-anchor="middle" fill="#64748b" font-size="10">Both fresh boot and restart register units — the catalogue is the universe of possible groups</text>
+</svg>

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 240" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Title -->
+  <text x="350" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">The Autonomy Gradient — What selfDetermination Controls</text>
+
+  <!-- Gradient bar -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#fee2e2"/>
+      <stop offset="30%" stop-color="#fef3c7"/>
+      <stop offset="50%" stop-color="#e0f2fe"/>
+      <stop offset="70%" stop-color="#dbeafe"/>
+      <stop offset="100%" stop-color="#d1fae5"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="60" y="50" width="580" height="30" rx="6" fill="url(#grad)" stroke="#94a3b8" stroke-width="1"/>
+
+  <!-- Scale labels -->
+  <text x="60" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#991b1b">0.0</text>
+  <text x="234" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">0.3</text>
+  <text x="350" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#0369a1">0.5</text>
+  <text x="466" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#1e40af">0.7</text>
+  <text x="640" y="100" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">1.0</text>
+
+  <!-- Tick marks -->
+  <line x1="60" y1="80" x2="60" y2="93" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="234" y1="80" x2="234" y2="93" stroke="#f59e0b" stroke-width="2"/>
+  <line x1="350" y1="80" x2="350" y2="93" stroke="#0ea5e9" stroke-width="2"/>
+  <line x1="466" y1="80" x2="466" y2="93" stroke="#3b82f6" stroke-width="2"/>
+  <line x1="640" y1="80" x2="640" y2="93" stroke="#94a3b8" stroke-width="1.5"/>
+
+  <!-- Zone labels -->
+  <text x="147" y="46" text-anchor="middle" font-size="10" font-weight="600" fill="#991b1b">SUPERVISED</text>
+  <text x="350" y="46" text-anchor="middle" font-size="10" font-weight="600" fill="#0369a1">GUIDED</text>
+  <text x="553" y="46" text-anchor="middle" font-size="10" font-weight="600" fill="#065f46">AUTONOMOUS</text>
+
+  <!-- Threshold annotations -->
+  <!-- 0.3 threshold -->
+  <rect x="140" y="110" width="188" height="38" rx="5" fill="#fef3c7" stroke="#f59e0b" stroke-width="1"/>
+  <text x="234" y="127" text-anchor="middle" font-size="10" font-weight="600" fill="#92400e">&lt; 0.3 — HumanGating.ALL</text>
+  <text x="234" y="141" text-anchor="middle" font-size="9" fill="#a16207">All changes require approval</text>
+
+  <!-- 0.5 threshold -->
+  <rect x="262" y="158" width="176" height="38" rx="5" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1"/>
+  <text x="350" y="175" text-anchor="middle" font-size="10" font-weight="600" fill="#0369a1">&lt; 0.5 — No proposals</text>
+  <text x="350" y="189" text-anchor="middle" font-size="9" fill="#0284c7">Bottom-up formation blocked</text>
+
+  <!-- 0.7 threshold -->
+  <rect x="370" y="110" width="192" height="38" rx="5" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/>
+  <text x="466" y="127" text-anchor="middle" font-size="10" font-weight="600" fill="#1e40af">&gt; 0.7 — Autonomous drift</text>
+  <text x="466" y="141" text-anchor="middle" font-size="9" fill="#2563eb">Topology + dissolution exempt</text>
+
+  <!-- Bottom note -->
+  <text x="350" y="222" text-anchor="middle" font-size="10" fill="#64748b">One number. Three thresholds. Each controls a different governance decision.</text>
+</svg>
