@@ -2,7 +2,7 @@
 layout: post
 title: "When the Org Chart Learns to Wait"
 date: 2026-11-06
-entry_type: article
+entry_type: note
 subtype: diary
 projects: [casehubio/casehub-desiredstate]
 tags: [desired-state, eidos, reconciliation, stabilization, drift, lifecycle, cascade-prevention, feedback-loops]

@@ -2,7 +2,7 @@
 layout: post
 title: "Six Bugs at the Seams"
 date: 2026-11-01
-entry_type: article
+entry_type: note
 subtype: diary
 projects: [casehubio/casehub-desiredstate]
 tags: [bridge, terraform, ansible, spring, quarkus, desired-state, integration]

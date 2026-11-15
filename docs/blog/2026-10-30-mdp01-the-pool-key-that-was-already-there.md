@@ -2,7 +2,7 @@
 layout: post
 title: "The Pool Key That Was Already There"
 date: 2026-10-30
-entry_type: article
+entry_type: note
 subtype: diary
 projects: [casehubio/casehub-desiredstate]
 tags: [terraform, bridge, multi-tenant, pooling, process-management]

@@ -2,7 +2,7 @@
 layout: post
 title: "We Accidentally Built a YAML Programming Language"
 date: 2026-09-01
-entry_type: article
+entry_type: note
 subtype: diary
 projects: [casehubio/casehub-desiredstate]
 tags: [yaml-core, graph-core, module-system, architecture, platform]
