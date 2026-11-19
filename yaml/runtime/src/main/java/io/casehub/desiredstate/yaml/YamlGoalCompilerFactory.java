@@ -181,8 +181,7 @@ public final class YamlGoalCompilerFactory {
                         String nodeId = entry.getKey();
                         YamlNode yamlNode = entry.getValue();
                         if (yamlNode.when() != null) {
-                            String resolved = resolver.resolveString(yamlNode.when(), nodeId);
-                            if (!CONDITION.evaluate(resolved)) {
+                            if (!CONDITION.evaluate(yamlNode.when(), resolver, nodeId)) {
                                 excludedNodeIds.add(nodeId);
                                 continue;
                             }
@@ -315,8 +314,7 @@ public final class YamlGoalCompilerFactory {
                 String nodeId = entry.getKey();
                 YamlNode yamlNode = entry.getValue();
                 if (yamlNode.when() != null) {
-                    String resolved = resolver.resolveString(yamlNode.when(), nodeId);
-                    if (!CONDITION.evaluate(resolved)) {
+                    if (!CONDITION.evaluate(yamlNode.when(), resolver, nodeId)) {
                         excludedNodeIds.add(nodeId);
                     }
                 }

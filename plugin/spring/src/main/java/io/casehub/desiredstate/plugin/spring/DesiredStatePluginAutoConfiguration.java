@@ -52,7 +52,7 @@ public class DesiredStatePluginAutoConfiguration implements SmartInitializingSin
             var runner = context.getBean(StepRunner.class);
             var condEval = context.getBeanProvider(ConditionEvaluator.class)
                     .getIfAvailable(() -> new ConditionEvaluator(
-                            expr -> Boolean.parseBoolean(expr.trim())));
+                            (expr, bindings) -> Boolean.parseBoolean(expr.trim())));
             var evaluator = new io.casehub.yaml.step.eval.StructuralStepEvaluator(condEval);
             var credResolver = context.getBeanProvider(
                     io.casehub.platform.api.credentials.CredentialResolver.class)
@@ -72,7 +72,7 @@ public class DesiredStatePluginAutoConfiguration implements SmartInitializingSin
         var mapper = objectMappers.getIfAvailable(ObjectMapper::new);
         new AptPluginSource(mapper).populate(registry);
         var condEval = conditionEvaluators.getIfAvailable(
-                () -> new ConditionEvaluator(expr -> Boolean.parseBoolean(expr.trim())));
+                () -> new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr.trim())));
         new DesiredStatePrimitiveRegistrar(condEval, mapper,
                 DesiredStatePrimitiveRegistrar.logWriter()).registerAll(registry);
         return registry;

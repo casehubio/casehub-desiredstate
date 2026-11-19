@@ -28,7 +28,7 @@ class YamlPluginActualStateAdapterTest {
     private static final NodeType TEST_TYPE = NodeType.of("test-resource");
 
 
-    private static boolean evaluateExpression(String expr) {
+    private static boolean evaluateExpression(String expr, Map<String, Object> bindings) {
         String trimmed = expr.trim();
         if (trimmed.contains("==")) {
             String[] parts = trimmed.split("==", 2);

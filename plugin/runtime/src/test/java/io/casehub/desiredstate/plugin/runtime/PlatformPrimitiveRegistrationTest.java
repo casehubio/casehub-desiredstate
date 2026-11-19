@@ -28,7 +28,7 @@ class PlatformPrimitiveRegistrationTest {
         var registry = new CompositePluginRegistry();
         new AptPluginSource(new ObjectMapper()).populate(registry);
         new DesiredStatePrimitiveRegistrar(
-                new ConditionEvaluator(Boolean::parseBoolean),
+                new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr)),
                 new ObjectMapper(), new StringWriter())
                 .registerAll(registry);
 
@@ -41,7 +41,7 @@ class PlatformPrimitiveRegistrationTest {
         var registry = new CompositePluginRegistry();
         new AptPluginSource(new ObjectMapper()).populate(registry);
         new DesiredStatePrimitiveRegistrar(
-                new ConditionEvaluator(Boolean::parseBoolean),
+                new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr)),
                 new ObjectMapper(), new StringWriter())
                 .registerAll(registry);
 

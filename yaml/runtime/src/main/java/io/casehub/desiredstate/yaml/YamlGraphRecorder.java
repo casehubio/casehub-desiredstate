@@ -154,8 +154,7 @@ public class YamlGraphRecorder {
                         String                                      nodeId   = entry.getKey();
                         io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
                         if (yamlNode.when() != null) {
-                            String resolved = resolver.resolveString(yamlNode.when(), nodeId);
-                            if (!CONDITION.evaluate(resolved)) {
+                            if (!CONDITION.evaluate(yamlNode.when(), resolver, nodeId)) {
                                 excludedNodeIds.add(nodeId);
                             }
                         }
@@ -344,8 +343,7 @@ public class YamlGraphRecorder {
                         io.casehub.desiredstate.yaml.model.YamlNode yamlNode = entry.getValue();
 
                         if (yamlNode.when() != null) {
-                            String resolved = resolver.resolveString(yamlNode.when(), nodeId);
-                            if (!CONDITION.evaluate(resolved)) {
+                            if (!CONDITION.evaluate(yamlNode.when(), resolver, nodeId)) {
                                 excludedNodeIds.add(nodeId);
                                 continue;
                             }

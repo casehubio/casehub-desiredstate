@@ -41,7 +41,7 @@ class PluginDiscoveryTest {
 
     @Test
     void discoverAll_returnsEmptyForEmptyPluginList() {
-        var condEval = new ConditionEvaluator(Boolean::parseBoolean);
+        var condEval = new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr));
         var evaluator = new StructuralStepEvaluator(condEval);
         var registry = new CompositePluginRegistry();
         new DesiredStatePrimitiveRegistrar(condEval,
@@ -56,7 +56,7 @@ class PluginDiscoveryTest {
 
     @Test
     void discoverAll_producesProvisionerAndAdapterBeans() {
-        var condEval = new ConditionEvaluator(expr -> {
+        var condEval = new ConditionEvaluator((expr, bindings) -> {
             if (expr.contains("==")) {
                 String[] parts = expr.split("==", 2);
                 return parts[0].trim().equals(parts[1].trim());

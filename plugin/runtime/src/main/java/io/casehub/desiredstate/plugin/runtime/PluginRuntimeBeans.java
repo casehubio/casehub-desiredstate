@@ -50,7 +50,7 @@ public class PluginRuntimeBeans {
         new AptPluginSource(mapper).populate(registry);
         var condEval = conditionEvaluators.isResolvable()
                 ? conditionEvaluators.get()
-                : new ConditionEvaluator(expr -> Boolean.parseBoolean(expr.trim()));
+                : new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr.trim()));
         new DesiredStatePrimitiveRegistrar(condEval, mapper,
                 DesiredStatePrimitiveRegistrar.logWriter()).registerAll(registry);
         return registry;
@@ -75,7 +75,7 @@ public class PluginRuntimeBeans {
         Map<NodeType, PluginDescriptor> descriptors = discoverDescriptorMap();
         var condEval = conditionEvaluators.isResolvable()
                 ? conditionEvaluators.get()
-                : new ConditionEvaluator(expr -> Boolean.parseBoolean(expr.trim()));
+                : new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr.trim()));
         var evaluator = new StructuralStepEvaluator(condEval);
         var credResolver = credentialResolvers.isResolvable()
                 ? credentialResolvers.get()
@@ -93,7 +93,7 @@ public class PluginRuntimeBeans {
         Map<NodeType, PluginDescriptor> descriptors = discoverDescriptorMap();
         var condEval = conditionEvaluators.isResolvable()
                 ? conditionEvaluators.get()
-                : new ConditionEvaluator(expr -> Boolean.parseBoolean(expr.trim()));
+                : new ConditionEvaluator((expr, bindings) -> Boolean.parseBoolean(expr.trim()));
         var evaluator = new StructuralStepEvaluator(condEval);
         var credResolver = credentialResolvers.isResolvable()
                 ? credentialResolvers.get()
