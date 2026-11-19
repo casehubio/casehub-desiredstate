@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 280" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <text x="350" y="24" text-anchor="middle" font-size="15" font-weight="600" fill="#0f172a">The Always-Compile Pattern</text>
+
+  <!-- Step 1 -->
+  <rect x="20" y="50" width="140" height="50" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="90" y="72" text-anchor="middle" font-weight="500" fill="#1e40af">Mutation</text>
+  <text x="90" y="88" text-anchor="middle" font-size="11" fill="#1e40af">joinGroup(id, agent)</text>
+
+  <line x1="160" y1="75" x2="190" y2="75" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Step 2 -->
+  <rect x="195" y="50" width="140" height="50" rx="6" fill="#dbeafe" stroke="#93c5fd"/>
+  <text x="265" y="72" text-anchor="middle" font-weight="500" fill="#1e40af">OrgGoal</text>
+  <text x="265" y="88" text-anchor="middle" font-size="11" fill="#1e40af">withMember("agent")</text>
+
+  <line x1="335" y1="75" x2="365" y2="75" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Step 3 -->
+  <rect x="370" y="50" width="140" height="50" rx="6" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <text x="440" y="72" text-anchor="middle" font-weight="500" fill="#3730a3">OrgGoalCompiler</text>
+  <text x="440" y="88" text-anchor="middle" font-size="11" fill="#3730a3">compile(goal, factory)</text>
+
+  <line x1="510" y1="75" x2="540" y2="75" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Step 4 -->
+  <rect x="545" y="50" width="140" height="50" rx="6" fill="#fef3c7" stroke="#fcd34d"/>
+  <text x="615" y="72" text-anchor="middle" font-weight="500" fill="#92400e">CAS Swap</text>
+  <text x="615" y="88" text-anchor="middle" font-size="11" fill="#92400e">compareAndSet</text>
+
+  <!-- Annotation box -->
+  <rect x="60" y="140" width="580" height="120" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-dasharray="6,3"/>
+
+  <text x="90" y="168" font-weight="600" fill="#334155">Why always compile?</text>
+
+  <text x="90" y="192" fill="#475569">Every mutation → full recompile. No direct graph manipulation.</text>
+  <text x="90" y="212" fill="#475569">Compiler invariants always apply: dependency edges, human gating,</text>
+  <text x="90" y="232" fill="#475569">node spec defaults. One code path. Zero divergence possible.</text>
+  <text x="90" y="250" fill="#475569">Cost: O(n) at 10–200 nodes ≈ microseconds. No performance argument for dual paths.</text>
+</svg>
