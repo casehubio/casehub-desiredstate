@@ -94,8 +94,8 @@ So the mapping is a convention, not a mapping layer. Users store credentials und
 `credentialRef` name with provider-native keys:
 
 ```properties
-my-aws-creds.access_key=AKIA...
-my-aws-creds.secret_key=wJalrXUtnFEMI...
+my-aws-creds.access_key=<REDACTED>
+my-aws-creds.secret_key=<REDACTED>
 my-aws-creds.region=us-east-1
 ```
 
